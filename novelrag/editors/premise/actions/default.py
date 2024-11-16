@@ -1,8 +1,7 @@
-from openai import AsyncAzureOpenAI
-
-from novelrag.action import Action, ActionResult
+from novelrag.core.action import Action, ActionResult
 from novelrag.editors.premise.definitions import PremiseDefinition, PremiseActionConfig
 from novelrag.editors.premise.registry import premise_registry
+from novelrag.llm import AzureAIClient
 
 SYSTEM_PROMPT = """
 {language_instruction}
@@ -35,7 +34,7 @@ class DefaultAction(Action):
         self.premises = premises
         self.oai_config = oai_config
         self.chat_params = chat_params
-        self.oai_client = AsyncAzureOpenAI(**oai_config)
+        self.oai_client = AzureAIClient(**oai_config)
         self.history = []
         self.definition = PremiseDefinition()
         self.system_prompt = SYSTEM_PROMPT.format(
@@ -53,11 +52,11 @@ class DefaultAction(Action):
         return cls(**config), msg
 
     async def handle(self, message: str | None) -> ActionResult:
-        if not message:
+        if not message or len(message.strip()) == 0:
             return ActionResult.message("How can I help you with the premises? Feel free to discuss or ask questions about any aspect of the story.")
             
         self.history.append({'role': 'user', 'content': message})
-        resp = await self.oai_client.chat.completions.create(
+        resp = await self.oai_client.chat(
             messages=[
                 {'role': 'system', 'content': self.system_prompt},
                 *self.history

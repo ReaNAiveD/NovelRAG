@@ -1,5 +1,5 @@
-from novelrag.action import Action
-from novelrag.aspect import AspectContext, AspectRegistry
+from novelrag.core.action import Action
+from novelrag.core.aspect import AspectContext
 from novelrag.editors.premise.actions import UpdateAction, ListAction, DeleteAction
 from novelrag.editors.premise.actions.create import CreateAction
 from novelrag.editors.premise.actions.default import DefaultAction

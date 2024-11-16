@@ -1,6 +1,6 @@
 import abc
 
-from novelrag.operation import OperationType, Operation
+from novelrag.core.operation import OperationType, Operation
 
 
 class ActionResult:

@@ -1,7 +1,8 @@
 import logging
-from novelrag.action import Action, ActionResult
+from novelrag.core.action import Action, ActionResult
 from novelrag.editors.premise.definitions import PremiseDefinition, PremiseActionConfig
 from novelrag.editors.premise.registry import premise_registry
+from novelrag.core.exceptions import InvalidMessageFormatError, ActionNotSupportedError
 
 logger = logging.getLogger(__name__)
 
@@ -20,9 +21,11 @@ class ListAction(Action):
     @classmethod
     async def create(cls, input_msg: str, **config: PremiseActionConfig):
         if input_msg:
-            logger.warning('Action "list" doesn\'t accept a message as input.')
+            raise InvalidMessageFormatError('list', 'premise', input_msg, "list")
         return cls(premises=config['premises']), None
 
     async def handle(self, message: str | None) -> ActionResult:
+        if message:
+            raise ActionNotSupportedError('list', 'premise', 'message handling')
         formatted_list = self.definition.format_premises_list(self.premises)
         return ActionResult.quit(formatted_list)

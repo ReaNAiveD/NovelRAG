@@ -1,9 +1,9 @@
-from openai import AsyncAzureOpenAI
-
-from novelrag.action import Action, ActionResult
-from novelrag.operation import OperationType
+from novelrag.core.action import Action, ActionResult
+from novelrag.core.exceptions import InvalidIndexError, InvalidMessageFormatError
+from novelrag.core.operation import OperationType
 from novelrag.editors.premise.definitions import PremiseDefinition, PremiseActionConfig
 from novelrag.editors.premise.registry import premise_registry
+from novelrag.llm import AzureAIClient
 
 SYSTEM_PROMPT = """
 {language_instruction}
@@ -97,7 +97,7 @@ class UpdateAction(Action):
         self.idx = idx
         self.oai_config = oai_config
         self.chat_params = chat_params
-        self.oai_client = AsyncAzureOpenAI(**oai_config)
+        self.oai_client = AzureAIClient(**oai_config)
         self.history = []
         self.definition = PremiseDefinition()
         self.system_prompt = SYSTEM_PROMPT.format(
@@ -109,19 +109,29 @@ class UpdateAction(Action):
 
     @property
     def name(self):
-        return self._action_name
+        return 'update'
 
     @classmethod
     async def create(cls, input_msg: str, **config: PremiseActionConfig):
-        split_msg = input_msg.split(maxsplit=1)
-        idx = int(split_msg[0])
-        message = split_msg[1] if len(split_msg) > 1 else None
-        return cls(idx, **config), message
+        try:
+            split_msg = input_msg.split(maxsplit=1)
+            idx = int(split_msg[0])
+            if idx < 0 or idx >= len(config['premises']):
+                raise InvalidIndexError(idx, len(config['premises']) - 1, "premise")
+            message = split_msg[1] if len(split_msg) > 1 else None
+            return cls(idx, **config), message
+        except ValueError:
+            raise InvalidMessageFormatError(
+                'update', 
+                'premise', 
+                input_msg, 
+                "update INDEX [message]"
+            )
 
     async def handle(self, message: str | None) -> ActionResult:
         if message:
             self.history.append({'role': 'user', 'content': message})
-        resp = await self.oai_client.chat.completions.create(
+        resp = await self.oai_client.chat(
             messages=[
                 {'role': 'system', 'content': self.system_prompt},
                 *self.history
@@ -149,7 +159,7 @@ class UpdateAction(Action):
             requirements=self.definition.PREMISE_REQUIREMENTS
         )
         message = message or self.definition.get_default_submit_message()
-        resp = await self.oai_client.chat.completions.create(
+        resp = await self.oai_client.chat(
             messages=[
                 {'role': 'system', 'content': system_message},
                 {'role': 'user', 'content': message}

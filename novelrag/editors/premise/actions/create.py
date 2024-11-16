@@ -1,9 +1,9 @@
-from openai import AsyncAzureOpenAI
-
-from novelrag.action import Action, ActionResult
-from novelrag.operation import OperationType
+from novelrag.core.action import Action, ActionResult
+from novelrag.core.operation import OperationType
 from novelrag.editors.premise.definitions import PremiseDefinition, PremiseActionConfig
 from novelrag.editors.premise.registry import premise_registry
+from novelrag.core.exceptions import DataValidationError
+from novelrag.llm import AzureAIClient
 
 SYSTEM_PROMPT = """
 {language_instruction}
@@ -87,7 +87,7 @@ class CreateAction(Action):
         self.premises = premises
         self.oai_config = oai_config
         self.chat_params = chat_params
-        self.oai_client = AsyncAzureOpenAI(**oai_config)
+        self.oai_client = AzureAIClient(**oai_config)
         self.history = []
         self.definition = PremiseDefinition()
         self.system_prompt = SYSTEM_PROMPT.format(
@@ -107,7 +107,7 @@ class CreateAction(Action):
 
     async def handle(self, message: str | None) -> ActionResult:
         self.history.append({'role': 'user', 'content': message or 'Please give some suggestions.'})
-        resp = await self.oai_client.chat.completions.create(
+        resp = await self.oai_client.chat(
             messages=[
                 {'role': 'system', 'content': self.system_prompt},
                 *self.history
@@ -134,7 +134,7 @@ class CreateAction(Action):
             requirements=self.definition.PREMISE_REQUIREMENTS
         )
         message = message or self.definition.get_default_submit_message()
-        resp = await self.oai_client.chat.completions.create(
+        resp = await self.oai_client.chat(
             messages=[
                 {'role': 'system', 'content': system_message},
                 {'role': 'user', 'content': message}
@@ -145,4 +145,6 @@ class CreateAction(Action):
 
     async def submit(self, message: str | None):
         new_premise = message or await self._summary_create(None)
+        if len(new_premise.strip()) == 0:
+            raise DataValidationError('premise', 'Premise cannot be empty')
         return ActionResult.operation(OperationType.NEW, f'premises.{len(self.premises)}', new_premise)

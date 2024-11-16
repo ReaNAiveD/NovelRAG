@@ -1,6 +1,6 @@
 from unittest import TestCase
 
-from novelrag.operation import Operation, OperationType, apply_operation
+from novelrag.core.operation import Operation, OperationType, apply_operation
 
 
 class TestOperation(TestCase):

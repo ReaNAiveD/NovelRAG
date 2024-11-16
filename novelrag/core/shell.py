@@ -1,9 +1,10 @@
-from novelrag.action import Action, ActionResult, QuitResult, MessageResult, OperationResult
-from novelrag.aspect import AspectContext
-from novelrag.exceptions import (
+from novelrag.core.action import Action, ActionResult, QuitResult, MessageResult, OperationResult
+from novelrag.core.aspect import AspectContext
+from novelrag.core.exceptions import (
     AspectNotFoundError,
-    ActionNotFoundError,
-    NoAspectSelectedError
+    NoAspectSelectedError,
+    UnrecognizedResultError,
+    NovelRagError,
 )
 
 
@@ -47,11 +48,8 @@ class NovelShell:
         action_name = input_parts[0][1:]  # Remove / prefix
         message = input_parts[1] if len(input_parts) > 1 else None
 
-        try:
-            self.action, message = await self.aspect.act(action_name, message)
-            await self.process_action(message)
-        except Exception as e:
-            raise ActionNotFoundError(action_name, self.aspect.name) from e
+        self.action, message = await self.aspect.act(action_name, message)
+        await self.process_action(message)
 
     async def switch_to_default(self, message: str) -> None:
         """Switch to default action with message"""
@@ -61,7 +59,7 @@ class NovelShell:
         self.action, message = await self.aspect.act(None, message)
         await self.process_action(message)
 
-    async def handle_action_result(self, result: ActionResult, command: str | None = None) -> None:
+    async def handle_action_result(self, result: ActionResult) -> None:
         """Handle different types of action results"""
         if isinstance(result, QuitResult):
             self.action = None
@@ -71,7 +69,11 @@ class NovelShell:
         elif isinstance(result, OperationResult):
             print(result.message)
         else:
-            raise Exception(f"Unrecognized Action Result: {result}")
+            raise UnrecognizedResultError(
+                self.action.name if self.action else None,
+                self.aspect.name if self.aspect else None,
+                type(result).__name__
+            )
 
     async def handle_command(self, input_text: str) -> None:
         """Handle /command inputs"""
@@ -85,23 +87,16 @@ class NovelShell:
         if not self.action or self.action.name == 'default':
             await self.switch_action(input_text)
         else:
-            try:
-                result = await self.aspect.handle_action(self.action, command, message)
-                await self.handle_action_result(result, command)
-            except Exception as e:
-                print(f"Error handling command '{command}': {str(e)}")
+            result = await self.aspect.handle_action(self.action, command, message)
+            await self.handle_action_result(result)
 
     async def process_action(self, message: str | None) -> None:
         """Process action with message and handle result"""
         if not self.action or not self.aspect:
             return
 
-        try:
-            result = await self.aspect.handle_action(self.action, None, message)
-            await self.handle_action_result(result)
-        except Exception as e:
-            print(f"Error processing action: {str(e)}")
-            self.action = None
+        result = await self.aspect.handle_action(self.action, None, message)
+        await self.handle_action_result(result)
 
     async def get_input(self) -> str | None:
         """Get user input, handling interrupts gracefully"""
@@ -132,7 +127,7 @@ class NovelShell:
                     else:
                         await self.process_action(user_input)
                 
-            except (AspectNotFoundError, ActionNotFoundError, NoAspectSelectedError) as e:
+            except NovelRagError as e:
                 print(str(e))
             except Exception as e:
                 print(f"Unexpected error: {str(e)}")

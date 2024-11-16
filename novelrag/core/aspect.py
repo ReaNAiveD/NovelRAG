@@ -1,7 +1,7 @@
 import yaml
 
-from novelrag.action import Action, QuitResult, MessageResult, OperationResult
-from novelrag.operation import apply_operation
+from novelrag.core.action import Action, QuitResult, MessageResult, OperationResult
+from novelrag.core.operation import apply_operation
 
 
 class AspectRegistry:
