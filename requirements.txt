@@ -1,0 +1,6 @@
+lancedb
+openai
+pyarrow
+pydantic
+pyyaml
+pyaml-env
