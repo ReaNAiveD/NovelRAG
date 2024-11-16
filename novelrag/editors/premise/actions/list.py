@@ -1,10 +1,12 @@
 import logging
 from novelrag.action import Action, ActionResult
-from novelrag.aspect_editors.premise.definitions import PremiseDefinition, PremiseActionConfig
+from novelrag.editors.premise.definitions import PremiseDefinition, PremiseActionConfig
+from novelrag.editors.premise.registry import premise_registry
 
 logger = logging.getLogger(__name__)
 
 
+@premise_registry.register('list')
 class ListAction(Action):
     def __init__(self, premises: list[str]):
         super().__init__()

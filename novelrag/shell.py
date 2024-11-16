@@ -61,6 +61,18 @@ class NovelShell:
         self.action, message = await self.aspect.act(None, message)
         await self.process_action(message)
 
+    async def handle_action_result(self, result: ActionResult, command: str | None = None) -> None:
+        """Handle different types of action results"""
+        if isinstance(result, QuitResult):
+            self.action = None
+            print(result.message or "Quited.")
+        elif isinstance(result, MessageResult):
+            print(result.message)
+        elif isinstance(result, OperationResult):
+            print(result.message)
+        else:
+            raise Exception(f"Unrecognized Action Result: {result}")
+
     async def handle_command(self, input_text: str) -> None:
         """Handle /command inputs"""
         if not self.aspect:
@@ -74,10 +86,8 @@ class NovelShell:
             await self.switch_action(input_text)
         else:
             try:
-                result = await self.action.handle_command(command, message)
-                if isinstance(result, QuitResult):
-                    self.action = None
-                    print(result.message or "Quited.")
+                result = await self.aspect.handle_action(self.action, command, message)
+                await self.handle_action_result(result, command)
             except Exception as e:
                 print(f"Error handling command '{command}': {str(e)}")
 
@@ -87,14 +97,8 @@ class NovelShell:
             return
 
         try:
-            result = await self.aspect.handle_action(self.action, message)
-            if isinstance(result, QuitResult):
-                self.action = None
-                print(result.message or "Quited.")
-            elif isinstance(result, MessageResult):
-                print(result.message)
-            else:
-                raise Exception(f"Unrecognized Action Result: {result}")
+            result = await self.aspect.handle_action(self.action, None, message)
+            await self.handle_action_result(result)
         except Exception as e:
             print(f"Error processing action: {str(e)}")
             self.action = None

@@ -1,6 +1,6 @@
 from pyaml_env import parse_config as parse_config_with_env
 
-from novelrag.aspect_editors import default_aspects
+from novelrag.editors import default_aspects
 from novelrag.config import AspectsConfig
 from novelrag.shell import NovelShell
 

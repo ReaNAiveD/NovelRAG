@@ -2,7 +2,8 @@ from openai import AsyncAzureOpenAI
 
 from novelrag.action import Action, ActionResult
 from novelrag.operation import OperationType
-from novelrag.aspect_editors.premise.definitions import PremiseDefinition, PremiseActionConfig
+from novelrag.editors.premise.definitions import PremiseDefinition, PremiseActionConfig
+from novelrag.editors.premise.registry import premise_registry
 
 SYSTEM_PROMPT = """
 {language_instruction}
@@ -88,6 +89,7 @@ Provide your response in two parts:
 2. End with "**Updated Premise:** {{PREMISE}}"
 """
 
+@premise_registry.register('update')
 class UpdateAction(Action):
     def __init__(self, idx: int, premises: list[str], oai_config: dict, chat_params: dict):
         super().__init__()
@@ -107,7 +109,7 @@ class UpdateAction(Action):
 
     @property
     def name(self):
-        return 'update'
+        return self._action_name
 
     @classmethod
     async def create(cls, input_msg: str, **config: PremiseActionConfig):

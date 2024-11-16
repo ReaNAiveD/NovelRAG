@@ -1,7 +1,8 @@
 from openai import AsyncAzureOpenAI
 
 from novelrag.action import Action, ActionResult
-from novelrag.aspect_editors.premise.definitions import PremiseDefinition, PremiseActionConfig
+from novelrag.editors.premise.definitions import PremiseDefinition, PremiseActionConfig
+from novelrag.editors.premise.registry import premise_registry
 
 SYSTEM_PROMPT = """
 {language_instruction}
@@ -27,6 +28,7 @@ Current premises in the story:
 Feel free to discuss, analyze, or provide suggestions about these premises.
 """
 
+@premise_registry.register('default')
 class DefaultAction(Action):
     def __init__(self, premises: list[str], oai_config: dict, chat_params: dict):
         super().__init__()

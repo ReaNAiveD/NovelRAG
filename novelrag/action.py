@@ -50,7 +50,7 @@ class Action(abc.ABC):
     async def handle(self, message: str | None) -> ActionResult:
         pass
 
-    async def handle_command(self, command: str, message: str | None):
+    async def handle_command(self, command: str, message: str | None) -> ActionResult:
         match command:
             case 'quit' | 'q':
                 return await self.quit(message)

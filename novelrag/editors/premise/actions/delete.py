@@ -1,11 +1,13 @@
 import logging
 from novelrag.action import Action, ActionResult
 from novelrag.operation import OperationType
-from novelrag.aspect_editors.premise.definitions import PremiseDefinition, PremiseActionConfig
+from novelrag.editors.premise.definitions import PremiseDefinition, PremiseActionConfig
+from novelrag.editors.premise.registry import premise_registry
 
 logger = logging.getLogger(__name__)
 
 
+@premise_registry.register('delete')
 class DeleteAction(Action):
     def __init__(self, idx: int, premises: list[str]):
         super().__init__()
