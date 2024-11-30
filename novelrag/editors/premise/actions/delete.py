@@ -16,10 +16,6 @@ class DeleteAction(Action):
         self.premises = premises
         self.definition = PremiseDefinition()
 
-    @property
-    def name(self):
-        return 'delete'
-
     @classmethod
     async def create(cls, input_msg: str, **config: PremiseActionConfig):
         try:

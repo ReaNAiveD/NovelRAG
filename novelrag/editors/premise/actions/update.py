@@ -25,6 +25,12 @@ Help refine the existing premise while maintaining its unique aspect and role in
         - Creates opportunities for interaction
     4. If no specific direction is given, analyze the premise's current focus and suggest improvements
 
+When suggesting improvements, identify specific parts that need refinement:
+- Point out which parts are too strong/weak/unclear/redundant
+- Explain why these parts need adjustment
+- Provide specific suggestions for modifications
+- Consider how changes affect the premise's role in the larger narrative
+
 ---Limitation---
 
 Your refined premise should be limited to one paragraph and no more than 200 words.
@@ -106,10 +112,6 @@ class UpdateAction(Action):
             target_premise=self.premises[idx],
             aspect_types=self.definition.ASPECT_TYPES
         )
-
-    @property
-    def name(self):
-        return 'update'
 
     @classmethod
     async def create(cls, input_msg: str, **config: PremiseActionConfig):

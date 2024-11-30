@@ -44,14 +44,14 @@ class InvalidIndexError(ActionError):
 
 class InvalidMessageFormatError(ActionError):
     """Raised when action message format is invalid"""
-    def __init__(self, action: str, aspect: str, message: str, expected_format: str):
+    def __init__(self, action: str, aspect: str, message: str, expected_format: str | None):
         self.action = action
         self.aspect = aspect
         self.message = message
         self.expected_format = expected_format
         super().__init__(
             f"Invalid message format for {aspect}.{action}: {message}\n"
-            f"Expected format: {expected_format}"
+            + f"Expected format: {expected_format}" if expected_format else ""
         )
 
 class ActionNotSupportedError(ActionError):
@@ -83,4 +83,38 @@ class UnrecognizedResultError(ActionError):
         super().__init__(
             f"Unrecognized action result type{context}: {result_type}"
         )
-  
+
+class UnrecognizedCommandError(ActionError):
+    """Raised when a command is not recognized by an action"""
+    def __init__(self, command: str, action: str | None = None, aspect: str | None = None):
+        self.command = command
+        self.action = action
+        self.aspect = aspect
+        context = f" in {aspect}.{action}" if aspect and action else ""
+        super().__init__(
+            f"Unrecognized command{context}: {command}"
+        )
+
+class InvalidLLMResponseFormatError(ActionError):
+    """Raised when LLM response format is invalid"""
+    def __init__(self, action: str, aspect: str, response: str, expected_format: str):
+        self.action = action
+        self.aspect = aspect
+        self.response = response
+        self.expected_format = expected_format
+        super().__init__(
+            f"Invalid LLM response format for {aspect}.{action}: {response}\n"
+            f"Expected format: {expected_format}"
+        )
+
+class UnregiesteredActionError(NovelRagError):
+    """Raised when an action is not registered"""
+    def __init__(self, action: str):
+        self.action = action
+        super().__init__(f"Action '{action}' not registered")
+
+class UnregiesteredModelError(NovelRagError):
+    """Raised when a model is not registered"""
+    def __init__(self, model: str):
+        self.model = model
+        super().__init__(f"Model '{model}' not registered")

@@ -39,7 +39,7 @@ class PremiseDefinition:
 
     @staticmethod
     def format_premises_list(premises: list[str]) -> str:
-        return '\n'.join([f'    - {p}' for p in premises])
+        return '\n'.join([f'  {idx}. {p}' for idx, p in enumerate(premises)])
 
     @staticmethod
     def format_conversation(history: list[dict]) -> str:

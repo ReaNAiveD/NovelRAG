@@ -27,7 +27,7 @@ Current premises in the story:
 Feel free to discuss, analyze, or provide suggestions about these premises.
 """
 
-@premise_registry.register('default')
+@premise_registry.register('_default')
 class DefaultAction(Action):
     def __init__(self, premises: list[str], oai_config: dict, chat_params: dict):
         super().__init__()
@@ -42,10 +42,6 @@ class DefaultAction(Action):
             premises=self.definition.format_premises_list(self.premises),
             aspect_types=self.definition.ASPECT_TYPES
         )
-
-    @property
-    def name(self):
-        return 'default'
 
     @classmethod
     async def create(cls, msg: str | None, **config: PremiseActionConfig):

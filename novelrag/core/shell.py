@@ -1,3 +1,5 @@
+import logging
+
 from novelrag.core.action import Action, ActionResult, QuitResult, MessageResult, OperationResult
 from novelrag.core.aspect import AspectContext
 from novelrag.core.exceptions import (
@@ -6,6 +8,9 @@ from novelrag.core.exceptions import (
     UnrecognizedResultError,
     NovelRagError,
 )
+from novelrag.core.storage import NovelStorage
+
+logger = logging.getLogger(__name__)
 
 
 class NovelShell:
@@ -16,10 +21,10 @@ class NovelShell:
 
     def get_prompt(self) -> str:
         prompt = '>> '
-        if self.action and self.action.name != 'default':
+        if self.action and self.action.name != '_default':
             prompt = f'/{self.action.name} {prompt}'
         if self.aspect:
-            prompt = f'@{self.aspect.name} {prompt}'
+            prompt = f'@{self.aspect.prompt_section} {prompt}'
         return prompt
 
     async def handle_aspect_switch(self, input_text: str) -> None:
@@ -84,7 +89,7 @@ class NovelShell:
         command = input_parts[0][1:]  # Remove / prefix
         message = input_parts[1] if len(input_parts) > 1 else None
 
-        if not self.action or self.action.name == 'default':
+        if not self.action or self.action.name == '_default':
             await self.switch_action(input_text)
         else:
             result = await self.aspect.handle_action(self.action, command, message)
@@ -129,6 +134,7 @@ class NovelShell:
                 
             except NovelRagError as e:
                 print(str(e))
+                logger.debug(str(e), exc_info=True)
             except Exception as e:
-                print(f"Unexpected error: {str(e)}")
+                logger.error(f"Unexpected error: {str(e)}", exc_info=True)
                 print("Continuing...")

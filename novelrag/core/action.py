@@ -1,6 +1,7 @@
 import abc
 
 from novelrag.core.operation import OperationType, Operation
+from novelrag.core.exceptions import UnrecognizedCommandError, UnregiesteredActionError
 
 
 class ActionResult:
@@ -42,9 +43,10 @@ class QuitResult(ActionResult):
 
 class Action(abc.ABC):
     @property
-    @abc.abstractmethod
     def name(self):
-        pass
+        if not hasattr(self, '_action_name'):
+            raise UnregiesteredActionError(self.__class__.__name__)
+        return self._action_name
 
     @abc.abstractmethod
     async def handle(self, message: str | None) -> ActionResult:
@@ -55,7 +57,7 @@ class Action(abc.ABC):
             case 'quit' | 'q':
                 return await self.quit(message)
             case _:
-                raise Exception("Unrecognized Command")
+                raise UnrecognizedCommandError(command)
 
     async def quit(self, message: str | None) -> ActionResult:
         return ActionResult.quit()

@@ -14,10 +14,6 @@ class ListAction(Action):
         self.premises = premises
         self.definition = PremiseDefinition()
 
-    @property
-    def name(self):
-        return 'list'
-
     @classmethod
     async def create(cls, input_msg: str, **config: PremiseActionConfig):
         if input_msg:

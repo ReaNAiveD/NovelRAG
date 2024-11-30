@@ -97,10 +97,6 @@ class CreateAction(Action):
             integration_guidelines=self.definition.INTEGRATION_GUIDELINES
         )
 
-    @property
-    def name(self):
-        return 'create'
-
     @classmethod
     async def create(cls, input_msg: str, **config: PremiseActionConfig):
         return cls(**config), input_msg
