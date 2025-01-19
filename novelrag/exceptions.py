@@ -6,6 +6,12 @@ class ShellError(NovelRagError):
     """Base exception for shell errors"""
     pass
 
+class AspectError(NovelRagError):
+    pass
+
+class OperationError(NovelRagError):
+    pass
+
 class AspectNotFoundError(ShellError):
     """Raised when aspect is not found"""
     def __init__(self, aspect_name: str, available_aspects: list[str]):
@@ -107,14 +113,36 @@ class InvalidLLMResponseFormatError(ActionError):
             f"Expected format: {expected_format}"
         )
 
-class UnregiesteredActionError(NovelRagError):
+class UnregisteredIntentError(NovelRagError):
     """Raised when an action is not registered"""
     def __init__(self, action: str):
         self.action = action
-        super().__init__(f"Action '{action}' not registered")
+        super().__init__(f"Intent '{action}' not registered")
 
-class UnregiesteredModelError(NovelRagError):
+
+class InvalidIntentRegisterError(NovelRagError):
+    def __init__(self, intent_cls: type):
+        self.intent_cls = intent_cls
+        super().__init__(f"Class '{intent_cls}' is not a valid UserIntent.")
+
+class UnregisteredModelError(AspectError):
     """Raised when a model is not registered"""
     def __init__(self, model: str):
         self.model = model
         super().__init__(f"Model '{model}' not registered")
+
+class ElementNotFoundError(OperationError):
+    def __init__(self, element_id: str):
+        super().__init__(f'Element "{element_id}" not found')
+
+class ChildrenKeyNotFoundError(OperationError):
+    def __init__(self, key: str, aspect: str):
+        super().__init__(f"Children Key '{key}' not found in Aspect '{aspect}'")
+
+class PropertyNotFoundError(OperationError):
+    def __init__(self, element_id: str, path: str):
+        super().__init__(f"Path {path} on Element '{element_id}' not found")
+
+class InvalidOperationError(OperationError):
+    def __init__(self, operation: str, obj):
+        super().__init__(f"Operation {operation} is invalid on Type {type(obj)}.")
