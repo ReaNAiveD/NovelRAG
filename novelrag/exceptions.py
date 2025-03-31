@@ -1,8 +1,26 @@
 class NovelRagError(Exception):
     """Base exception for NovelRag errors"""
+    def __init__(self, msg: str):
+        self.msg = msg
+
+    def __str__(self):
+        return self.msg
+
+class LLMError(NovelRagError):
     pass
 
-class ShellError(NovelRagError):
+class NoChatLLMConfigError(LLMError):
+    def __init__(self, msg: str | None = None):
+        super().__init__(msg or "Can not find available Chat LLM Config")
+
+class NoEmbeddingConfigError(LLMError):
+    def __init__(self, msg: str | None = None):
+        super().__init__(msg or "Can not find available Embedding LLM Config")
+
+class IntentError(NovelRagError):
+    pass
+
+class SessionError(NovelRagError):
     """Base exception for shell errors"""
     pass
 
@@ -12,7 +30,12 @@ class AspectError(NovelRagError):
 class OperationError(NovelRagError):
     pass
 
-class AspectNotFoundError(ShellError):
+
+class SessionQuitError(SessionError):
+    def __init__(self):
+        super().__init__("Quit Current Session.")
+
+class AspectNotFoundError(SessionError):
     """Raised when aspect is not found"""
     def __init__(self, aspect_name: str, available_aspects: list[str]):
         self.aspect_name = aspect_name
@@ -22,14 +45,14 @@ class AspectNotFoundError(ShellError):
             f"Available aspects: {', '.join(f'@{name}' for name in available_aspects)}"
         )
 
-class ActionNotFoundError(ShellError):
+class ActionNotFoundError(SessionError):
     """Raised when action is not found"""
     def __init__(self, action_name: str, aspect_name: str):
         self.action_name = action_name
         self.aspect_name = aspect_name
         super().__init__(f"Action '{action_name}' not found in aspect '{aspect_name}'")
 
-class NoAspectSelectedError(ShellError):
+class NoAspectSelectedError(SessionError):
     """Raised when trying to perform action without selecting an aspect"""
     def __init__(self):
         super().__init__("No aspect selected. Please select an aspect first using @aspect")
@@ -37,6 +60,17 @@ class NoAspectSelectedError(ShellError):
 class ActionError(NovelRagError):
     """Base exception for action-related errors"""
     pass
+
+
+class NoItemToSubmitError(ActionError):
+    def __init__(self):
+        super().__init__("There is no Pending Update Item Available")
+
+
+class NoItemToUndoError(ActionError):
+    def __init__(self):
+        super().__init__("There is no Undo Action Available")
+
 
 class InvalidIndexError(ActionError):
     """Raised when an index is invalid for any indexed aspect data"""
@@ -113,11 +147,16 @@ class InvalidLLMResponseFormatError(ActionError):
             f"Expected format: {expected_format}"
         )
 
-class UnregisteredIntentError(NovelRagError):
-    """Raised when an action is not registered"""
-    def __init__(self, action: str):
-        self.action = action
-        super().__init__(f"Intent '{action}' not registered")
+class IntentNotFoundError(IntentError):
+    """Raised when an intent is not found"""
+    def __init__(self, intent: str):
+        self.intent = intent
+        super().__init__(f"Intent '{intent}' not found")
+
+
+class IntentMissingNameError(IntentError):
+    def __init__(self, msg: str | None = None):
+        super().__init__(msg or "Intent missing name")
 
 
 class InvalidIntentRegisterError(NovelRagError):

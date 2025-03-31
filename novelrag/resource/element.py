@@ -1,4 +1,3 @@
-import asyncio
 import json
 import logging
 import uuid
@@ -6,21 +5,19 @@ import uuid
 from dataclasses import dataclass
 from typing import Optional, Any
 
-from pydantic import BaseModel, ConfigDict, Field, UUID4
+from pydantic import BaseModel, ConfigDict, Field
 from typing_extensions import Annotated
 
 from novelrag.exceptions import ChildrenKeyNotFoundError
-from novelrag.llm.oai.embedding import OpenAIEmbeddingLLM
 
 logger = logging.getLogger(__name__)
 
 
 class Element(BaseModel):
-    id: Annotated[UUID4, Field(description='Id of the element')]
+    id: Annotated[str, Field(description='Id of the element')]
     relations: Annotated[dict[str, str], Field(description='Related Elements. <Id>: <Description>', default_factory=lambda: {})]
     aspect: Annotated[str, Field(description='Aspect of the element')]
     children_keys: Annotated[list[str], Field(default_factory=lambda: [])]
-    embedding: Annotated[list[float] | None, Field(default=None)]
 
     model_config = ConfigDict(extra='allow')
 
@@ -36,7 +33,7 @@ class Element(BaseModel):
             context: Any | None = None
     ):
         if not 'id' in value:
-            value['id'] = uuid.uuid4()
+            value['id'] = str(uuid.uuid4())
         value['aspect'] = aspect
         value['children_keys'] = children_keys
         ele = cls.model_validate(value, strict=strict, from_attributes=from_attributes, context=context)
@@ -48,15 +45,49 @@ class Element(BaseModel):
     def props(self):
         return dict((k, v) for k, v in self.model_extra.items() if k not in self.children_keys)
 
+    def __getitem__(self, key: str):
+        return self.model_extra[key]
+
     def children_of(self, key: str):
         if key not in self.children_keys:
             raise ChildrenKeyNotFoundError(key, self.aspect)
         return self.model_extra.get(key, [])
 
+    def element_dict(self):
+        """返回 id 和 props 组成的字典"""
+        return {"id": self.id, **self.props()}
+
+    def element_str(self):
+        return json.dumps(self.element_dict(), ensure_ascii=False, sort_keys=True)
+
+    def children_dict(self):
+        """返回 id + props + children（children 元素为子级的 element_dict 结果）"""
+        data = self.element_dict()
+        for key in self.children_keys:
+            children = self.model_extra.get(key, [])
+            data[key] = [child.element_dict() for child in children]
+        return data
+
+    def nested_dict(self):
+        """返回 id + props + children（children 元素递归调用 nested_dict）"""
+        data = self.element_dict()
+        for key in self.children_keys:
+            children = self.model_extra.get(key, [])
+            data[key] = [child.nested_dict() for child in children]
+        return data
+
+    def dumped_dict(self):
+        """返回 id + relations + props + children（children 元素递归调用 dumped_dict）"""
+        data = {"id": self.id, "relations": self.relations, **self.props()}
+        for key in self.children_keys:
+            children = self.model_extra.get(key, [])
+            data[key] = [child.dumped_dict() for child in children]
+        return data
+
     def update(self, props: dict[str, Any]):
         undo = {}
         for k, v in props.items():
-            if k in ['id', 'relations', 'aspect', 'children_keys', 'embedding']:
+            if k in ['id', 'relations', 'aspect', 'children_keys', 'embedding', 'hash']:
                 logger.warning(f'Ignore Private Property "{k}" Update.')
             elif k in self.children_keys:
                 logger.warning(f'Ignore Children Key "{k}" Update.')
@@ -68,21 +99,12 @@ class Element(BaseModel):
                 undo[k] = None
         return undo
 
+    def update_children(self, key: str, children: list['Element']):
+        self.model_extra[key] = children
+
     def update_relations(self, rel: dict[str, str]):
         old = self.relations
         self.relations = rel
-        return old
-
-    async def ensure_embedding(self, embedder: OpenAIEmbeddingLLM):
-        if self.embedding:
-            return
-        await self.update_embedding(embedder)
-
-    async def update_embedding(self, embedder: OpenAIEmbeddingLLM):
-        old = self.embedding
-        data = json.dumps(self.props(), sort_keys=True)
-        embeddings = await embedder.embedding(data)
-        self.embedding = embeddings[0]
         return old
 
 
@@ -99,7 +121,7 @@ class DirectiveElement:
         wrapped = cls(inner=ele, parent=parent, prev=None, next=None, children={})
         for key in children_keys:
             if ele.model_extra and key in ele.model_extra and isinstance(ele.model_extra[key], list):
-                wrapped.children[key] = DirectiveElementList.wrap(ele.model_extra[key], children_keys, parent=parent)
+                wrapped.children[key] = DirectiveElementList.wrap(ele.model_extra[key], children_keys, parent=wrapped)
         return wrapped
 
     @staticmethod
@@ -120,18 +142,26 @@ class DirectiveElement:
     def id(self):
         return str(self.inner.id)
 
+    def element_dict(self):
+        return self.inner.element_dict()
+
+    def children_dict(self):
+        return self.inner.children_dict()
+
+    def nested_dict(self):
+        return self.inner.nested_dict()
+
     @property
     def relations(self):
         return self.inner.relations
 
-    @property
-    def embedding(self):
-        return self.inner.embedding
+    def __getitem__(self, key: str):
+        return self.inner[key]
 
     def children_of(self, key: str):
         if key not in self.inner.children_keys:
             raise ChildrenKeyNotFoundError(key, self.inner.aspect)
-        return self.children.get(key, [])
+        return self.children.get(key, DirectiveElementList())
 
     def update(self, props: dict[str, Any]):
         return self.inner.update(props)
@@ -142,18 +172,10 @@ class DirectiveElement:
     def splice_at(self, children_key: str, start: int, end: int, *items: 'Element') -> tuple[list['DirectiveElement'], list['DirectiveElement']]:
         old = self.children_of(children_key)[start: end]
         new = DirectiveElementList.wrap(list(items), self.inner.children_keys, parent=self)
-        self.children_of(children_key).splice(start, end, *new)
+        new_list = self.children_of(children_key).splice(start, end, *new)
+        self.children[children_key] = new_list
+        self.inner.update_children(children_key, [ele.inner for ele in new_list])
         return new, old
-
-    async def ensure_embedding(self, embedder: OpenAIEmbeddingLLM, *, ensure_children=True):
-        await self.inner.ensure_embedding(embedder)
-        if ensure_children:
-            tasks = [asyncio.create_task(elements.ensure_embeddings(embedder)) for elements in self.children.values()]
-            for task in asyncio.as_completed(tasks):
-                await task
-
-    async def update_embedding(self, embedder: OpenAIEmbeddingLLM):
-        return await self.inner.update_embedding(embedder)
 
 
 class DirectiveElementList(list[DirectiveElement]):
@@ -177,8 +199,3 @@ class DirectiveElementList(list[DirectiveElement]):
     def splice(self, start: int, end: int, *items: DirectiveElement):
         result = self[:start] + list(items) + self[end:]
         return DirectiveElementList(result)
-
-    async def ensure_embeddings(self, embedder: OpenAIEmbeddingLLM):
-        tasks = [asyncio.create_task(element.ensure_embedding(embedder)) for element in self]
-        for task in asyncio.as_completed(tasks):
-            await task

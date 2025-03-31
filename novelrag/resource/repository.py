@@ -1,14 +1,15 @@
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 from novelrag.config.resource import ResourceConfig, VectorStoreConfig
 from novelrag.exceptions import ElementNotFoundError, OperationError
-from novelrag.llm.oai.embedding import OpenAIEmbeddingLLM
-from novelrag.resource import DirectiveElement, Element
-from novelrag.resource.aspect import ResourceAspect
-from novelrag.resource.lut import ElementLookUpTable
-from novelrag.resource.operation import Operation, ElementOperation, \
+from novelrag.llm import EmbeddingLLM
+from .aspect import ResourceAspect
+from .element import DirectiveElement, Element
+from .lut import ElementLookUpTable
+from .operation import Operation, ElementOperation, \
     PropertyOperation, ElementLocation, AspectLocation
-from novelrag.resource.vector import LanceDBStore, EmbeddingSearch
+from .vector import LanceDBStore
 
 
 @dataclass
@@ -17,12 +18,38 @@ class SearchResult:
     element: DirectiveElement
 
 
-class ResourceRepository:
+class ResourceRepository(ABC):
+    @abstractmethod
+    async def get_aspect(self, name: str) -> ResourceAspect | None:
+        pass
+
+    @abstractmethod
+    async def vector_search(self, query: str, *, aspect: str | None = None, limit: int | None = None):
+        """Search for resources using vector similarity.
+        
+        Args:
+            query: The search query string
+            aspect: Optional aspect to filter results
+            limit: Maximum number of results to return
+        """
+        pass
+
+    @abstractmethod
+    async def apply(self, op: Operation):
+        """Apply an operation to modify the repository.
+        
+        Args:
+            op: The operation to apply
+        """
+        pass
+
+
+class LanceDBResourceRepository(ResourceRepository):
     def __init__(
             self,
             resource_aspects: dict[str, ResourceAspect],
             vector_store: LanceDBStore,
-            embedder: OpenAIEmbeddingLLM,
+            embedder: EmbeddingLLM,
     ):
         self.resource_aspects: dict[str, ResourceAspect] = resource_aspects
         elements = [
@@ -39,23 +66,20 @@ class ResourceRepository:
             cls,
             resource_config: dict[str, ResourceConfig],
             vector_store_config: VectorStoreConfig,
-            embedding_config: dict,
-    ) -> 'ResourceRepository':
+            embedder: EmbeddingLLM,
+    ) -> 'LanceDBResourceRepository':
         """Build a ResourceRepository from a dictionary of aspect configurations.
         
         Args:
             resource_config: Dictionary mapping aspect names to their ResourceConfig objects
             vector_store_config: configuration of vector store
-            embedding_config: configuration of embedding llm
+            embedder: embedding llm
             
         Returns:
             A new ResourceRepository instance initialized with the configured aspects
         """
-        embedder = OpenAIEmbeddingLLM.from_config(
-            config=embedding_config,
-        )
         aspects = {}
-        vector_items = []
+        elements = []
         for aspect_name, aspect_config in resource_config.items():
             aspect = ResourceAspect(
                 name=aspect_name,
@@ -64,19 +88,14 @@ class ResourceRepository:
             )
             aspect.load_from_file()
             aspects[aspect_name] = aspect
-            await aspect.ensure_embeddings(embedder)
             for element in aspect.iter_elements():
-                vector_items.append(EmbeddingSearch(
-                    vector=element.embedding,
-                    element_id=element.id,
-                    aspect=element.inner.aspect,
-                ))
+                elements.append(element.inner)
         vector_store = await LanceDBStore.create(
-            vector_store_config.lancedb_uri,
-            vector_store_config.table_name,
-            init_data=vector_items,
-            overwrite=vector_store_config.overwrite,
+            uri=vector_store_config.lancedb_uri,
+            table_name=vector_store_config.table_name,
+            embedder=embedder,
         )
+        await vector_store.batch_add(elements)
 
         return cls(aspects, vector_store, embedder)
 
@@ -88,11 +107,14 @@ class ResourceRepository:
         ]
         self.lut = ElementLookUpTable(elements)
 
+    async def get_aspect(self, name: str) -> ResourceAspect | None:
+        return self.resource_aspects.get(name)
+
     async def vector_search(self, query: str, *, aspect: str | None = None, limit: int | None = 20):
         embeddings = await self.embedding_llm.embedding(query)
         vector = embeddings[0]
         result = await self.vector_store.vector_search(vector, aspect=aspect, limit=limit)
-        return [SearchResult(distance=item['_distance'], element=self.lut[item['element_id']]) for item in result]
+        return [SearchResult(distance=item.distance, element=self.lut[item.element_id]) for item in result]
 
     async def apply(self, op: Operation):
         if isinstance(op, ElementOperation):
@@ -112,6 +134,7 @@ class ResourceRepository:
                 await self._handle_deleted(ele)
             for ele in new:
                 await self._handle_added(ele)
+            return op.create_undo([item.inner.dumped_dict() for item in old])
         elif isinstance(op, PropertyOperation):
             ele = self.lut.find_by_id(op.element_id)
             if not ele:
@@ -122,16 +145,17 @@ class ResourceRepository:
 
     async def _handle_added(self, ele: DirectiveElement):
         self.lut[ele.id] = ele
-        await ele.ensure_embedding(self.embedding_llm)
-        await self.vector_store.add(ele.id, ele.embedding, ele.inner.aspect)
+        await self.vector_store.add(ele.inner)
+        self.resource_aspects[ele.inner.aspect].save_to_file()
 
     async def _handle_deleted(self, ele: DirectiveElement):
         self.lut.pop(ele.id)
-        await self.vector_store.delete(ele_id=ele.id)
+        await self.vector_store.delete(element_id=ele.id)
         for children in ele.children.values():
             for child in children:
                 await self._handle_deleted(child)
+        self.resource_aspects[ele.inner.aspect].save_to_file()
 
     async def _handle_updated(self, ele: DirectiveElement):
-        await ele.update_embedding(self.embedding_llm)
-        await self.vector_store.update_vector(ele.id, ele.embedding)
+        await self.vector_store.update(ele.inner)
+        self.resource_aspects[ele.inner.aspect].save_to_file()

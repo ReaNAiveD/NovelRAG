@@ -1,4 +1,4 @@
-from novelrag.resource.element import DirectiveElement
+from .element import DirectiveElement
 
 
 class ElementLookUpTable:

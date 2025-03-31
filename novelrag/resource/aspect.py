@@ -3,13 +3,12 @@ from typing import Generator, Any
 
 import yaml
 
-from novelrag.llm.oai.embedding import OpenAIEmbeddingLLM
-from novelrag.resource.element import DirectiveElement, Element, DirectiveElementList
+from .element import DirectiveElement, Element, DirectiveElementList
 
 
 class ResourceAspect:
     def  __init__(self, name: str, path: str, children_keys: list[str]):
-        self.aspect_name = name
+        self.name = name
         self.path = path
         self.children_keys = children_keys
         self.root_elements: DirectiveElementList = DirectiveElementList()
@@ -20,18 +19,21 @@ class ResourceAspect:
         with open(self.path, 'r', encoding='utf-8') as f:
             return yaml.safe_load(f)
 
+    def _dump_content(self):
+        if not os.path.exists(self.path):
+            os.makedirs(self.path, exist_ok=True)
+        with open(self.path, 'w', encoding='utf-8') as f:
+            yaml.safe_dump([ele.inner.dumped_dict() for ele in self.root_elements], f, allow_unicode=True)
+
     def load_from_file(self):
         raw_content = self._load_raw_content() or []
         assert isinstance(raw_content, list)
-        elements = [Element.build(ele, self.aspect_name, self.children_keys) for ele in raw_content]
+        elements = [Element.build(ele, self.name, self.children_keys) for ele in raw_content]
         self.root_elements = DirectiveElementList.wrap(elements, self.children_keys)
 
-    async def ensure_embeddings(self, embedder: OpenAIEmbeddingLLM):
-        return await self.root_elements.ensure_embeddings(embedder)
-
     def save_to_file(self):
-        with open(self.path, 'w', encoding='utf-8') as f:
-            yaml.safe_dump([ele.inner.model_dump() for ele in self.root_elements], f, allow_unicode=True)
+        if len(self.root_elements) > 0 or os.path.exists(self.path):
+            self._dump_content()
 
     def iter_elements(self) -> Generator[DirectiveElement, Any, None]:
         """Iterate through all elements in the aspect tree in depth-first order.

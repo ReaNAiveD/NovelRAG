@@ -1,45 +1,7 @@
-import re
 from enum import Enum
 from typing_extensions import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field
-
-from novelrag.resource import Element
-
-# Regular expression to find parts of the path
-PATH_REGEX = re.compile(r'\w+|\[\d+]|\["[^"]+"]|\[\w+]')
-
-
-def split_path(path: str) -> list[str]:
-    substitutions = [
-        (r'\\', r'\0', '\\'), # Escaped backslash
-        (r'\"', r'\1', '\"'), # Escaped double quote
-        (r'\'', r'\2', "\'"), # Escaped single quote
-        (r'\n', r'\3', '\n'), # New line
-        (r'\t', r'\4', '\t'), # Tab
-        (r'\r', r'\5', '\r'), # Carriage return
-        (r'\b', r'\6', '\b'), # Backspace
-        (r'\f', r'\7', '\f'), # Formfeed
-        (r'\v', r'\8', '\v'), # Vertical tab
-    ]
-    for escape_seq, placeholder, _ in substitutions:
-        path = path.replace(escape_seq, placeholder)
-    # Find all matches
-    matches = PATH_REGEX.findall(path)
-    # Process matches to remove brackets and quotes
-    result = []
-    for match in matches:
-        if match.startswith('[') and match.endswith(']'):
-            # Remove brackets and quotes
-            match = match.strip('[]').strip('"').strip("'")
-        result.append(match)
-
-    # Restore escaped sequences
-    for i, part in enumerate(result):
-        for _, escape_seq, actual in substitutions:
-            result[i] = result[i].replace(escape_seq, actual)
-
-    return result
 
 
 class OperationTarget(str, Enum):
@@ -51,6 +13,10 @@ class PropertyOperation(BaseModel):
     target: Literal[OperationTarget.PROPERTY]
     element_id: Annotated[str, Field(description='Id of the element the operation happens on')]
     data: Annotated[dict[str, Any], Field(description='The data that updates on the element')]
+
+    @classmethod
+    def new(cls, element_id: str, data: dict[str, Any]):
+        return cls(target=OperationTarget.PROPERTY, element_id=element_id, data=data)
 
     def create_undo(self, previous: dict[str, Any]):
         return self.model_copy(update={'data': previous})
@@ -96,6 +62,15 @@ class ElementOperation(BaseModel):
             data=data,
         )
 
+    def create_undo(self, previous: list[dict[str, Any]]):
+        assert len(previous) == self.end - self.start
+        return self.new(
+            self.location.model_copy(),
+            start=self.start,
+            end=self.start + len(self.data),
+            data=previous,
+        )
+
 
 Operation = Annotated[PropertyOperation | ElementOperation, Field(discriminator='target')]
 
@@ -128,28 +103,3 @@ class ObjectLocation:
 
 def _format_path(path: list[str]):
     return ''.join([f'[{key}]' if key.isnumeric() else f'["{key}"]' for key in path])
-
-
-def extract_location(obj: dict | list | str | int | float | bool | None, path: str):
-    op_path = split_path(path)
-    if not op_path:
-        return ObjectLocation(None, None, [])
-    parent_obj = obj
-    handled_path = []
-    for idx, key in enumerate(op_path[:-1]):
-        handled_path.append(key)
-        if isinstance(parent_obj, dict):
-            try:
-                parent_obj = parent_obj[key]
-            except KeyError as e:
-                raise KeyError(f"Key '{key}' of Path {_format_path(handled_path)} not Exists.") from e
-        elif isinstance(parent_obj, list):
-            try:
-                parent_obj = parent_obj[int(key)]
-            except IndexError as e:
-                raise KeyError(f"Index '{key}' of Path {_format_path(handled_path)} not Exists.") from e
-            except ValueError as e:
-                raise KeyError(f"Key '{key}' of Path {_format_path(handled_path)} is not Allowed for a list.") from e
-        else:
-            raise KeyError(f"Path {_format_path(handled_path)} is not a dict or list.")
-    return ObjectLocation(parent_obj, op_path[-1] if op_path else None, handled_path)
