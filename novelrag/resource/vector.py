@@ -138,8 +138,8 @@ class LanceDBStore:
             elements: List of Element objects to add
         """
         if await self._is_table_empty():
-            embeddings = [await self._create_embedding(ele) for ele in elements]
-            return await self.table.add(embeddings)
+            lines = [await self._create_line(ele) for ele in elements]
+            return await self.table.add(lines)
 
         for element in elements:
             await self.add(element)
@@ -183,7 +183,7 @@ class LanceDBStore:
         """Check if the table contains any records."""
         return await self.table.count_rows() == 0
 
-    async def _create_embedding(self, element: Element) -> EmbeddingSearch:
+    async def _create_line(self, element: Element) -> EmbeddingSearch:
         """Create EmbeddingSearch instance from an Element."""
         serialized_data = json.dumps(
             element.element_dict(),
