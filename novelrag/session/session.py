@@ -10,7 +10,7 @@ from novelrag.resource import ResourceRepository
 from .command import Command
 from .context import Context, AspectFactory
 from .undo import UndoQueue
-
+from ..intent.loader import TemplateEnvironment
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +26,7 @@ class Session:
             self,
             *,
             aspect_factory: AspectFactory,
+            default_lang: str | None = None,
             conversation: ConversationHistory | None = None,
             update_queue: PendingUpdateQueue | None = None,
             resource_repository: ResourceRepository | None = None,
@@ -33,6 +34,8 @@ class Session:
             chat_llm_factory: ChatLLMFactory | None = None,
             embedding_factory: EmbeddingLLMFactory | None = None,
     ):
+        self.template_env = TemplateEnvironment(default_lang)
+
         self.chat_llm_factory: ChatLLMFactory = chat_llm_factory or ChatLLMFactory()
         self.embedding_factory: EmbeddingLLMFactory = embedding_factory or EmbeddingLLMFactory()
 
@@ -48,9 +51,6 @@ class Session:
         if command.aspect:
             await self.context.switch(aspect=command.aspect)
             logger.info(f'Switched to new Aspect: {command.aspect}')
-
-        if not command.intent:
-            return Response(messages=messages)
 
         intent = None
         if self.context.cur_aspect:
@@ -71,6 +71,7 @@ class Session:
                 chat_llm_factory=self.chat_llm_factory,
                 embedding_factory=self.embedding_factory,
                 conversation_history=self.conversation,
+                template_env=self.template_env,
             )
         )
 

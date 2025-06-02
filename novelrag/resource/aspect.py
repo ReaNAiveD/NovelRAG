@@ -20,8 +20,9 @@ class ResourceAspect:
             return yaml.safe_load(f)
 
     def _dump_content(self):
-        if not os.path.exists(self.path):
-            os.makedirs(self.path, exist_ok=True)
+        dir_path = os.path.dirname(self.path)
+        if dir_path:
+            os.makedirs(dir_path, exist_ok=True)
         with open(self.path, 'w', encoding='utf-8') as f:
             yaml.safe_dump([ele.inner.dumped_dict() for ele in self.root_elements], f, allow_unicode=True)
 

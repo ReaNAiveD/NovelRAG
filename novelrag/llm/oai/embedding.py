@@ -1,7 +1,9 @@
-from openai import AsyncAzureOpenAI
+from azure.identity import get_bearer_token_provider
+from openai import AsyncAzureOpenAI, AsyncOpenAI
 
-from novelrag.config.llm import AzureOpenAIEmbeddingConfig
-from novelrag.llm.types import AsyncOpenAIClient, EmbeddingLLM
+from novelrag.config.llm import AzureOpenAIEmbeddingConfig, OpenAIEmbeddingConfig
+from novelrag.llm.oai.types import AsyncOpenAIClient
+from novelrag.llm.types import EmbeddingLLM
 
 
 class OpenAIEmbeddingLLM(EmbeddingLLM):
@@ -10,14 +12,31 @@ class OpenAIEmbeddingLLM(EmbeddingLLM):
         self.model = model
 
     @classmethod
-    def from_config(cls, config: AzureOpenAIEmbeddingConfig):
-        client = AsyncAzureOpenAI(
-            azure_endpoint=config.endpoint,
-            azure_deployment=config.deployment,
-            api_version=config.api_version,
-            api_key=config.api_key,
-            timeout=config.timeout,
-        )
+    def from_config(cls, config: AzureOpenAIEmbeddingConfig | OpenAIEmbeddingConfig):
+        if isinstance(config, AzureOpenAIEmbeddingConfig):
+            if config.api_key:
+                credential = {"api_key": config.api_key}
+            else:
+                from azure.identity import DefaultAzureCredential
+                credential = {
+                    "azure_ad_token_provider": get_bearer_token_provider(
+                        DefaultAzureCredential(),
+                        "https://cognitiveservices.azure.com/.default"
+                    )
+                }
+            client = AsyncAzureOpenAI(
+                azure_endpoint=config.endpoint,
+                azure_deployment=config.deployment,
+                api_version=config.api_version,
+                timeout=config.timeout,
+                **credential,
+            )
+        else:
+            client = AsyncOpenAI(
+                base_url=config.endpoint,
+                api_key=config.api_key,
+                timeout=config.timeout,
+            )
         model = config.model
         return cls(client, model)
 

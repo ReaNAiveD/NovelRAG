@@ -139,7 +139,8 @@ class LanceDBStore:
         """
         if await self._is_table_empty():
             lines = [await self._create_line(ele) for ele in elements]
-            return await self.table.add(lines)
+            if lines:
+                await self.table.add(lines)
 
         for element in elements:
             await self.add(element)

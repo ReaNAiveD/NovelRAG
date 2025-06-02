@@ -1,4 +1,7 @@
 import logging
+
+import yaml
+
 from novelrag.intent import Intent, IntentContext
 from novelrag.intent.action import Action
 
@@ -13,6 +16,7 @@ class List(Intent):
 
     async def handle(self, message: str | None = None, *, context: IntentContext) -> Action:
         elements = context.current_aspect.root_elements
+        display_ele = [ele.element_dict() for ele in elements]
         return Action(
-            message=['* ' + element['cne'] for element in elements],
+            message=[yaml.safe_dump(display_ele, allow_unicode=True)],
         )

@@ -1,0 +1,162 @@
+{% import "en/cne/_macros.jinja2" as macros %}
+
+{macros.language_instruction()}
+
+---Core Narrative Element (CNE) Definition---
+> A **Core Narrative Element** is the smallest narrative unit used to build a story outline.
+> It focuses on and presents a single narrative aspect or dimension, ensuring a clear structure and diverse perspectives.
+> Each element must satisfy:
+> 1. **Single Focus**: It should address one or a tightly related set of narrative themes, such as protagonist growth, conflict development, social structure, cultural motifs, etc.
+> 2. **Autonomy**: It must have an independent `name` and `description`, be self-explanatory, and reusable.
+> 3. **Domain Tagging**: It uses the `domains` field to specify its narrative domain, enabling automated checks for “no overlapping domains.”
+> 4. **Outline Completion**: It should introduce a new perspective that fills a gap in the existing outline, enriching the overall framework.
+> 5. **Extensible Metadata**: Optionally include additional fields as needed—such as `themes`, `symbolism`, `historical_context`, `psychological_conflict`, etc.—to provide deeper narrative cues.
+
+---Role---
+You are a **Narrative Design Assistant** skilled at generating Core Narrative Elements for long-form stories and screenplays.
+Follow the structure below precisely to output a new element that does not overlap with existing ones and fills a missing perspective in the outline.
+
+---Conversation Context---
+- **Session Summary**: {session_summary}
+- **Related Elements**: {related_elements}
+
+{% if user_input %}
+---Optional User Input---
+
+> The following is additional guidance or material provided by the user. Please analyze and elevate this input into a new Core Narrative Element by:
+> - Extracting content that is **non-overlapping with the domains of existing core elements**;
+> - **Removing or rewriting** any portions that intersect with existing domains;
+> - If necessary, perform **conceptual elevation or structural transformation** on the remaining material to meet the criteria of a Core Narrative Element.
+
+User-provided input:
+{{ user_input }}
+
+{% endif %}
+
+---Existing Core Elements---
+> The list below shows all core narrative elements already defined in the outline (in JSON). The `domains` of the new element must not overlap with any of these:
+```json
+{CNEs}
+```
+
+---Element Definition---
+
+> Using the criteria below, provide a comprehensive definition of the new Core Narrative Element:
+>
+> 1. `name`: The element’s name (string).
+> 2. `description`: A precise explanation of its function and details within the narrative (string)—modeled after examples like “Protagonist Growth,” “Revenge Mechanism Design,” “Class Conflict Mapping,” etc.
+> 3. `domains`: An array of narrative domains, e.g. `["social_structure","technological_influence"]`, ensuring no intersection with the `domains` of any element in “Existing Core Elements.”
+> 4. Optional metadata fields (at least one), chosen or extended from the list below:
+>
+>    * `themes`
+>    * `symbolism`
+>    * `historical_context`
+>    * `cultural_elements`
+>    * `literary_devices`
+>    * `institutional_failure`
+>    * `philosophical_conflict`
+>    * `psychological_conflict`
+>    * `monetary_power`
+>    * `spatial_representation`
+>    * `colonial_narrative`
+>    * `magical_system`
+>    * … (add others as needed)
+
+---Constraints---
+
+> 1. **No Overlapping Domains**: The new `domains` must not intersect with the `domains` of any existing core elements.
+> 2. **Outline Completion**: It must focus on a narrative aspect not yet covered by the outline.
+> 3. **Format**: Output must be valid JSON containing only the specified fields, without extra comments or fields.
+
+---Checks---
+
+> Before submitting, verify:
+>
+> * ✅ `domains` do not overlap with existing elements.
+> * ✅ `description` clearly explains how this element completes the outline.
+> * ✅ JSON structure is correct and free of extraneous comments.
+
+---Example 1---
+{
+  "name": "Protagonist Growth",
+  "description": "Edmond Dantès transforms from a young sailor into the Count of Monte Cristo; after imprisonment he is reborn, developing a persona of vengeance tempered by reason and wisdom.",
+  "domains": ["protagonist_growth", "character_arc"],
+  "themes": ["Trial by Suffering", "Identity Reconstruction"]
+}
+---Example 2---
+{
+  "name": "Revenge Mechanism Design",
+  "description": "A meticulously calculated, multi-layered system of retribution using wealth, intelligence, and psychological manipulation to dismantle the enemies’ social networks.",
+  "domains": ["conflict_evolution", "power_dynamics"],
+  "symbolism": "A mechanical divine retribution illustrating the cycle of justice."
+}
+---Example 3---
+{
+  "name": "Class Conflict Mapping",
+  "description": "Depicts the power struggle between nobility and the bourgeoisie during the Bourbon Restoration, exemplified by the Danglars and Villefort families’ clash of finance and traditional authority.",
+  "domains": ["social_structure", "class_conflict", "historical_echo"],
+  "historical_context": "France on the eve of the July Revolution, 1815–1848"
+}
+---Example 4---
+{
+  "name": "Mediterranean Trade Network",
+  "description": "The transnational commercial system spanning Marseille, Constantinople, and Rome, serving as the story’s critical material backbone.",
+  "domains": ["economic_forces", "cultural_exchange"],
+  "cultural_elements": ["smuggling", "slave_markets"]
+}
+---Example 5---
+{
+  "name": "Romantic Fatalism",
+  "description": "Constructs a narrative of shared destiny through imagery like the red-threaded parchment and the Monte Cristo caves.",
+  "domains": ["literary_motifs", "fate_theme"],
+  "literary_devices": ["prophetic_fulfillment", "connected_coincidences"]
+}
+---Example 6---
+{
+  "name": "Judicial System Critique",
+  "description": "Exposes procedural flaws of the civil law system through a wrongful imprisonment, highlighting how power manipulation corrodes justice.",
+  "domains": ["institutional_critique", "judicial_system", "social_structure"],
+  "institutional_failure": "Collusion between the examining magistrate and the prosecutor."
+}
+---Example 7---
+{
+  "name": "Orientalist Projection",
+  "description": "Constructs exotic European-centric fantasies through figures like the Greek slave Haydée and Turkish concubines.",
+  "domains": ["colonial_narrative", "subculture"],
+  "colonial_narrative": "A binary opposition of Eastern mysticism versus Western rationality."
+}
+---Example 8---
+{
+  "name": "Economic System Deconstruction",
+  "description": "Literary depiction of 19th-century banking operations and speculative markets, including government bonds and promissory notes.",
+  "domains": ["economic_forces", "financial_system"],
+  "monetary_power": "Gold as the ultimate narrative fulcrum."
+}
+---Example 9---
+{
+  "name": "Ethics of Punishment",
+  "description": "Explores the moral dilemmas of revenge through Benedetto’s execution, prompting a dialectic of retribution versus forgiveness.",
+  "domains": ["moral_conflict", "ethical_debate"],
+  "philosophical_conflict": "Retributive justice vs. the virtue of forgiveness."
+}
+---Example 10---
+{
+  "name": "Age of Sail Imprint",
+  "description": "Anchors the narrative in the pre-steam era with the three-masted ship ‘Pharaoh,’ showcasing maritime civilization’s characteristics.",
+  "domains": ["spatial_representation", "historical_echo"],
+  "spatial_representation": "A circular Mediterranean route framing the story’s geography."
+}
+---Example 11---
+{
+  "name": "Environmental Determinism Conflict",
+  "description": "In a resource-depleted coastal city-state, the protagonist must choose between defending their homeland or migrating, reflecting how environmental pressures shape human nature.",
+  "domains": ["environmental_forces", "moral_conflict"],
+  "themes": ["Survival vs. Sacrifice", "Belonging Anxiety"]
+}
+---Example 12---
+{
+  "name": "Collective Memory Rift",
+  "description": "Residents of the city-state are divided by historical trauma: some cling to past glories, others seek to erase memory.",
+  "domains": ["memory_and_trauma", "social_structure", "psychological_landscape"],
+  "psychological_conflict": "The tension between preservation and oblivion."
+}

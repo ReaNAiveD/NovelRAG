@@ -1,0 +1,88 @@
+{% import "en/cne/_macros.jinja2" as macros %}
+
+{macros.language_instruction()}
+
+---Core Narrative Element (CNE) Definition---
+> A **Core Narrative Element** is the smallest narrative unit used to build a story outline.
+> It focuses on and presents a single narrative aspect or dimension, ensuring a clear structure and diverse perspectives.
+> Each element must satisfy:
+> 1. **Single Focus**: It should address one or a tightly related set of narrative themes, such as protagonist growth, conflict development, social structure, cultural motifs, etc.
+> 2. **Autonomy**: It must have an independent `name` and `description`, be self-explanatory, and reusable.
+> 3. **Domain Tagging**: It uses the `domains` field to specify its narrative domain, enabling automated checks for “no overlapping domains.”
+> 4. **Outline Completion**: It should introduce a new perspective that fills a gap in the existing outline, enriching the overall framework.
+> 5. **Extensible Metadata**: Optionally include additional fields as needed—such as `themes`, `symbolism`, `historical_context`, `psychological_conflict`, etc.—to provide deeper narrative cues.
+
+---Update Core Element---
+
+This workflow is used to modify or supplement fields of an existing core narrative element.
+The output is a new JSON object that overwrites the specified fields of the original element.
+
+---Conversation Context---
+
+Current Session Summary: {{ session_summary }}
+
+Other Related Elements: {{ related_info }}
+
+---Target Element---
+
+{{ target_cne }}
+
+{% if user_update_input %}
+---User Update Instructions---
+
+Below is what the user wants to modify or add. Extract the fields to be updated and their new values, then output a JSON object containing only those key–value pairs.
+
+User instructions:
+{{ user_update_input }}
+
+Notes:
+1. Ensure any new perspective doesn’t overlap with existing domains.
+2. Remove or rephrase content that duplicates current domains.
+3. If needed, refine or restructure remaining content to meet the Core Narrative Element Definition.
+{% else %}
+---Auto‑Update Strategy---
+
+When there are no user instructions, compare the target element against existing core narrative elements, identify uncovered narrative facets, and automatically generate fields to add or update:
+1. Focus on aspects not yet represented.
+2. Ensure new domains don’t overlap with any existing ones.
+3. Output only the fields to be added or overwritten.
+{% endif %}
+
+---Existing Core Narrative Elements---
+
+To avoid conflicts, refer to the full list below and confirm that any new domains don’t overlap with those already in the outline:
+```json
+{{ CNEs }}
+```
+
+---Output Requirements---
+1. Output only one valid JSON object containing the fields to add or overwrite.
+2. Do not include unchanged fields.
+3. Ensure the JSON is strictly valid, with no extra comments or fields.
+4. If no updates are needed, output an empty object: {}.
+
+---Example---
+
+Original Element
+
+{
+  "name": "Judicial System Critique",
+  "description": "By exposing wrongful convictions, this element reveals the procedural justice flaws of the Continental legal system and illustrates how power rent‑seeking erodes the judiciary.",
+  "domains": ["systemic critique", "judicial system", "social structure"],
+  "institutional_failure": "Collusion between pre‑trial judges and prosecutors"
+}
+
+User Update Instruction
+“Please expand the description to:
+‘On the original basis, include details of interactions among prison characters; and add a themes field with the value `['power corruption']’”
+
+Model Output
+
+{
+  "name": "Echoes of Humanity within the Web of Power",
+  "description": "Through a wrongful conviction caused by collusion between the pre‑trial judge and prosecutor, this narrative exposes the structural cracks in procedural justice under the Continental legal system. Against a backdrop of institutional breakdown, inmates and guards engage in subtle daily interactions—repairing water channels, tutoring each other—where trust and betrayal intertwine, peeling back layers of human nature under oppressive power, and reflecting the deep‑seated corruption in the judiciary.",
+  "domains": ["institutional power structures", "interpersonal tension"],
+  "institutional_failure": "Collusion between pre‑trial judges and prosecutors turned the judicial process into a tool for power bargaining",
+  "psychological_conflict": "Under institutional pressure, trust is manipulated and betrayal becomes a shield, blurring individual moral boundaries",
+  "themes": ["power corruption", "human struggle amid procedural collapse"]
+}

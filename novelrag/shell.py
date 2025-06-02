@@ -52,6 +52,7 @@ class NovelShell:
         session = Session(
             aspect_factory=aspect_factory,
             resource_repository=repository,
+            default_lang=config.template_lang,
             intents=DictionaryIntentFactory.from_config(config.intents),
             chat_llm_factory=chat_llm_factory,
             embedding_factory=embedding_factory,

@@ -1,5 +1,8 @@
+from azure.identity import get_bearer_token_provider
+
 from novelrag.config.llm import AzureOpenAIChatConfig, OpenAIChatConfig, DeepSeekChatConfig
-from novelrag.llm.types import AsyncOpenAIClient, ChatLLM
+from novelrag.llm.oai.types import AsyncOpenAIClient
+from novelrag.llm.types import ChatLLM
 from openai import AsyncAzureOpenAI, AsyncOpenAI
 
 
@@ -20,20 +23,31 @@ class OpenAIChatLLM(ChatLLM):
     @classmethod
     def from_config(cls, config: AzureOpenAIChatConfig | OpenAIChatConfig | DeepSeekChatConfig) -> 'OpenAIChatLLM':
         if isinstance(config, AzureOpenAIChatConfig):
+            if config.api_key:
+                credential = {"api_key": config.api_key}
+            else:
+                from azure.identity import DefaultAzureCredential
+                credential = {
+                    "azure_ad_token_provider": get_bearer_token_provider(
+                        DefaultAzureCredential(),
+                        "https://cognitiveservices.azure.com/.default"
+                    )
+                }
             client = AsyncAzureOpenAI(
                 azure_endpoint=config.endpoint,
                 azure_deployment=config.deployment,
                 api_version=config.api_version,
-                api_key=config.api_key,
                 timeout=config.timeout,
+                **credential,
             )
+            chat_params = config.chat_params_oai()
         else:
             client = AsyncOpenAI(
                 base_url=config.endpoint,
                 api_key=config.api_key,
                 timeout=config.timeout,
             )
-        chat_params = config.chat_params()
+            chat_params = config.chat_params()
         model = config.model
         return cls(client, model, json_supports=config.json_supports, chat_params=chat_params)
 
@@ -50,6 +64,8 @@ class OpenAIChatLLM(ChatLLM):
         """
         if not self.json_supports and 'response_format' in params:
             params.pop('response_format')
+        if 'max_tokens' in params:
+            params['max_completion_tokens'] = params.pop('max_tokens')
         resp = await self.client.chat.completions.create(
             messages=messages,
             model=self.model,

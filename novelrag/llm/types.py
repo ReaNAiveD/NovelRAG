@@ -1,10 +1,5 @@
 from abc import ABC, abstractmethod
 
-from openai import AsyncAzureOpenAI, AsyncOpenAI
-
-# Type alias for OpenAI clients
-AsyncOpenAIClient = AsyncAzureOpenAI | AsyncOpenAI
-
 
 class ChatLLM(ABC):
     """Abstract base class for chat language models."""

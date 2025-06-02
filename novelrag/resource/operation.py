@@ -1,7 +1,7 @@
 from enum import Enum
 from typing_extensions import Annotated, Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, TypeAdapter
 
 
 class OperationTarget(str, Enum):
@@ -73,6 +73,9 @@ class ElementOperation(BaseModel):
 
 
 Operation = Annotated[PropertyOperation | ElementOperation, Field(discriminator='target')]
+
+def validate_op(op: dict) -> Operation:
+    return TypeAdapter(Operation).validate_python(op)
 
 
 class ObjectLocation:

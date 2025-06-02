@@ -57,7 +57,7 @@ class OpenAIChatConfig(BaseModel):
         default=0.0,
     )]
 
-    def chat_params(self) -> dict:
+    def chat_params_oai(self) -> dict:
         """Build kwargs for chat completion API calls.
 
         Returns:
@@ -72,11 +72,30 @@ class OpenAIChatConfig(BaseModel):
             'presence_penalty': self.presence_penalty,
         }
 
+    def chat_params(self) -> dict:
+        """Build kwargs for chat completion API calls.
+
+        Returns:
+            Dictionary of parameters for chat completion
+        """
+        return {
+            'max_tokens': self.max_tokens,
+            'temperature': self.temperature,
+            'top_p': self.top_p,
+            'n': self.n,
+            'frequency_penalty': self.frequency_penalty,
+            'presence_penalty': self.presence_penalty,
+        }
+
 
 class AzureOpenAIChatConfig(OpenAIChatConfig):
     type: Literal[ChatLLMType.AzureOpenAI]
     deployment: Annotated[str, Field(
         description="The deployment name for the chat model",
+    )]
+    api_key: Annotated[str | None, Field(
+        description="The API key for authentication",
+        default_factory=lambda: os.environ.get("OPENAI_API_KEY"),
     )]
     api_version: Annotated[str, Field(
         description="The Azure OpenAI API version to use",
@@ -103,6 +122,25 @@ ChatConfig = Annotated[AzureOpenAIChatConfig | OpenAIChatConfig | DeepSeekChatCo
 
 class EmbeddingLLMType(str, Enum):
     AzureOpenAI = "azure_openai"
+    OpenAI = "openai"
+
+
+class OpenAIEmbeddingConfig(BaseModel):
+    type: Literal[EmbeddingLLMType.OpenAI]
+    endpoint: Annotated[str, Field(
+        description="The Azure OpenAI endpoint URL",
+    )]
+    api_key: Annotated[str | None, Field(
+        description="The API key for authentication",
+        default_factory=lambda: os.environ.get("OPENAI_API_KEY"),
+    )]
+    timeout: Annotated[float, Field(
+        description="Request timeout in seconds",
+        default=180.0,
+    )]
+    model: Annotated[str, Field(
+        description="The model identifier to use for embeddings",
+    )]
 
 
 class AzureOpenAIEmbeddingConfig(BaseModel):
@@ -116,9 +154,9 @@ class AzureOpenAIEmbeddingConfig(BaseModel):
     api_version: Annotated[str, Field(
         description="The Azure OpenAI API version to use",
     )]
-    api_key: Annotated[str, Field(
+    api_key: Annotated[str | None, Field(
         description="The API key for authentication",
-        default_factory=lambda: os.environ["OPENAI_API_KEY"],
+        default_factory=lambda: os.environ.get("OPENAI_API_KEY"),
     )]
     timeout: Annotated[float, Field(
         description="Request timeout in seconds",
@@ -129,7 +167,7 @@ class AzureOpenAIEmbeddingConfig(BaseModel):
     )]
 
 
-EmbeddingConfig = Annotated[AzureOpenAIEmbeddingConfig, Field(
+EmbeddingConfig = Annotated[OpenAIEmbeddingConfig | AzureOpenAIEmbeddingConfig, Field(
     description="Configuration for the embedding model",
     discriminator="type",
 )]

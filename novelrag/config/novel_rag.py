@@ -16,5 +16,6 @@ class NovelRagConfig(BaseModel):
     embedding: Annotated[EmbeddingConfig, Field()]
     chat_llm: Annotated[ChatConfig | None, Field(default=None)]
     vector_store: Annotated[VectorStoreConfig, Field()]
+    template_lang: Annotated[str | None, Field(default=None)]
     aspects: Annotated[dict[str, AspectConfig], Field()]
     intents: Annotated[dict[str, IntentConfig], Field(description="Intents for session level")]

@@ -8,6 +8,7 @@ from novelrag.llm import EmbeddingLLMFactory, ChatLLMFactory, ChatLLM
 from novelrag.exceptions import IntentMissingNameError
 from novelrag.config.llm import ChatConfig
 from novelrag.conversation import ConversationHistory
+from .loader import TemplateEnvironment
 
 
 @dataclass
@@ -20,6 +21,7 @@ class IntentContext:
     pending_update: PendingUpdateQueue | None = None
     resource_repository: ResourceRepository | None = None
     conversation_history: ConversationHistory | None = None
+    template_env: TemplateEnvironment | None = None
 
     @property
     def aspect_name(self) -> str | None:
@@ -48,9 +50,10 @@ class Intent(ABC):
 
 
 class LLMIntent(Intent, ABC):
-    def __init__(self, *, name: str | None, chat_llm: dict | None = None, **kwargs):
+    def __init__(self, *, name: str | None, chat_llm: dict | None = None, lang: str | None = None, **kwargs):
         super().__init__(name=name, **kwargs)
         self.chat_llm_config = chat_llm
+        self.default_lang = lang
         self._chat_llm: ChatLLM | None = None
 
     def chat_llm(self, factory: ChatLLMFactory):
