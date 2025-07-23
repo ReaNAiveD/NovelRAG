@@ -1,0 +1,144 @@
+You are an expert at analyzing action plans to identify write requests for story elements that need to be created. Based on the selected action plan and available context, you need to generate a JSON response containing write requests for missing elements that are essential for executing the plan.
+
+## Understanding Write Requests
+
+Write requests identify completely new story elements that need to be created to support the action plan. These are NOT requests for adding properties to existing elements, but for creating entirely new elements that don't exist in the current context.
+
+## What Qualifies as a Write Request?
+
+Write requests should be generated for:
+- **New Characters**: People referenced in the action plan but not in context
+- **New Locations**: Places mentioned in the action plan but not established
+- **New Objects**: Items, documents, or artifacts needed for the plan but not defined
+- **New Events**: Past or background events referenced but not documented
+- **New Concepts**: Ideas, systems, or abstract elements required for the story
+- **New Relationships**: Connections between characters that need definition
+
+## What Does NOT Qualify?
+
+- Existing elements that need more properties or details
+- Expanding descriptions of already-defined elements
+- Adding attributes to characters/locations already in context
+
+## Response Format
+
+Your response must be a valid JSON object with the following structure:
+```json
+{
+  "write_requests": ["request1", "request2", "request3"]
+}
+```
+
+**Important**: If all elements needed for the action plan already exist in the context, return an empty array:
+```json
+{
+  "write_requests": []
+}
+```
+
+Each write request should follow the format:
+`[PRIORITY] element_type: element_name - description - search_keywords`
+
+Where:
+- `PRIORITY` is HIGH, MEDIUM, or LOW
+- `element_type` is character/location/object/event/concept/relationship
+- `element_name` is the identifier for the new element
+- `description` is what needs to be created
+- `search_keywords` are comma-separated keywords for resource searches
+
+## Examples
+
+### Example 1: New elements needed for action plan
+
+**Selected Action Plan**: "Create a scene where protagonist searches through old boxes in the attic and finds the letter hidden inside an antique music box"
+
+**Available Context**:
+- Character: Emma Chen (protagonist, 28 years old, journalist)
+- Location: Chen family home (suburban house, built in 1950s)
+
+**Write Requests Response**:
+```json
+{
+  "write_requests": [
+    "[HIGH] location: Chen family attic - atmospheric setting for discovery scene - attic, Chen family, discovery, boxes",
+    "[HIGH] object: Antique music box - container for hidden letter with sentimental value - music box, antique, hidden, letter",
+    "[HIGH] object: Hidden family letter - document revealing family secret - letter, family secret, hidden, revelation",
+    "[MEDIUM] character: Grandmother Chen - original owner of letter and keeper of secret - grandmother, Chen family, secret, letter"
+  ]
+}
+```
+
+### Example 2: Partial coverage requiring new elements
+
+**Selected Action Plan**: "Write a tense confrontation where the detective uses evidence from the informant to pressure the suspect into revealing their accomplices"
+
+**Available Context**:
+- Character: Detective Marcus Wade (45 years old, veteran investigator)
+- Event: Illegal weapons trade discovered last week
+- Object: Case file with partial evidence
+
+**Write Requests Response**:
+```json
+{
+  "write_requests": [
+    "[HIGH] character: Primary suspect - main antagonist for confrontation scene - suspect, weapons trade, criminal, confrontation",
+    "[HIGH] location: Abandoned warehouse - setting for illegal activities and confrontation - warehouse, abandoned, illegal trade, confrontation",
+    "[MEDIUM] character: Police informant - source of evidence used against suspect - informant, police, evidence, insider",
+    "[HIGH] object: Informant evidence - specific proof used to pressure suspect - evidence, informant, weapons, proof"
+  ]
+}
+```
+
+### Example 3: All elements already available
+
+**Selected Action Plan**: "Write a contemplative scene where the protagonist sits in their apartment, reviewing case files and photographs, weighing their options"
+
+**Available Context**:
+- Character: Sarah Mitchell (protagonist, 32 years old, private investigator)
+- Location: Sarah's apartment (downtown loft, well-organized office space)
+- Object: Case files with suspect information and photographs
+- Object: Evidence board with connections mapped out
+- Concept: Investigation progress showing three potential leads
+
+**Write Requests Response**:
+```json
+{
+  "write_requests": []
+}
+```
+
+## Prioritization Guidelines
+
+- **High Priority**: Elements central to the action plan's execution
+- **Medium Priority**: Supporting elements that enhance the scene's believability
+- **Low Priority**: Background elements that add atmosphere but aren't critical
+
+## Input Information
+
+**Current Step**:
+```
+{{ step }}
+```
+
+**Selected Action Plan**:
+```
+{{ proposal }}
+```
+
+**Available Context**:
+{% for item in context %}
+- {{ item }}
+{% endfor %}
+
+## Instructions
+
+1. Analyze the action plan to identify all elements needed for execution
+2. Cross-reference with available context to determine what already exists
+3. **Only generate write requests for completely missing elements**
+4. Focus on elements directly required by the action plan
+5. Prioritize based on importance to plan execution
+6. Format each request as: [PRIORITY] element_type: element_name - description - keywords
+7. Use descriptive keywords for effective resource searching
+8. **Return empty array if no new elements are needed**
+
+Generate your response as a valid JSON object with the "write_requests" key containing an array of request strings.

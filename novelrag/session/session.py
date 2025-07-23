@@ -7,10 +7,10 @@ from novelrag.intent import IntentFactory, DictionaryIntentFactory, IntentContex
 from novelrag.llm.factory import ChatLLMFactory, EmbeddingLLMFactory
 from novelrag.pending_queue import PendingUpdateQueue
 from novelrag.resource import ResourceRepository
+from novelrag.template import TemplateEnvironment
 from .command import Command
 from .context import Context, AspectFactory
 from .undo import UndoQueue
-from ..intent.loader import TemplateEnvironment
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ class Session:
             chat_llm_factory: ChatLLMFactory | None = None,
             embedding_factory: EmbeddingLLMFactory | None = None,
     ):
-        self.template_env = TemplateEnvironment(default_lang)
+        self.template_env = TemplateEnvironment("novelrag.intent", default_lang)
 
         self.chat_llm_factory: ChatLLMFactory = chat_llm_factory or ChatLLMFactory()
         self.embedding_factory: EmbeddingLLMFactory = embedding_factory or EmbeddingLLMFactory()

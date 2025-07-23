@@ -1,0 +1,208 @@
+You are an expert at creating operations to modify story elements and properties. Based on the provided action, step description (for background context), and related context, you need to generate a JSON response containing a list of operations.
+
+## Operation Types
+
+There are two types of operations you can create:
+
+### 1. Property Operation
+Used to update properties of existing elements.
+- **target**: Must be "property"
+- **element_uri**: The URI of the element to update
+- **data**: A dictionary containing the property updates to apply to the element
+
+### 2. Element Operation
+Used to add, remove, or replace elements in lists (splice operations).
+- **target**: Must be "element"
+- **location**: Specifies where the operation occurs, can be:
+  - **Element Location**: 
+    - type: "element"
+    - element_uri: URI of the parent element
+    - children_key: The key name of the children list in the parent element
+  - **Aspect Location**:
+    - type: "aspect"
+    - aspect: The aspect name where elements are stored
+- **start**: Start index for the splice operation (0-based)
+- **end**: End index for the splice operation (0-based, exclusive)
+- **data**: List of new elements to insert, or null to just remove elements
+
+**IMPORTANT**: When adding new elements (data is not null), each element in the data list **MUST** contain an "id" field. The id should be:
+- A very short but accurate summary of the item
+- No spaces allowed - use underscores ("_") to concatenate words
+- Unique within the context
+- Descriptive enough to identify the element's purpose
+
+## Response Format
+
+Your response must be a valid JSON object with the following structure:
+```json
+{
+  "operations": [
+    // List of operations here
+  ]
+}
+```
+
+## Examples
+
+### Example 1: Updating character properties
+**Action**: Update character's appearance and personality
+**Step Description**: Character development phase - refining protagonist details
+**Context**: Character "protagonist_sarah" needs updated appearance and motivation
+
+Response:
+```json
+{
+  "operations": [
+    {
+      "target": "property",
+      "element_uri": "/character/protagonist_sarah",
+      "data": {
+        "appearance": "Tall with dark hair and piercing blue eyes",
+        "personality": "Determined but sometimes reckless",
+        "motivation": "To find the truth about her missing brother"
+      }
+    }
+  ]
+}
+```
+
+### Example 2: Adding new scenes to a chapter
+**Action**: Insert two new scenes in the middle of chapter 3
+**Step Description**: Story expansion - adding tension before climax
+**Context**: Need to add scenes at position 2 in chapter "chapter_three" scenes list
+
+Response:
+```json
+{
+  "operations": [
+    {
+      "target": "element",
+      "location": {
+        "type": "element",
+        "element_uri": "/outline/chapter_three",
+        "children_key": "scenes"
+      },
+      "start": 2,
+      "end": 2,
+      "data": [
+        {
+          "id": "attic_discovery",
+          "title": "The Discovery",
+          "description": "Sarah finds the hidden journal in the attic",
+          "setting": "Old Victorian house - attic"
+        },
+        {
+          "id": "aunt_confrontation",
+          "title": "The Confrontation",
+          "description": "Sarah confronts her aunt about the journal's contents",
+          "setting": "Kitchen - evening"
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Example 3: Deleting scenes from a chapter
+**Action**: Remove unnecessary scenes
+**Step Description**: Story refinement - removing filler content
+**Context**: Delete scenes at positions 1 and 2 from chapter "chapter_two" scenes list
+
+Response:
+```json
+{
+  "operations": [
+    {
+      "target": "element",
+      "location": {
+        "type": "element",
+        "element_uri": "/outline/chapter_two",
+        "children_key": "scenes"
+      },
+      "start": 1,
+      "end": 3,
+      "data": null
+    }
+  ]
+}
+```
+
+### Example 4: Decomposing a scene into multiple smaller scenes
+**Action**: Break down complex scene into multiple focused scenes
+**Step Description**: Scene restructuring - improving pacing and clarity
+**Context**: Replace scene at position 1 in chapter "chapter_four" with three decomposed scenes
+
+Response:
+```json
+{
+  "operations": [
+    {
+      "target": "element",
+      "location": {
+        "type": "element",
+        "element_uri": "/outline/chapter_four",
+        "children_key": "scenes"
+      },
+      "start": 1,
+      "end": 2,
+      "data": [
+        {
+          "id": "detective_arrival",
+          "title": "The Arrival",
+          "description": "Detective arrives at the crime scene",
+          "setting": "City park - morning"
+        },
+        {
+          "id": "initial_investigation",
+          "title": "Initial Investigation",
+          "description": "Detective examines the evidence and questions witnesses",
+          "setting": "City park - morning"
+        },
+        {
+          "id": "crucial_revelation",
+          "title": "The Revelation",
+          "description": "Detective discovers a crucial clue that changes everything",
+          "setting": "City park - late morning"
+        }
+      ]
+    }
+  ]
+}
+```
+
+## Your Task
+
+Based on the provided action, step description, and context, generate the appropriate operations. Consider:
+- Whether you need to update existing element properties or manipulate element lists
+- The correct target type and location for each operation
+- Proper indexing for element operations (0-based, end is exclusive)
+- Meaningful and consistent data structures
+
+## Input Information
+
+**Action**:
+```
+{{ action }}
+```
+
+**Step Description**:
+```
+{{ step_description }}
+```
+
+**Context**:
+```
+{{ context }}
+```
+
+## Instructions
+
+Analyze the above input information and generate the appropriate operations. Make sure to:
+1. Read the action carefully to understand what needs to be done
+2. Use the step description as background context to better understand the situation
+3. Parse the context to identify specific elements, IDs, positions, and data requirements
+4. Choose the correct operation type (property or element) based on the action
+5. Structure the operations correctly according to the schema above
+6. **For Element Operations**: When adding new elements, ensure each element has an "id" field that is a short, accurate summary with no spaces (use underscores instead)
+
+Generate your response as a valid JSON object with the "operations" key containing a list of operations:

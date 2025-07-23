@@ -11,15 +11,15 @@ class OperationTarget(str, Enum):
 
 class PropertyOperation(BaseModel):
     target: Literal[OperationTarget.PROPERTY]
-    element_id: Annotated[str, Field(description='Id of the element the operation happens on')]
+    element_uri: Annotated[str, Field(description='Uri of the element the operation happens on')]
     data: Annotated[dict[str, Any], Field(description='The data that updates on the element')]
 
     @classmethod
-    def new(cls, element_id: str, data: dict[str, Any]):
-        return cls(target=OperationTarget.PROPERTY, element_id=element_id, data=data)
+    def new(cls, element_uri: str, data: dict[str, Any]):
+        return cls(target=OperationTarget.PROPERTY, element_uri=element_uri, data=data)
 
-    def create_undo(self, previous: dict[str, Any]):
-        return self.model_copy(update={'data': previous})
+    def create_undo(self, undo_update: dict[str, Any]):
+        return self.model_copy(update={'data': undo_update})
 
 
 class OperationLocationType(str, Enum):
@@ -29,7 +29,7 @@ class OperationLocationType(str, Enum):
 
 class ElementLocation(BaseModel):
     type: Literal[OperationLocationType.ELEMENT]
-    element_id: Annotated[str, Field()]
+    element_uri: Annotated[str, Field()]
     children_key: Annotated[str, Field()]
 
 
@@ -67,19 +67,24 @@ class ElementOperation(BaseModel):
         return self.new(
             self.location.model_copy(),
             start=self.start,
-            end=self.start + len(self.data),
+            end=self.start + len(self.data) if self.data else self.start,
             data=previous,
         )
 
 
 Operation = Annotated[PropertyOperation | ElementOperation, Field(discriminator='target')]
 
-def validate_op(op: dict) -> Operation:
-    return TypeAdapter(Operation).validate_python(op)
+
+def validate_op(op: dict) -> Operation: # type: ignore
+    return TypeAdapter(Operation).validate_python(op) # type: ignore
+
+
+def validate_op_json(op: str) -> Operation: # type: ignore
+    return TypeAdapter(Operation).validate_json(op) # type: ignore
 
 
 class ObjectLocation:
-    def __init__(self, parent: dict | list | None, idx: str | None, loc: list[str]):
+    def __init__(self, parent: dict[str, Any] | list | None, idx: str | None, loc: list[str]): # type: ignore
         self.parent = parent
         self.idx = idx
         self.loc = loc

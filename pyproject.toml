@@ -32,8 +32,8 @@ dependencies = [
 ]
 
 [project.urls]
-Repository = "https://github.com/nice-die/novelrag"
-Documentation = "https://github.com/nice-die/novelrag#readme"
+Repository = "https://github.com/ReaNAiveD/novelrag"
+Documentation = "https://github.com/ReaNAiveD/NovelRAG#readme"
 
 [project.optional-dependencies]
 test = [

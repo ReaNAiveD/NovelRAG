@@ -51,7 +51,7 @@ class Update(LLMIntent):
                 item=PendingUpdateItem(
                     ops=[
                         PropertyOperation.new(
-                            element_id=item.id,
+                            element_uri=item.uri,
                             data=json.loads(resp)
                         )
                     ]

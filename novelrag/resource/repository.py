@@ -24,7 +24,7 @@ class ResourceRepository(ABC):
         pass
 
     @abstractmethod
-    async def vector_search(self, query: str, *, aspect: str | None = None, limit: int | None = None):
+    async def vector_search(self, query: str, *, aspect: str | None = None, limit: int | None = None) -> list[SearchResult]:
         """Search for resources using vector similarity.
         
         Args:
@@ -35,7 +35,19 @@ class ResourceRepository(ABC):
         pass
 
     @abstractmethod
-    async def apply(self, op: Operation):
+    async def find_by_uri(self, element_uri: str) -> DirectiveElement | None:
+        """Find an element by its ID in the repository.
+        
+        Args:
+            element_uri: The ID of the element to find
+        
+        Returns:
+            The DirectiveElement if found, otherwise None
+        """
+        pass
+
+    @abstractmethod
+    async def apply(self, op: Operation) -> Operation:
         """Apply an operation to modify the repository.
         
         Args:
@@ -109,24 +121,35 @@ class LanceDBResourceRepository(ResourceRepository):
 
     async def get_aspect(self, name: str) -> ResourceAspect | None:
         return self.resource_aspects.get(name)
+    
+    async def find_by_uri(self, element_uri: str) -> DirectiveElement | None:
+        """Find an element by its ID in the repository.
+        
+        Args:
+            element_uri: The ID of the element to find
+        
+        Returns:
+            The DirectiveElement if found, otherwise None
+        """
+        return self.lut.find_by_uri(element_uri)
 
-    async def vector_search(self, query: str, *, aspect: str | None = None, limit: int | None = 20):
+    async def vector_search(self, query: str, *, aspect: str | None = None, limit: int | None = 20) -> list[SearchResult]:
         embeddings = await self.embedding_llm.embedding(query)
         vector = embeddings[0]
         result = await self.vector_store.vector_search(vector, aspect=aspect, limit=limit)
-        return [SearchResult(distance=item.distance, element=self.lut[item.element_id]) for item in result]
+        return [SearchResult(distance=item.distance, element=self.lut[item.element_uri]) for item in result]
 
-    async def apply(self, op: Operation):
+    async def apply(self, op: Operation) -> Operation:
         if isinstance(op, ElementOperation):
             if isinstance(op.location, ElementLocation):
-                ele = self.lut.find_by_id(op.location.element_id)
+                ele = self.lut.find_by_uri(op.location.element_uri)
                 if not ele:
-                    raise ElementNotFoundError(op.element_id)
-                data = [Element.build(item, ele.inner.aspect, ele.inner.children_keys) for item in (op.data or [])]
+                    raise ElementNotFoundError(op.location.element_uri)
+                data = [Element.build(item, ele.uri, ele.aspect, ele.inner.children_keys) for item in (op.data or [])]
                 new, old = ele.splice_at(op.location.children_key, op.start, op.end, *data)
             elif isinstance(op.location, AspectLocation):
                 aspect = self.resource_aspects[op.location.aspect]
-                data = [Element.build(item, op.location.aspect, aspect.children_keys) for item in (op.data or [])]
+                data = [Element.build(item, op.location.aspect, op.location.aspect, aspect.children_keys) for item in (op.data or [])]
                 new, old = aspect.splice(op.start, op.end, *data)
             else:
                 raise OperationError(f'Unrecognized Operation Location Type: {type(op.location)}')
@@ -136,21 +159,21 @@ class LanceDBResourceRepository(ResourceRepository):
                 await self._handle_added(ele)
             return op.create_undo([item.inner.dumped_dict() for item in old])
         elif isinstance(op, PropertyOperation):
-            ele = self.lut.find_by_id(op.element_id)
+            ele = self.lut.find_by_uri(op.element_uri)
             if not ele:
-                raise ElementNotFoundError(op.element_id)
+                raise ElementNotFoundError(op.element_uri)
             undo = ele.update(op.data)
             await self._handle_updated(ele)
             return op.create_undo(undo)
 
     async def _handle_added(self, ele: DirectiveElement):
-        self.lut[ele.id] = ele
+        self.lut[ele.uri] = ele
         await self.vector_store.add(ele.inner)
         self.resource_aspects[ele.inner.aspect].save_to_file()
 
     async def _handle_deleted(self, ele: DirectiveElement):
-        self.lut.pop(ele.id)
-        await self.vector_store.delete(element_id=ele.id)
+        self.lut.pop(ele.uri)
+        await self.vector_store.delete(element_uri=ele.uri)
         for children in ele.children.values():
             for child in children:
                 await self._handle_deleted(child)
