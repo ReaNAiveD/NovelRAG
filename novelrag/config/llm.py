@@ -1,7 +1,7 @@
 import os
 from enum import Enum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, TypeAdapter
 from typing_extensions import Annotated, Literal
 
 
@@ -118,6 +118,10 @@ ChatConfig = Annotated[AzureOpenAIChatConfig | OpenAIChatConfig | DeepSeekChatCo
     description="Configuration for the chat completion model",
     discriminator="type",
 )]
+
+def validate_chat_config(data: dict) -> ChatConfig:
+    """Validate and return a ChatConfig instance from raw data."""
+    return TypeAdapter(ChatConfig).validate_python(data)
 
 
 class EmbeddingLLMType(str, Enum):

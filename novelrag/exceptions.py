@@ -171,16 +171,16 @@ class UnregisteredModelError(AspectError):
         super().__init__(f"Model '{model}' not registered")
 
 class ElementNotFoundError(OperationError):
-    def __init__(self, element_id: str):
-        super().__init__(f'Element "{element_id}" not found')
+    def __init__(self, element_uri: str):
+        super().__init__(f'Element "{element_uri}" not found')
 
 class ChildrenKeyNotFoundError(OperationError):
     def __init__(self, key: str, aspect: str):
         super().__init__(f"Children Key '{key}' not found in Aspect '{aspect}'")
 
 class PropertyNotFoundError(OperationError):
-    def __init__(self, element_id: str, path: str):
-        super().__init__(f"Path {path} on Element '{element_id}' not found")
+    def __init__(self, element_uri: str, path: str):
+        super().__init__(f"Path {path} on Element '{element_uri}' not found")
 
 class InvalidOperationError(OperationError):
     def __init__(self, operation: str, obj):

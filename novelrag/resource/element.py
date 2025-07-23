@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 class Element(BaseModel):
     id: Annotated[str, Field(description='Id of the element')]
+    uri: Annotated[str, Field(description='URI of the element')]
     relations: Annotated[dict[str, str], Field(description='Related Elements. <Id>: <Description>', default_factory=lambda: {})]
     aspect: Annotated[str, Field(description='Aspect of the element')]
     children_keys: Annotated[list[str], Field(default_factory=lambda: [])]
@@ -25,6 +26,7 @@ class Element(BaseModel):
     def build(
             cls,
             value: dict,
+            parent_uri: str,
             aspect: str,
             children_keys: list[str],
             *,
@@ -32,65 +34,89 @@ class Element(BaseModel):
             from_attributes: bool | None = None,
             context: Any | None = None
     ):
-        if not 'id' in value:
-            value['id'] = str(uuid.uuid4())
+        """
+        Build an Element instance from a dictionary value.
+        Note that the value must contain 'id', 'relations', 'aspect', and 'children_keys' keys.
+        """
+        uri = f'{parent_uri}/{value["id"]}'
+        value['uri'] = uri
         value['aspect'] = aspect
         value['children_keys'] = children_keys
         ele = cls.model_validate(value, strict=strict, from_attributes=from_attributes, context=context)
         for key in children_keys:
             if ele.model_extra and key in ele.model_extra and isinstance(ele.model_extra[key], list):
-                ele.model_extra[key] = [cls.build(child, aspect, children_keys, strict=strict, from_attributes=from_attributes, context=context) for child in ele.model_extra[key]]
+                ele.model_extra[key] = [cls.build(child, uri, aspect, children_keys, strict=strict, from_attributes=from_attributes, context=context) for child in ele.model_extra[key]]
         return ele
 
     def props(self):
-        return dict((k, v) for k, v in self.model_extra.items() if k not in self.children_keys)
+        """
+        Returns a dictionary of properties excluding children keys.
+        Usually includes all properties in model_extra except those defined in children_keys.
+        Excludes properties like 'id', 'relations', 'aspect', and 'children_keys'.
+        """
+        return dict((k, v) for k, v in self.model_extra.items() if k not in self.children_keys) if self.model_extra else {}
+    
+    def children_ids(self):
+        """Returns id of children elements only"""
+        return dict((key, [{"id": child.id} for child in self.children_of(key)]) for key in self.children_keys)
 
     def __getitem__(self, key: str):
-        return self.model_extra[key]
+        return self.model_extra[key] if self.model_extra and key in self.model_extra else None
 
-    def children_of(self, key: str):
+    def children_of(self, key: str) -> list['Element']:
         if key not in self.children_keys:
             raise ChildrenKeyNotFoundError(key, self.aspect)
-        return self.model_extra.get(key, [])
+        return self.model_extra.get(key, []) if self.model_extra else []
 
     def element_dict(self):
-        """返回 id 和 props 组成的字典"""
-        return {"id": self.id, **self.props()}
+        """Returns a dictionary composed of id and props"""
+        return {"id": self.id, "uri": self.uri, **self.props()}
+    
+    def context_dict(self):
+        """Returns a dictionary composed of id, uri, relations, props and children_ids"""
+        return {
+            **self.element_dict(),
+            "relations": self.relations,
+            "aspect": self.aspect,
+            **self.children_ids(),
+        }
 
     def element_str(self):
         return json.dumps(self.element_dict(), ensure_ascii=False, sort_keys=True)
 
     def children_dict(self):
-        """返回 id + props + children（children 元素为子级的 element_dict 结果）"""
+        """Returns id + props + children (children elements are child-level element_dict results)"""
         data = self.element_dict()
         for key in self.children_keys:
-            children = self.model_extra.get(key, [])
-            data[key] = [child.element_dict() for child in children]
+            children = self.children_of(key)
+            data[key] = [child.context_dict() for child in children]
         return data
 
     def nested_dict(self):
-        """返回 id + props + children（children 元素递归调用 nested_dict）"""
+        """Returns id + props + children (children elements recursively call nested_dict)"""
         data = self.element_dict()
         for key in self.children_keys:
-            children = self.model_extra.get(key, [])
+            children = self.children_of(key)
             data[key] = [child.nested_dict() for child in children]
         return data
 
     def dumped_dict(self):
-        """返回 id + relations + props + children（children 元素递归调用 dumped_dict）"""
+        """Returns id + relations + props + children (children elements recursively call dumped_dict)"""
         data = {"id": self.id, "relations": self.relations, **self.props()}
         for key in self.children_keys:
-            children = self.model_extra.get(key, [])
+            children = self.children_of(key)
             data[key] = [child.dumped_dict() for child in children]
         return data
 
     def update(self, props: dict[str, Any]):
         undo = {}
         for k, v in props.items():
-            if k in ['id', 'relations', 'aspect', 'children_keys', 'embedding', 'hash']:
+            if k in ['id', 'uri', 'relations', 'aspect', 'children_keys', 'embedding', 'hash']:
                 logger.warning(f'Ignore Private Property "{k}" Update.')
             elif k in self.children_keys:
                 logger.warning(f'Ignore Children Key "{k}" Update.')
+            elif self.model_extra is None:
+                logger.warning(f'Ignore Update for Element with no model_extra: {self.uri}')
             elif k in self.model_extra and v is None:
                 undo[k] = self.model_extra[k]
                 del self.model_extra[k]
@@ -100,7 +126,10 @@ class Element(BaseModel):
         return undo
 
     def update_children(self, key: str, children: list['Element']):
-        self.model_extra[key] = children
+        if self.model_extra is not None:
+            self.model_extra[key] = children
+        else:
+            logger.warning(f'Ignore Update for Element with no model_extra: {self.uri}')
 
     def update_relations(self, rel: dict[str, str]):
         old = self.relations
@@ -141,9 +170,21 @@ class DirectiveElement:
     @property
     def id(self):
         return str(self.inner.id)
+    
+    @property
+    def uri(self):
+        return self.inner.uri
+
+    @property
+    def aspect(self):
+        return self.inner.aspect
 
     def element_dict(self):
         return self.inner.element_dict()
+    
+    def context_dict(self):
+        """Returns a dictionary composed of id, uri, relations, props and children_ids"""
+        return self.inner.context_dict()
 
     def children_dict(self):
         return self.inner.children_dict()

@@ -115,17 +115,18 @@ class RepositoryTestCase(unittest.IsolatedAsyncioTestCase):
         ))
 
         # Get the element's ID
-        element_id = str(self.repository.resource_aspects['character'].root_elements[0].inner.id)
+        element_uri = str(self.repository.resource_aspects['character'].root_elements[0].uri)
 
         # Modify the element
         await self.repository.apply(PropertyOperation(
             target='property',
-            element_id=element_id,
+            element_uri=element_uri,
             data={'age': 26, 'description': 'Updated description'}
         ))
 
         # Verify changes
-        modified_element = self.repository.lut.find_by_id(element_id)
+        modified_element = self.repository.lut.find_by_uri(element_uri)
+        self.assertIsNotNone(modified_element)
         self.assertEqual(modified_element.inner.props()['age'], 26)
         self.assertEqual(modified_element.inner.props()['description'], 'Updated description')
 
@@ -186,12 +187,12 @@ class RepositoryTestCase(unittest.IsolatedAsyncioTestCase):
         ))
 
         # Get IDs
-        alice_id = str(self.repository.resource_aspects['character'].root_elements[0].inner.id)
-        bob_id = str(self.repository.resource_aspects['character'].root_elements[1].inner.id)
+        alice_uri = str(self.repository.resource_aspects['character'].root_elements[0].inner.uri)
+        bob_uri = str(self.repository.resource_aspects['character'].root_elements[1].inner.uri)
 
         # Test lookup
-        alice = self.repository.lut.find_by_id(alice_id)
-        bob = self.repository.lut.find_by_id(bob_id)
+        alice = self.repository.lut.find_by_uri(alice_uri)
+        bob = self.repository.lut.find_by_uri(bob_uri)
 
         self.assertEqual(alice.inner.props()['name'], "Alice")
         self.assertEqual(bob.inner.props()['name'], "Bob")

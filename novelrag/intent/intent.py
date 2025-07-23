@@ -6,9 +6,9 @@ from novelrag.pending_queue import PendingUpdateQueue
 from novelrag.resource import ResourceRepository, DirectiveElement, ResourceAspect
 from novelrag.llm import EmbeddingLLMFactory, ChatLLMFactory, ChatLLM
 from novelrag.exceptions import IntentMissingNameError
-from novelrag.config.llm import ChatConfig
+from novelrag.config.llm import validate_chat_config
 from novelrag.conversation import ConversationHistory
-from .loader import TemplateEnvironment
+from novelrag.template import TemplateEnvironment
 
 
 @dataclass
@@ -58,6 +58,6 @@ class LLMIntent(Intent, ABC):
 
     def chat_llm(self, factory: ChatLLMFactory):
         if not self._chat_llm:
-            chat_config = ChatConfig.model_validate(self.chat_llm_config) if self.chat_llm_config else None
+            chat_config = validate_chat_config(self.chat_llm_config) if self.chat_llm_config else None
             self._chat_llm = factory.get(chat_config)
         return self._chat_llm

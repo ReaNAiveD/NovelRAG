@@ -1,0 +1,254 @@
+You are an expert at analyzing operations and identifying backlog tasks that need further development. Based on the provided operations and task description (as background context), you need to generate a JSON response containing a list of backlog items that require future attention.
+
+## Understanding Operations
+
+There are two types of operations you can receive:
+
+### 1. Property Operation
+Used to update properties of existing elements.
+- **target**: Must be "property"
+- **element_uri**: The URI of the element to update (format: /aspect/element_id, e.g., /role/role_a, /event/event_a/subevent_a)
+- **data**: A dictionary containing the property updates to apply to the element
+
+### 2. Element Operation
+Used to add, remove, or replace elements in lists (splice operations).
+- **target**: Must be "element"
+- **location**: Specifies where the operation occurs, can be:
+  - **Element Location**: 
+    - type: "element"
+    - element_uri: URI of the parent element (format: /aspect/element_id, e.g., /scene/scene_012)
+    - children_key: The key name of the children list in the parent element
+  - **Aspect Location**:
+    - type: "aspect"
+    - aspect: The aspect name where elements are stored
+- **start**: Start index for the splice operation (0-based)
+- **end**: End index for the splice operation (0-based, exclusive)
+- **data**: List of new elements to insert, or null to just remove elements
+
+## What are Backlog Tasks?
+
+Backlog tasks are items that were created or referenced in operations but contain minimal information and need further development. These typically arise when:
+
+- Elements are created as dependencies for other elements but only have basic placeholder information
+- Referenced characters, locations, or objects that need detailed development
+- Plot elements or scenes that are mentioned but not fully fleshed out
+- Relationships or connections that are established but need deeper exploration
+- Supporting elements that were created to serve immediate story needs but lack depth
+
+The goal is to identify these incomplete elements so they can be prioritized for future development sessions.
+
+## Response Format
+
+Your response must be a valid JSON object with the following structure:
+```json
+{
+  "backlog_tasks": ["task1","task2","task3"]
+}
+```
+
+**Important**: If all elements created or updated in the operations already contain sufficient detail and depth, you should return an empty list:
+```json
+{
+  "backlog_tasks": []
+}
+```
+
+For elements that need development, each item should contain one backlog task in the format:
+`[PRIORITY] resource_type: description - search_keywords`
+
+Where:
+- `PRIORITY` is HIGH, MEDIUM, or LOW
+- `resource_type` is the type of resource (character, location, scene, plot_element, etc.)
+- `description` is a brief description of what needs development
+- `search_keywords` are comma-separated keywords for finding the resource
+
+## Examples
+
+### Example 1: New characters created with minimal information
+
+**Operations**:
+```json
+[
+  {
+    "target": "element",
+    "location": {
+      "type": "element",
+      "element_uri": "/scene/scene_012",
+      "children_key": "characters"
+    },
+    "start": 2,
+    "end": 2,
+    "data": [
+      {
+        "id": "char_007",
+        "name": "Marcus",
+        "role": "bartender"
+      },
+      {
+        "id": "char_008",
+        "name": "Elena",
+        "role": "mysterious patron"
+      }
+    ]
+  },
+  {
+    "target": "property",
+    "element_uri": "/scene/scene_012",
+    "data": {
+      "title": "The Tavern Meeting",
+      "setting": "Old tavern - evening",
+      "description": "Detective meets informant while bartender and other patron observe"
+    }
+  }
+]
+```
+
+**Task Description**: Scene development - adding supporting characters to create atmosphere
+
+**Backlog Tasks Response**:
+```json
+{
+  "backlog_tasks": [
+    "[MEDIUM] character: Bartender Marcus needs full personality and background - Marcus, bartender, char_007, tavern",
+    "[HIGH] character: Mysterious patron Elena needs identity and plot connection - Elena, mysterious patron, char_008, tavern"
+  ]
+}
+```
+
+### Example 2: Location and plot elements need expansion
+
+**Operations**:
+```json
+[
+  {
+    "target": "property",
+    "element_uri": "/character/char_003",
+    "data": {
+      "current_location": "abandoned_warehouse_district",
+      "investigation_leads": [
+        "shipping_records_anomaly",
+        "witness_sighting_pier_7"
+      ]
+    }
+  },
+  {
+    "target": "element",
+    "location": {
+      "type": "aspect",
+      "aspect": "locations"
+    },
+    "start": 0,
+    "end": 0,
+    "data": [
+      {
+        "id": "abandoned_warehouse_district",
+        "name": "Warehouse District",
+        "type": "industrial_area"
+      },
+      {
+        "id": "pier_7",
+        "name": "Pier 7",
+        "type": "dock"
+      }
+    ]
+  }
+]
+```
+
+**Task Description**: Investigation progression - establishing new locations and leads for detective work
+
+**Backlog Tasks Response**:
+```json
+{
+  "backlog_tasks": [
+    "[HIGH] location: Warehouse district needs atmospheric and specific details - abandoned_warehouse_district, industrial_area, warehouse",
+    "[MEDIUM] location: Pier 7 dock needs development for future scenes - pier_7, dock, pier, waterfront",
+    "[HIGH] plot_element: Shipping records anomaly details are undefined - shipping_records_anomaly, investigation, records",
+    "[MEDIUM] plot_element: Witness sighting identity and details are undefined - witness_sighting_pier_7, witness, sighting"
+ ]
+}
+```
+
+### Example 3: Well-developed elements require no backlog tasks
+
+**Operations**:
+```json
+[
+  {
+    "target": "property",
+    "element_uri": "/character/char_001",
+    "data": {
+      "current_emotional_state": "conflicted between duty and personal feelings",
+      "recent_discovery": "Found evidence that implicates her mentor in the conspiracy",
+      "internal_monologue": "How can I expose the truth without destroying everything I believed in?"
+    }
+  },
+  {
+    "target": "element",
+    "location": {
+      "type": "element",
+      "element_uri": "/scene/scene_008",
+      "children_key": "dialogue"
+    },
+    "start": 3,
+    "end": 3,
+    "data": [
+      {
+        "speaker": "Detective Sarah Chen",
+        "text": "I trusted you, Marcus. How could you let them use the precinct as a front?",
+        "emotion": "betrayed anger",
+        "subtext": "Desperately hoping he has an explanation"
+      }
+    ]
+  }
+]
+```
+
+**Task Description**: Character development - deepening protagonist's emotional conflict and adding confrontation dialogue
+
+**Backlog Tasks Response**:
+```json
+{
+  "backlog_tasks": []
+}
+```
+
+## Your Task
+
+Analyze the provided operations and task description to identify what backlog tasks are needed. Focus on:
+
+1. **Incomplete Elements**: Items created with minimal information that need fleshing out
+2. **Dependency Placeholders**: Elements created to support other elements but lacking depth
+3. **Referenced But Undefined**: Items mentioned or referenced but not fully developed
+4. **Supporting Cast**: Characters, locations, or objects that need more detail to be useful
+5. **Plot Threads**: Story elements or leads that are established but need expansion
+
+## Prioritization Guidelines
+
+- **High Priority**: Elements that directly impact main plot or key character development
+- **Medium Priority**: Supporting elements that enhance story depth and believability  
+- **Low Priority**: Background elements that add atmosphere but aren't immediately critical
+
+## Input Information
+
+**Operations**:
+```json
+{{ operations }}
+```
+
+**Task Description**:
+```
+{{ task_description }}
+```
+
+## Instructions
+
+1. Analyze each operation to identify newly created or referenced elements
+2. Assess which elements have insufficient detail for their intended story role
+3. **Only identify elements that truly lack depth** - well-developed elements should not generate backlog tasks
+4. Prioritize based on story importance and development urgency
+5. Format each task as: [PRIORITY] resource_type: description - keywords
+6. Use descriptive keywords to help locate these elements via vector search
+7. **Return empty string if no elements need further development**
+
+Generate your response as a valid JSON object with the "backlog_tasks" key containing either a multiline string of tasks or an empty string.

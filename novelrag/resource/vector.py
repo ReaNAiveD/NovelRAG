@@ -37,7 +37,7 @@ class EmbeddingSearch(LanceModel):
     """LanceDB schema for storing embedding vectors and metadata."""
     vector: Vector(3072)
     hash: str
-    element_id: str
+    element_uri: str
     aspect: str
 
 
@@ -47,7 +47,7 @@ class VectorSearchResult:
         validated_item = EmbeddingSearch.model_validate(item)
         self.vector = validated_item.vector
         self.hash = validated_item.hash
-        self.element_id = validated_item.element_id
+        self.element_uri = validated_item.element_uri
         self.aspect = validated_item.aspect
         self.distance = item['_distance']
 
@@ -115,17 +115,17 @@ class LanceDBStore:
         results = await query.to_list()
         return [VectorSearchResult(item) for item in results]
 
-    async def get(self, element_id: str) -> Optional[EmbeddingSearch]:
+    async def get(self, element_uri: str) -> Optional[EmbeddingSearch]:
         """Retrieve a single element by its unique ID.
 
         Args:
-            element_id: Unique identifier of the element
+            element_uri: Unique identifier of the element
 
         Returns:
             EmbeddingSearch instance if found, None otherwise
         """
         results = await self.table.query() \
-            .where(f'element_id = "{element_id}"') \
+            .where(f'element_uri = "{element_uri}"') \
             .limit(1) \
             .to_list()
 
@@ -153,7 +153,7 @@ class LanceDBStore:
             unchecked: Skip existence verification when True
         """
         return await self._upsert_element(
-            element.id,
+            element.uri,
             element.aspect,
             element.element_dict(),
             unchecked=unchecked
@@ -166,18 +166,18 @@ class LanceDBStore:
             element: Element with updated data
         """
         return await self._update_element(
-            element.id,
+            element.uri,
             element.aspect,
             element.element_dict()
         )
 
-    async def delete(self, element_id: str):
+    async def delete(self, element_uri: str):
         """Remove an element by its ID.
 
         Args:
-            element_id: Unique identifier of the element to remove
+            element_uri: Unique identifier of the element to remove
         """
-        return await self.table.delete(where=f'element_id = "{element_id}"')
+        return await self.table.delete(where=f'element_uri = "{element_uri}"')
 
     # Implementation details below
     async def _is_table_empty(self) -> bool:
@@ -196,12 +196,12 @@ class LanceDBStore:
 
         return EmbeddingSearch(
             vector=embedding[0],
-            element_id=element.id,
+            element_uri=element.uri,
             aspect=element.aspect,
             hash=hash_str
         )
 
-    async def _upsert_element(self, element_id: str, aspect: str, data: dict,
+    async def _upsert_element(self, element_uri: str, aspect: str, data: dict,
                               unchecked: bool = False):
         """Internal method to handle element insertion/update."""
         serialized_data = json.dumps(data, ensure_ascii=False, sort_keys=True)
@@ -209,7 +209,7 @@ class LanceDBStore:
         existing = None
 
         if not unchecked:
-            existing = await self.get(element_id)
+            existing = await self.get(element_uri)
             if existing and existing.hash == hash_str:
                 return
 
@@ -217,29 +217,29 @@ class LanceDBStore:
         vector = embedding[0]
 
         if existing:
-            return await self._update_record(element_id, vector, hash_str)
+            return await self._update_record(element_uri, vector, hash_str)
 
         return await self.table.add([EmbeddingSearch(
             vector=vector,
-            element_id=element_id,
+            element_uri=element_uri,
             aspect=aspect,
             hash=hash_str
         )])
 
-    async def _update_element(self, element_id: str, aspect: str, data: dict):
+    async def _update_element(self, element_uri: str, aspect: str, data: dict):
         """Internal method to handle element updates."""
         serialized_data = json.dumps(data, ensure_ascii=False, sort_keys=True)
         hash_str = self.hasher.hash(serialized_data)
         embedding = await self.embedder.embedding(serialized_data, dimensions=3072)
 
         return await self._update_record(
-            element_id,
+            element_uri,
             embedding[0],
             hash_str,
             aspect
         )
 
-    async def _update_record(self, element_id: str, vector: list[float],
+    async def _update_record(self, element_uri: str, vector: list[float],
                              hash_str: str, aspect: Optional[str] = None):
         """Execute update operation on the database table."""
         updates = {'vector': vector, 'hash': hash_str}
@@ -248,5 +248,5 @@ class LanceDBStore:
 
         return await self.table.update(
             updates=updates,
-            where=f'element_id = "{element_id}"'
+            where=f'element_uri = "{element_uri}"'
         )

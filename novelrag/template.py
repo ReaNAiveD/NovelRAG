@@ -10,11 +10,11 @@ from typing_extensions import Literal
 
 
 class TemplateLoader(BaseLoader):
-    def __init__(self, default_lang='en'):
-        en_loader = PackageLoader("novelrag.intent", package_path="templates/en")
-        zh_loader = PackageLoader("novelrag.intent", package_path="templates/zh")
+    def __init__(self, package_name: str, default_lang: str = 'en'):
+        en_loader = PackageLoader(package_name, package_path="templates/en")
+        zh_loader = PackageLoader(package_name, package_path="templates/zh")
         self.default_lang = default_lang
-        self.loader_map = {
+        self.loader_map: dict[str, list[BaseLoader]] = {
             'en': [en_loader],
             'zh': [zh_loader],
             'cn': [zh_loader],
@@ -38,8 +38,13 @@ class TemplateLoader(BaseLoader):
     def add_loaders(self, *args: BaseLoader, **kwargs: BaseLoader | list[BaseLoader]):
         if args:
             if self.default_lang not in kwargs:
-                kwargs[self.default_lang] = []
-            kwargs[self.default_lang] = list(args) + kwargs[self.default_lang]
+                kwargs[self.default_lang] = list(args)
+            elif isinstance(kwargs[self.default_lang], BaseLoader):
+                kwargs[self.default_lang] = list(args) + [kwargs[self.default_lang]]
+            elif isinstance(loader, list):
+                kwargs[self.default_lang] = list(args) + kwargs[self.default_lang]
+            else:
+                kwargs[self.default_lang] = list(args)
         for k, loader in kwargs.items():
             if k not in self.loader_map:
                 self.loader_map[k] = []
@@ -56,6 +61,7 @@ class TemplateLoader(BaseLoader):
 class TemplateEnvironment(Environment):
     def __init__(
             self,
+            package_name: str,
             default_lang: str | None = None,
             block_start_string: str = BLOCK_START_STRING,
             block_end_string: str = BLOCK_END_STRING,
@@ -78,7 +84,7 @@ class TemplateEnvironment(Environment):
             auto_reload: bool = True,
             bytecode_cache: BytecodeCache | None = None,
             enable_async: bool = False):
-        self.loader = TemplateLoader(default_lang or 'en')
+        self.loader = TemplateLoader(package_name, default_lang or 'en')
         super().__init__(
             block_start_string=block_start_string,
             block_end_string=block_end_string,
@@ -112,7 +118,7 @@ class TemplateEnvironment(Environment):
         lang_options = set(self.loader.loader_map.keys())
 
         # Build candidate languages list by priority
-        candidate_langs = []
+        candidate_langs: list[str] = []
         if lang:
             candidate_langs.append(lang)
         if default_lang not in candidate_langs:

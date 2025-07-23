@@ -4,7 +4,6 @@ from novelrag.intent import LLMIntent, IntentContext
 from novelrag.intent.action import Action, UpdateAction
 from novelrag.pending_queue import PendingUpdateItem
 from novelrag.resource.operation import ElementOperation, AspectLocation
-from novelrag.utils.const import LANGUAGE_INSTRUCTION
 
 
 class Create(LLMIntent):
