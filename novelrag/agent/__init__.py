@@ -16,9 +16,6 @@ from .adapters import SchematicToolAdapter
 # Scheduling system
 from .schedule import Step, Scheduler
 
-# Output processing
-from .agent import ToolOutputProcessor
-
 # Proposal system
 from .proposals import (
     ProposalSelector,
@@ -82,9 +79,6 @@ __all__ = [
     # Scheduling
     "Step",
     "Scheduler",
-    
-    # Output processing
-    "ToolOutputProcessor",
     
     # Proposals
     "ProposalSelector",
