@@ -1,5 +1,6 @@
 """Resource-specific tools for querying and writing."""
 
+import json
 import pydantic
 from typing import Any, AsyncGenerator
 
@@ -10,7 +11,6 @@ from novelrag.resource.operation import validate_op_json
 
 from .tool import SchematicTool, ContextualTool, LLMToolMixin
 from .types import ToolOutput
-from .schedule import Step
 from .proposals import ContentProposer
 
 
@@ -77,13 +77,13 @@ class ResourceQueryTool(SchematicTool):
         if query:
             result = await self.repo.vector_search(query, aspect=aspect, limit=top_k)
             for item in result:
-                yield self.output(item.element.context_dict())
+                yield self.output(json.dumps(item.element.context_dict()))
         elif uri:
             element = await self.repo.find_by_uri(uri)
             if not element:
                 yield self.error(f"Element with URI {uri} not found in the repository.")
                 return
-            yield self.output(element.context_dict())
+            yield self.output(json.dumps(element.context_dict()))
 
 
 class ResourceWriteTool(LLMToolMixin, ContextualTool):
@@ -245,11 +245,11 @@ class ResourceWriteTool(LLMToolMixin, ContextualTool):
             json_format=True
         )
     
-    async def rebuild_operation(self, proposal: str, step: Step, incorrect_op: str) -> str:
+    async def rebuild_operation(self, proposal: str, step_description: str, incorrect_op: str) -> str:
         return await self.call_template(
             'rebuild_operation.jinja2',
             proposal=proposal,
-            step_description=step.description,
+            step_description=step_description,
             incorrect_op=incorrect_op,
             json_format=True
         )
@@ -266,14 +266,6 @@ class ResourceWriteTool(LLMToolMixin, ContextualTool):
             'discover_backlog.jinja2',
             step_description=step_description,
             operation=operation,
-        )).splitlines()
-    
-    async def plan_update(self, step: Step, operation: str, future_steps: list[str]) -> list[str]:
-        return (await self.call_template(
-            'plan_update.jinja2',
-            step_description=step.description,
-            operation=operation,
-            future_steps=future_steps,
         )).splitlines()
 
 

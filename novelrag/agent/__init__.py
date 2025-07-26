@@ -8,13 +8,10 @@ scheduling, and coordination in the NovelRAG framework.
 from .agent import Agent
 
 # Core tool classes and mixins
-from .tool import BaseTool, LLMToolMixin, SchematicTool, ContextualTool
-
-# Tool adapters
-from .adapters import SchematicToolAdapter
+from .tool import BaseTool, LLMToolMixin, SchematicTool, ContextualTool, SchematicToolAdapter
 
 # Scheduling system
-from .schedule import Step, Scheduler
+from .schedule import Step, GoalPursuit
 
 # Proposal system
 from .proposals import (
@@ -78,7 +75,6 @@ __all__ = [
     
     # Scheduling
     "Step",
-    "Scheduler",
     
     # Proposals
     "ProposalSelector",

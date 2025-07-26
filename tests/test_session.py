@@ -25,6 +25,8 @@ def create_mock_intent(name: str):
     intent = Mock(spec=Intent)
     intent.name = name
     intent.handle = AsyncMock()
+    # By default, return an Action with no special actions
+    intent.handle.return_value = Action()
     return intent
 
 
@@ -33,11 +35,11 @@ def create_mock_aspect():
     mock_data = Mock(spec=ResourceAspect)
     mock_intents = Mock(spec=IntentFactory)
     mock_intents.get_intent = AsyncMock()
-    return Aspect(
-        name='mock',
-        data=mock_data,
-        intents=mock_intents,
-    )
+    aspect = Mock(spec=Aspect)
+    aspect.name = 'mock'
+    aspect.data = mock_data
+    aspect.intents = mock_intents
+    return aspect
 
 
 class SessionTestCase(unittest.IsolatedAsyncioTestCase):
@@ -67,13 +69,33 @@ class SessionTestCase(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_invoke_with_aspect_switch(self):
-        """Test switching to a new aspect without any intent"""
+        """Test switching to a new aspect without any intent but with a default intent available"""
+        # Create a default intent that returns an empty Action
+        default_intent = create_mock_intent("_default")
+        default_intent.handle.return_value = Action()
+        
+        # Add the default intent to the session registry
+        self.intent_factory = DictionaryIntentFactory([
+            self.session_intent,
+            default_intent
+        ])
+        
+        # Recreate session with the updated intent factory
+        self.session = Session(
+            aspect_factory=self.aspect_factory,
+            resource_repository=self.repository,
+            intents=self.intent_factory,
+            conversation=self.history,
+        )
+        
         command = Command(
             aspect="test_aspect",
             raw="@test_aspect"
         )
         mock_aspect = create_mock_aspect()
         self.aspect_factory.get.return_value = mock_aspect
+        # Mock the intent factory to return None for no intent specified
+        mock_aspect.intents.get_intent.return_value = None
 
         response = await self.session.invoke(command)
 
@@ -133,6 +155,7 @@ class SessionTestCase(unittest.IsolatedAsyncioTestCase):
                 chat_llm_factory=self.session.chat_llm_factory,
                 embedding_factory=self.session.embedding_factory,
                 conversation_history=self.history,
+                template_env=self.session.template_env,
             )
         )
         self.assertEqual(self.session.update_queue.pop(), mock_update)
@@ -186,6 +209,7 @@ class SessionTestCase(unittest.IsolatedAsyncioTestCase):
                 chat_llm_factory=self.session.chat_llm_factory,
                 embedding_factory=self.session.embedding_factory,
                 conversation_history=self.history,
+                template_env=self.session.template_env,
             )
         )
         self.repository.apply.assert_called_once_with(mock_op)
@@ -195,8 +219,8 @@ class SessionTestCase(unittest.IsolatedAsyncioTestCase):
         # Verify undo queue state
         undo_item = self.session.undo.pop()
         self.assertIsNotNone(undo_item)
-        self.assertEqual(undo_item.ops, [mock_undo_op])
-        self.assertEqual(undo_item.redo, mock_update)
+        self.assertEqual(undo_item.ops, [mock_undo_op]) # type: ignore
+        self.assertEqual(undo_item.redo, mock_update) # type: ignore
         self.assertIsNone(self.session.undo.pop())  # Queue should be empty now
 
         # Verify update queue is empty
@@ -246,6 +270,7 @@ class SessionTestCase(unittest.IsolatedAsyncioTestCase):
                 chat_llm_factory=self.session.chat_llm_factory,
                 embedding_factory=self.session.embedding_factory,
                 conversation_history=self.history,
+                template_env=self.session.template_env,
             )
         )
         self.repository.apply.assert_called_once_with(mock_undo_op)
@@ -283,7 +308,7 @@ class SessionTestCase(unittest.IsolatedAsyncioTestCase):
             raw="@test_aspect /test_intent test message"
         )
         with self.assertRaises(NoItemToUndoError):
-            response = await self.session.invoke(command)
+            await self.session.invoke(command)
 
         # Verify nothing was applied
         self.repository.apply.assert_not_called()
@@ -315,7 +340,7 @@ class SessionTestCase(unittest.IsolatedAsyncioTestCase):
             raw="@test_aspect /test_intent test message"
         )
         with self.assertRaises(NoItemToSubmitError):
-            response = await self.session.invoke(command)
+            await self.session.invoke(command)
 
         # Verify nothing was applied
         self.repository.apply.assert_not_called()
@@ -362,6 +387,7 @@ class SessionTestCase(unittest.IsolatedAsyncioTestCase):
                 chat_llm_factory=self.session.chat_llm_factory,
                 embedding_factory=self.session.embedding_factory,
                 conversation_history=self.history,
+                template_env=self.session.template_env,
             )
         )
 
@@ -385,6 +411,26 @@ class SessionTestCase(unittest.IsolatedAsyncioTestCase):
         mock_aspect = create_mock_aspect()
         self.aspect_factory.get.return_value = mock_aspect
         mock_aspect.intents.get_intent.return_value = None
+        
+        # Create a default intent for the aspect that returns an empty Action
+        default_intent = create_mock_intent("_default")
+        default_intent.handle.return_value = Action()
+        
+        # Add the default intent to the session registry
+        self.intent_factory = DictionaryIntentFactory([
+            self.session_intent,
+            default_intent
+        ])
+        
+        # Recreate session with the updated intent factory
+        self.session = Session(
+            aspect_factory=self.aspect_factory,
+            resource_repository=self.repository,
+            intents=self.intent_factory,
+            conversation=self.history,
+        )
+        
+        # First switch to aspect (this will use the default intent)
         await self.session.invoke(Command(aspect="test_aspect", raw="@test_aspect"))
 
         # Setup session intent
@@ -417,6 +463,7 @@ class SessionTestCase(unittest.IsolatedAsyncioTestCase):
                 chat_llm_factory=self.session.chat_llm_factory,
                 embedding_factory=self.session.embedding_factory,
                 conversation_history=self.history,
+                template_env=self.session.template_env,
             )
         )
 

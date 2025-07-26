@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock
 from novelrag.config.llm import AzureOpenAIEmbeddingConfig, EmbeddingLLMType
 from novelrag.config.resource import ResourceConfig, VectorStoreConfig
 from novelrag.resource import LanceDBResourceRepository
-from novelrag.resource.operation import ElementOperation, PropertyOperation, AspectLocation
+from novelrag.resource.operation import ElementOperation, PropertyOperation, AspectLocation, OperationTarget
 from novelrag.llm import EmbeddingLLM
 from novelrag.resource.element import Element, DirectiveElement, DirectiveElementList
 
@@ -17,6 +17,7 @@ class TestData:
     @staticmethod
     def create_character(name: str, age: int) -> dict[str, Any]:
         return {
+            'id': name.lower().replace(" ", "_"),
             'name': name,
             'age': age,
             'description': f'A character named {name} who is {age} years old'
@@ -25,6 +26,7 @@ class TestData:
     @staticmethod
     def create_event(name: str, characters: list[str]) -> dict[str, Any]:
         return {
+            'id': name.lower().replace(" ", "_"),
             'name': name,
             'mainCharacters': characters,
             'description': f'An event involving {", ".join(characters)}'
@@ -119,7 +121,7 @@ class RepositoryTestCase(unittest.IsolatedAsyncioTestCase):
 
         # Modify the element
         await self.repository.apply(PropertyOperation(
-            target='property',
+            target=OperationTarget.PROPERTY,
             element_uri=element_uri,
             data={'age': 26, 'description': 'Updated description'}
         ))
@@ -127,8 +129,8 @@ class RepositoryTestCase(unittest.IsolatedAsyncioTestCase):
         # Verify changes
         modified_element = self.repository.lut.find_by_uri(element_uri)
         self.assertIsNotNone(modified_element)
-        self.assertEqual(modified_element.inner.props()['age'], 26)
-        self.assertEqual(modified_element.inner.props()['description'], 'Updated description')
+        self.assertEqual(modified_element['age'], 26) # type: ignore
+        self.assertEqual(modified_element['description'], 'Updated description') # type: ignore
 
     async def test_vector_search(self):
         """Test vector search functionality"""
@@ -194,8 +196,8 @@ class RepositoryTestCase(unittest.IsolatedAsyncioTestCase):
         alice = self.repository.lut.find_by_uri(alice_uri)
         bob = self.repository.lut.find_by_uri(bob_uri)
 
-        self.assertEqual(alice.inner.props()['name'], "Alice")
-        self.assertEqual(bob.inner.props()['name'], "Bob")
+        self.assertEqual(alice['name'], "Alice") # type: ignore
+        self.assertEqual(bob['name'], "Bob") # type: ignore
 
     async def asyncTearDown(self):
         """Clean up test resources"""
@@ -215,6 +217,7 @@ class DirectiveElementTestCase(unittest.TestCase):
         # Create a basic character element
         character = Element.build(
             self.test_data.create_character("Alice", 25),
+            parent_uri='character',
             aspect='character',
             children_keys=['relationships']
         )
@@ -234,6 +237,7 @@ class DirectiveElementTestCase(unittest.TestCase):
         # Create multiple character elements
         characters = [
             Element.build(self.test_data.create_character(name, age), 
+                        parent_uri='character',
                         aspect='character', 
                         children_keys=['relationships'])
             for name, age in [("Alice", 25), ("Bob", 30), ("Charlie", 35)]
@@ -259,7 +263,7 @@ class DirectiveElementTestCase(unittest.TestCase):
         main_event['subEvents'] = [sub_event1, sub_event2]
         
         # Create and wrap the element
-        event_element = Element.build(main_event, aspect='event', children_keys=['subEvents'])
+        event_element = Element.build(main_event, parent_uri='event', aspect='event', children_keys=['subEvents'])
         directive = DirectiveElement.wrap(event_element, ['subEvents'])
 
         # Verify structure
@@ -282,12 +286,13 @@ class DirectiveElementTestCase(unittest.TestCase):
         main_event['subEvents'] = sub_events
         
         # Create and wrap the element
-        event_element = Element.build(main_event, aspect='event', children_keys=['subEvents'])
+        event_element = Element.build(main_event, parent_uri='event', aspect='event', children_keys=['subEvents'])
         directive = DirectiveElement.wrap(event_element, ['subEvents'])
         
         # Create new sub-event to splice in
         new_sub_event = Element.build(
             self.test_data.create_event("New Sub Event", ["Dave"]),
+            parent_uri='event',
             aspect='event',
             children_keys=['subEvents']
         )
@@ -300,10 +305,6 @@ class DirectiveElementTestCase(unittest.TestCase):
         self.assertEqual(directive.children['subEvents'][1].props['name'], "New Sub Event")
         self.assertEqual(len(old_elements), 1)
         self.assertEqual(old_elements[0].props['name'], "Sub Event 2")
-
-        # Verify the inner
-        self.assertEqual(len(directive.inner['subEvents']), 3)
-        self.assertEqual(directive.inner['subEvents'][1].props()['name'], "New Sub Event")
 
         # Verify the linking is maintained
         self.assertEqual(directive.children['subEvents'][0].next, directive.children['subEvents'][1])
