@@ -2,7 +2,7 @@
 
 from typing import Any, Literal, Annotated
 from enum import Enum
-from pydantic import BaseModel, Field, TypeAdapter
+from pydantic import BaseModel, Field, TypeAdapter, ConfigDict
 
 
 class MessageLevel(str, Enum):
@@ -27,10 +27,9 @@ class ToolOutputType(str, Enum):
 
 class ToolOutputBase(BaseModel):
     """Base class for all tool outputs"""
-    type: Annotated[ToolOutputType, Field(description="Type of the output")]
+    model_config = ConfigDict(extra="forbid")
     
-    class Config:
-        extra = "forbid"
+    type: Annotated[ToolOutputType, Field(description="Type of the output")]
 
 
 class ToolMessage(ToolOutputBase):
@@ -49,7 +48,7 @@ class ToolConfirmation(ToolOutputBase):
 class ToolResult(ToolOutputBase):
     """Output result of current step, managed by framework"""
     type: Literal[ToolOutputType.OUTPUT] = ToolOutputType.OUTPUT # type: ignore
-    result: Annotated[Any, Field(description="Result data")]
+    result: Annotated[str, Field(description="Result data")]
 
 
 class ToolUserInput(ToolOutputBase):
@@ -76,7 +75,7 @@ class ToolStepDecomposition(ToolOutputBase):
 class ToolBacklogOutput(ToolOutputBase):
     """Add specified content to backlog"""
     type: Literal[ToolOutputType.BACKLOG] = ToolOutputType.BACKLOG # type: ignore
-    content: Annotated[Any, Field(description="Content to add to backlog")]
+    content: Annotated[str, Field(description="Content to add to backlog")]
     priority: Annotated[str | None, Field(default=None, description="Priority level in backlog")]
 
 
@@ -102,13 +101,19 @@ def validate_tool_output_json(data: str) -> ToolOutput:
     return TypeAdapter(ToolOutput).validate_json(data)
 
 
-class StepStatus(str, Enum):
-    """Status of a step in the execution schedule"""
-    PENDING = "pending"
-    EXECUTING = "executing" 
+class StepStatus(Enum):
+    """Status of an action's execution."""
+    SUCCESS = "success"
+    FAILED = "failed"
+    DECOMPOSED = "decomposed"  # Action was broken down into sub-actions
+    CANCELLED = "cancelled"
+
+
+class PursuitStatus(Enum):
+    """Status of a goal pursuit."""
     COMPLETED = "completed"
     FAILED = "failed"
-    CANCELLED = "cancelled"
+    ABANDONED = "abandoned"
 
 
 class AgentMessageLevel(str, Enum):
@@ -129,9 +134,7 @@ class AgentOutputType(str, Enum):
 
 class AgentOutputBase(BaseModel):
     """Base class for all agent outputs"""
-    
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")
 
 
 class AgentMessage(AgentOutputBase):

@@ -13,10 +13,9 @@ from .types import MessageLevel, ToolOutput, ToolMessage, ToolConfirmation, Tool
 class LLMToolMixin:
     """Mixin that provides LLM template calling functionality"""
     
-    def __init__(self, *args, template_env: TemplateEnvironment, chat_llm: ChatLLM, **kwargs):
+    def __init__(self, template_env: TemplateEnvironment, chat_llm: ChatLLM):
         self.template_env = template_env
         self.chat_llm = chat_llm
-        super().__init__(*args, **kwargs)
     
     async def call_template(self, template_name: str, user_question: str | None = None, json_format: bool = False, **kwargs: str | list | dict) -> str:
         """Call an LLM with a template and return the response."""
@@ -67,7 +66,7 @@ class BaseTool(ABC):
         """Create a Confirmation output"""
         return ToolConfirmation(prompt=prompt)
 
-    def output(self, output: Any) -> ToolResult:
+    def output(self, output: str) -> ToolResult:
         """Create an Output result"""
         return ToolResult(result=output)
 
@@ -239,4 +238,3 @@ class SchematicToolAdapter(LLMToolMixin, ContextualTool):
             return json.loads(arguments_json)
         except json.JSONDecodeError:
             return None
-
