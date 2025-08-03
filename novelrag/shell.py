@@ -1,13 +1,15 @@
 import logging
 import sys
 
+import yaml
+
 from novelrag.config.novel_rag import NovelRagConfig
-from novelrag.config.resource import ResourceConfig
+from novelrag.config.resource import AspectConfig
 from novelrag.exceptions import SessionQuitError, NovelRagError
 from novelrag.intent import DictionaryIntentFactory
 from novelrag.llm.factory import ChatLLMFactory, EmbeddingLLMFactory
 from novelrag.resource import LanceDBResourceRepository
-from novelrag.session import Session, Command, ConfigBasedAspectFactory
+from novelrag.session import Session, Command, ConfigBasedIntentScopeFactory
 
 
 logger = logging.getLogger(__name__)
@@ -29,24 +31,17 @@ class NovelShell:
 
         # Initialize repository
         repository = await LanceDBResourceRepository.from_config(
-            {
-                name: ResourceConfig(
-                    path=aspect.path,
-                    children_keys=aspect.children_keys
-                )
-                for name, aspect in config.aspects.items()
-            },
+            config.resource_config,
             config.vector_store,
             embedder,
+            config.default_resource_dir,
         )
 
         # Create aspect factory with configured intents
-        aspect_factory = ConfigBasedAspectFactory(
+        aspect_factory = ConfigBasedIntentScopeFactory(
             resource_repository=repository,
-            intent_configurations={
-                name: aspect.intents
-                for name, aspect in config.aspects.items()
-            })
+            scope_configurations=config.scopes,
+        )
 
         # Create session with configured intents
         session = Session(
@@ -109,8 +104,8 @@ class NovelShell:
         
         while self.running:
             try:
-                if self.session.context.cur_aspect:
-                    prompt = f"{self.session.context.cur_aspect.data.name}> "
+                if self.session.context.current_scope:
+                    prompt = f"{self.session.context.current_scope.name}> "
                 else:
                     prompt = "> "
                 

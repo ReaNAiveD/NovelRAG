@@ -5,6 +5,8 @@ import pydantic
 from typing import Any, AsyncGenerator
 
 from novelrag.llm.types import ChatLLM
+from novelrag.resource.aspect import ResourceAspect
+from novelrag.resource.element import DirectiveElement
 from novelrag.resource.repository import ResourceRepository
 from novelrag.template import TemplateEnvironment
 from novelrag.resource.operation import validate_op_json
@@ -14,8 +16,66 @@ from .types import ToolOutput
 from .proposals import ContentProposer
 
 
-class ResourceQueryTool(SchematicTool):
-    """Tool for querying resources in the repository."""
+class AspectCreateTool(LLMToolMixin, SchematicTool):
+    """Tool for creating new aspects in the resource repository."""
+    
+    def __init__(self, repo: ResourceRepository, template_env: TemplateEnvironment, chat_llm: ChatLLM):
+        self.repo = repo
+        super().__init__(template_env=template_env, chat_llm=chat_llm)
+    
+    @property
+    def name(self):
+        return self.__class__.__name__
+    
+    @property
+    def description(self):
+        return "This tool is used to create new aspects in the resource repository. " \
+                "It allows you to define the structure and metadata of a new aspect, including its name, path, and any additional fields required for your application."
+    
+    @property
+    def output_description(self) -> str | None:
+        return "Returns the newly created aspect's metadata, including its name, path, and any additional fields defined during creation."
+    
+    @property
+    def input_schema(self) -> dict[str, Any]:
+        return {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "The name of the new aspect to create."
+                },
+                "description": {
+                    "type": "string",
+                    "description": "A brief description of the aspect's purpose and context."
+                },
+            },
+            "required": ["name", "description"],
+        }
+
+    async def call(self, **kwargs) -> AsyncGenerator[ToolOutput, bool | str | None]:
+        """Create a new aspect and return its metadata."""
+        name = kwargs.get('name')
+        description = kwargs.get('description')
+        if not name or not description:
+            yield self.error("Both 'name' and 'description' are required to create a new aspect.")
+            return
+        aspect_metadata = await self.initialize_aspect_metadata(name, description)
+        aspect = self.repo.add_aspect(name, aspect_metadata)
+        self.message(f"Aspect '{name}' created successfully.")
+        self.output(json.dumps(aspect.context_dict, ensure_ascii=False))
+
+    async def initialize_aspect_metadata(self, name: str, description: list[str]) -> dict[str, Any]:
+        return json.loads(await self.call_template(
+            'initialize_aspect_metadata.jinja2',
+            json_format=True,
+            name=name,
+            description=description,
+        ))
+
+
+class ResourceFetchTool(SchematicTool):
+    """Tool for fetching a specific resource by its URI."""
     
     def __init__(self, repo: ResourceRepository):
         self.repo = repo
@@ -26,15 +86,16 @@ class ResourceQueryTool(SchematicTool):
 
     @property
     def description(self):
-        return "This tool is used to query resources in the repository. " \
-        "It can search for resources using a query string with optional aspect filtering and top_k limit, " \
-        "or retrieve a specific resource by its URI. " \
-        "Returns relevant results to assist in finding information related to the current task or step."
+        return "This tool is used to fetch a specific resource or aspect from the repository by its URI. " \
+        "Use this tool when you have a known URI and want to retrieve its complete content and metadata. " \
+        "Supports root URI (`/`), aspect URIs (e.g., `/aspect`), and individual resource URIs (e.g., `/aspect/{+resource_id}` or `/aspect/parent_id/child_id`)."
     
     @property
     def output_description(self) -> str | None:
-        return "Returns resources matching the query or a specific resource by URI. " \
-               "Each resource has a hierarchical URI structure: `/aspect/resource_id` or `/aspect/parent_id/child_id`. " \
+        return "Returns the specific resource or aspect identified by the URI. " \
+               "For root URI (`/`): Returns all aspects in the repository. " \
+               "For aspect URIs (`/aspect`): Returns aspect metadata including name, path, children_keys, and a list of root elements. " \
+               "For resource URIs (`/aspect/resource_id` or `/aspect/parent_id/child_id`): Returns the individual resource with hierarchical structure. " \
                "Use the URI to navigate between parent and child resources. " \
                "The `relations` field maps related resource URIs to human-readable relationship descriptions. " \
                "Child resources are listed by ID only - compose full child URIs by combining the parent URI with the child ID."
@@ -46,15 +107,76 @@ class ResourceQueryTool(SchematicTool):
             "properties": {
                 "uri": {
                     "type": "string",
-                    "description": "The URI of the resource to retrieve."
-                },
+                    "description": "The URI of the resource or aspect to retrieve. Use `/` for all aspects, `/aspect` for aspect metadata, or `/aspect/{+resource_id}` for individual resources."
+                }
+            },
+            "required": ["uri"],
+        }
+
+    async def call(self, **kwargs) -> AsyncGenerator[ToolOutput, bool | str | None]:
+        """Fetch a resource or aspect by URI and return its content.
+
+        For Root URI ('/'): Returns all aspects in the repository.
+    
+        For aspect URIs (e.g., '/aspect'): Returns the aspect metadata including name, path, 
+        children_keys, and a list of root elements.
+        
+        For resource URIs (e.g., '/aspect/resource_id' or '/aspect/parent_id/child_id'): 
+        Returns the individual resource with its full hierarchical structure, including
+        relations mapped to human-readable descriptions and child resource IDs.
+        """
+        uri = kwargs.get('uri')
+        if not uri:
+            yield self.error("No URI provided. Please provide a resource or aspect URI to fetch.")
+            return
+
+        resource = await self.repo.find_by_uri(uri)
+        if not resource:
+            yield self.error(f"Resource or aspect with URI {uri} not found in the repository.")
+            return
+
+        if isinstance(resource, ResourceAspect | DirectiveElement):
+            yield self.output(json.dumps(resource.context_dict, ensure_ascii=False))
+        elif isinstance(resource, list):
+            yield self.output(json.dumps([item.aspect_dict for item in resource], ensure_ascii=False))
+
+
+class ResourceSearchTool(SchematicTool):
+    """Tool for searching resources using semantic vector search."""
+    
+    def __init__(self, repo: ResourceRepository):
+        self.repo = repo
+
+    @property
+    def name(self):
+        return self.__class__.__name__
+
+    @property
+    def description(self):
+        return "This tool is used to search for resources in the repository using semantic vector search. " \
+        "It finds resources related to your query string using AI-powered similarity matching. " \
+        "Optionally filter by aspect and control the number of results returned."
+    
+    @property
+    def output_description(self) -> str | None:
+        return "Returns a list of resources that are semantically similar to the search query, ordered by relevance. " \
+               "Each resource has a hierarchical URI structure: `/aspect/resource_id` or `/aspect/parent_id/child_id`. " \
+               "Use the URI to navigate between parent and child resources. " \
+               "The `relations` field maps related resource URIs to human-readable relationship descriptions. " \
+               "Child resources are listed by ID only - compose full child URIs by combining the parent URI with the child ID."
+
+    @property
+    def input_schema(self) -> dict[str, Any]:
+        return {
+            "type": "object",
+            "properties": {
                 "query": {
                     "type": "string",
-                    "description": "The query string to search for resources."
+                    "description": "The search query string to find semantically similar resources."
                 },
                 "aspect": {
                     "type": "string",
-                    "description": "Optional aspect to filter the search results."
+                    "description": "Optional aspect to filter the search results to specific resource types."
                 },
                 "top_k": {
                     "type": "integer",
@@ -62,28 +184,27 @@ class ResourceQueryTool(SchematicTool):
                     "default": 5
                 }
             },
-            "required": [],
+            "required": ["query"],
         }
 
     async def call(self, **kwargs) -> AsyncGenerator[ToolOutput, bool | str | None]:
-        """Perform a query and return results."""
-        uri = kwargs.get('uri')
+        """Perform semantic search and return matching resources."""
         query = kwargs.get('query')
         aspect = kwargs.get('aspect')
         top_k = kwargs.get('top_k', 5)
-        if not query and not uri:
-            yield self.error("No query provided. Please provide a query string to search for resources.")
+        
+        if not query:
+            yield self.error("No query provided. Please provide a search query string.")
             return
-        if query:
-            result = await self.repo.vector_search(query, aspect=aspect, limit=top_k)
-            for item in result:
-                yield self.output(json.dumps(item.element.context_dict()))
-        elif uri:
-            element = await self.repo.find_by_uri(uri)
-            if not element:
-                yield self.error(f"Element with URI {uri} not found in the repository.")
-                return
-            yield self.output(json.dumps(element.context_dict()))
+        
+        result = await self.repo.vector_search(query, aspect=aspect, limit=top_k)
+        if not result:
+            yield self.message(f"No resources found matching the query: '{query}'")
+            return
+        
+        yield self.message(f"Found {len(result)} resources matching the query: '{query}'")
+        for item in result:
+            yield self.output(json.dumps(item.element.context_dict, ensure_ascii=False))
 
 
 class ResourceWriteTool(LLMToolMixin, ContextualTool):
@@ -107,9 +228,8 @@ class ResourceWriteTool(LLMToolMixin, ContextualTool):
 
     async def call(self, believes: list[str] | None = None, step_description: str | None = None, context: list[str] | None = None, tools: dict[str, str] | None = None) -> AsyncGenerator[ToolOutput, bool | str | None]:
         """Edit existing content and return the updated content."""
-        if believes is None or not believes:
-            yield self.error("No believes provided. Please provide current beliefs to guide the content editing.")
-            return
+        if believes is None:
+            believes = []
         if step_description is None or not step_description:
             yield self.error("No step description provided. Please provide a description of the current step.")
             return

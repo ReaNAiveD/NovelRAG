@@ -1,7 +1,11 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+import os
+from typing import Any
 
-from novelrag.config.resource import ResourceConfig, VectorStoreConfig
+import yaml
+
+from novelrag.config.resource import AspectConfig, VectorStoreConfig
 from novelrag.exceptions import ElementNotFoundError, OperationError
 from novelrag.llm import EmbeddingLLM
 from .aspect import ResourceAspect
@@ -24,6 +28,10 @@ class ResourceRepository(ABC):
         pass
 
     @abstractmethod
+    def add_aspect(self, name: str, metadata: dict[str, Any]) -> ResourceAspect:
+        pass
+
+    @abstractmethod
     async def vector_search(self, query: str, *, aspect: str | None = None, limit: int | None = None) -> list[SearchResult]:
         """Search for resources using vector similarity.
         
@@ -35,14 +43,17 @@ class ResourceRepository(ABC):
         pass
 
     @abstractmethod
-    async def find_by_uri(self, element_uri: str) -> DirectiveElement | None:
-        """Find an element by its ID in the repository.
+    async def find_by_uri(self, element_uri: str) -> list[ResourceAspect] | ResourceAspect | DirectiveElement | None:
+        """Find an element by its URI in the repository.
         
         Args:
-            element_uri: The ID of the element to find
+            element_uri: The URI of the element to find
         
         Returns:
-            The DirectiveElement if found, otherwise None
+            - list[ResourceAspect]: All aspects if element_uri is '/'
+            - ResourceAspect: Single aspect if element_uri matches '/{aspect_name}'
+            - DirectiveElement: Element if found by URI
+            - None: If no match is found
         """
         pass
 
@@ -59,10 +70,13 @@ class ResourceRepository(ABC):
 class LanceDBResourceRepository(ResourceRepository):
     def __init__(
             self,
+            config_path: str,
             resource_aspects: dict[str, ResourceAspect],
             vector_store: LanceDBStore,
             embedder: EmbeddingLLM,
+            default_resource_dir: str = '.',
     ):
+        self.config_path = config_path
         self.resource_aspects: dict[str, ResourceAspect] = resource_aspects
         elements = [
             element 
@@ -72,13 +86,15 @@ class LanceDBResourceRepository(ResourceRepository):
         self.lut = ElementLookUpTable(elements)
         self.vector_store = vector_store
         self.embedding_llm = embedder
+        self.default_resource_dir = default_resource_dir
 
     @classmethod
     async def from_config(
             cls,
-            resource_config: dict[str, ResourceConfig],
+            config_path: str,
             vector_store_config: VectorStoreConfig,
             embedder: EmbeddingLLM,
+            default_resource_dir: str = '.',
     ) -> 'LanceDBResourceRepository':
         """Build a ResourceRepository from a dictionary of aspect configurations.
         
@@ -92,12 +108,11 @@ class LanceDBResourceRepository(ResourceRepository):
         """
         aspects = {}
         elements = []
+        with open(config_path, 'r', encoding='utf-8') as f:
+            resource_config: dict = yaml.safe_load(f)
         for aspect_name, aspect_config in resource_config.items():
-            aspect = ResourceAspect(
-                name=aspect_name,
-                path=aspect_config.path,
-                children_keys=aspect_config.children_keys
-            )
+            aspect_config = AspectConfig.model_validate(aspect_config)
+            aspect = ResourceAspect.from_config(aspect_name, aspect_config)
             aspect.load_from_file()
             aspects[aspect_name] = aspect
             for element in aspect.iter_elements():
@@ -109,7 +124,15 @@ class LanceDBResourceRepository(ResourceRepository):
         )
         await vector_store.batch_add(elements)
 
-        return cls(aspects, vector_store, embedder)
+        return cls(config_path, aspects, vector_store, embedder, default_resource_dir)
+
+    def dump_config(self):
+        """Convert the repository to a dictionary of AspectConfig objects."""
+        with open(self.config_path, 'w', encoding='utf-8') as f:
+            yaml.safe_dump({
+                name: aspect.to_config()
+                for name, aspect in self.resource_aspects.items()
+            }, f, indent=2, allow_unicode=True, encoding='utf-8')
 
     def _rebuild_lut(self):
         elements = [
@@ -122,15 +145,67 @@ class LanceDBResourceRepository(ResourceRepository):
     async def get_aspect(self, name: str) -> ResourceAspect | None:
         return self.resource_aspects.get(name)
     
-    async def find_by_uri(self, element_uri: str) -> DirectiveElement | None:
-        """Find an element by its ID in the repository.
+    def add_aspect(self, name: str, metadata: dict[str, Any]) -> ResourceAspect:
+        """Add a new aspect to the repository.
+        
+        This method creates a new ResourceAspect with the given name and metadata,
+        automatically assigning a file path if not provided. If a file with the
+        default name already exists, it appends an index to avoid conflicts.
         
         Args:
-            element_uri: The ID of the element to find
+            name: The name of the aspect to add
+            metadata: Dictionary containing aspect configuration data.
+                     If 'path' is not provided, it will be auto-generated.
         
         Returns:
-            The DirectiveElement if found, otherwise None
+            ResourceAspect: The newly created and added aspect
+            
+        Note:
+            - The aspect configuration is validated using AspectConfig
+            - The repository configuration is automatically saved after adding
+            - File paths are generated in the format: {name}.yml or {name}_{index}.yml
         """
+        if 'path' not in metadata:
+            # Generate a unique file path for the aspect
+            base_path = os.path.join(self.default_resource_dir, f"{name}.yml")
+            if not os.path.exists(base_path):
+                metadata['path'] = base_path
+            else:
+                # If file exists, append an index to create a unique filename
+                index = 0
+                while True:
+                    indexed_path = os.path.join(self.default_resource_dir, f"{name}_{index}.yml")
+                    if not os.path.exists(indexed_path):
+                        metadata['path'] = indexed_path
+                        break
+                    index += 1
+        
+        # Validate and create the aspect
+        aspect_config = AspectConfig.model_validate(metadata)
+        aspect = ResourceAspect.from_config(name, aspect_config)
+
+        # Add to repository and save configuration
+        self.resource_aspects[name] = aspect
+        self.dump_config()
+
+        return aspect
+    
+    async def find_by_uri(self, element_uri: str) -> list[ResourceAspect] | ResourceAspect | DirectiveElement | None:
+        """Find an element by its URI in the repository.
+        
+        Args:
+            element_uri: The URI of the element to find
+        
+        Returns:
+            - list[ResourceAspect]: All aspects if element_uri is '/'
+            - ResourceAspect: Single aspect if element_uri matches '/{aspect_name}'
+            - DirectiveElement: Element if found by URI
+            - None: If no match is found
+        """
+        if element_uri and element_uri == '/':
+            return list(self.resource_aspects.values())
+        elif element_uri and element_uri.startswith('/') and element_uri[1:] in self.resource_aspects:
+            return self.resource_aspects[element_uri[1:]]
         return self.lut.find_by_uri(element_uri)
 
     async def vector_search(self, query: str, *, aspect: str | None = None, limit: int | None = 20) -> list[SearchResult]:

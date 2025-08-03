@@ -1,10 +1,13 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from typing_extensions import Annotated
 
 
-class ResourceConfig(BaseModel):
+class AspectConfig(BaseModel):
     path: Annotated[str, Field(description='Path to the aspect data file')]
+    description: Annotated[str | None, Field(default=None, description='Description of the aspect')]
     children_keys: Annotated[list[str], Field(description='The keys of fields that hold children in resource.', default_factory=lambda: [])]
+
+    model_config = ConfigDict(extra='allow')
 
 
 class VectorStoreConfig(BaseModel):

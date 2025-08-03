@@ -21,7 +21,7 @@ class Delete(Intent):
             if idx >= len(cnes) or idx < 0:
                 raise InvalidIndexError(idx, len(cnes), context.current_aspect.name)
             item = context.current_aspect.root_elements[idx]
-            message = f"Delete (Submit to Confirm): {json.dumps(item.children_dict(), ensure_ascii=False)}"
+            message = f"Delete (Submit to Confirm): {json.dumps(item.children_dict, ensure_ascii=False)}"
         except ValueError as e:
             raise InvalidMessageFormatError(self.name, context.current_aspect.name, 'delete [INDEX]') from e
         return Action(

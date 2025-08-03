@@ -152,7 +152,7 @@ class ExecutionPlan:
 
     def finished(self) -> bool:
         """Check if there are actions waiting to be executed."""
-        return len(self.pending_steps) > 0
+        return len(self.pending_steps) == 0
     
     def build_context(self) -> list[str]:
         """Build context from completed actions for the next action."""
@@ -172,14 +172,14 @@ class ExecutionPlan:
                         "status": action_result.status.value,
                         "progress": action_result.progress,
                         "error_message": action_result.error_message
-                    }))
+                    }, ensure_ascii=False))
                 elif action_result.status == StepStatus.DECOMPOSED:
                     context.append(json.dumps({
                         "tool": action_result.action.tool,
                         "intent": action_result.action.intent,
                         "status": action_result.status.value,
                         "spawned_actions": [a.intent for a in action_result.spawned_actions]
-                    }))
+                    }, ensure_ascii=False))
                 contributed_actions.append(action_result.action)
         return context
     

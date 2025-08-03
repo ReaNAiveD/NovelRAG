@@ -1,6 +1,5 @@
 import json
 import logging
-import uuid
 
 from dataclasses import dataclass
 from typing import Optional, Any
@@ -179,17 +178,24 @@ class DirectiveElement:
     def aspect(self):
         return self.inner.aspect
 
+    @property
     def element_dict(self):
+        """Returns a dictionary composed of id and props"""
         return self.inner.element_dict()
     
+    @property
     def context_dict(self):
         """Returns a dictionary composed of id, uri, relations, props and children_ids"""
         return self.inner.context_dict()
 
+    @property
     def children_dict(self):
+        """Returns id + props + children (children elements are child-level element_dict results)"""
         return self.inner.children_dict()
 
+    @property
     def nested_dict(self):
+        """Returns id + props + children (children elements recursively call nested_dict)"""
         return self.inner.nested_dict()
 
     @property

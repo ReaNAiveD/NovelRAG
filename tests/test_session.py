@@ -8,7 +8,7 @@ from novelrag.exceptions import IntentNotFoundError, NoItemToSubmitError, NoItem
 from novelrag.intent import Intent, IntentContext
 from novelrag.pending_queue import PendingUpdateItem
 from novelrag.resource import ResourceRepository, ResourceAspect, Operation
-from novelrag.session import Session, Command, AspectFactory, Aspect
+from novelrag.session import Session, Command, IntentScopeFactory, IntentScope
 
 
 # Helper functions for creating common mock objects
@@ -35,7 +35,7 @@ def create_mock_aspect():
     mock_data = Mock(spec=ResourceAspect)
     mock_intents = Mock(spec=IntentFactory)
     mock_intents.get_intent = AsyncMock()
-    aspect = Mock(spec=Aspect)
+    aspect = Mock(spec=IntentScope)
     aspect.name = 'mock'
     aspect.data = mock_data
     aspect.intents = mock_intents
@@ -48,7 +48,7 @@ class SessionTestCase(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         """Setup test environment before each test"""
         # Create mock components
-        self.aspect_factory = Mock(spec=AspectFactory)
+        self.aspect_factory = Mock(spec=IntentScopeFactory)
         self.aspect_factory.get = AsyncMock()
         self.repository = Mock(spec=ResourceRepository)
         
@@ -100,7 +100,7 @@ class SessionTestCase(unittest.IsolatedAsyncioTestCase):
         response = await self.session.invoke(command)
 
         self.aspect_factory.get.assert_called_once_with('test_aspect')
-        self.assertEqual(self.session.context.cur_aspect, mock_aspect)
+        self.assertEqual(self.session.context.current_scope, mock_aspect)
         self.assertEqual([], response.messages)
 
     async def test_invoke_unregistered_intent(self):
@@ -143,7 +143,7 @@ class SessionTestCase(unittest.IsolatedAsyncioTestCase):
         response = await self.session.invoke(command)
 
         self.aspect_factory.get.assert_called_once_with('test_aspect')
-        self.assertEqual(self.session.context.cur_aspect, mock_aspect)
+        self.assertEqual(self.session.context.current_scope, mock_aspect)
         mock_intent.handle.assert_called_once_with(
             "test message",
             context=IntentContext(
@@ -197,7 +197,7 @@ class SessionTestCase(unittest.IsolatedAsyncioTestCase):
         response = await self.session.invoke(command)
 
         self.aspect_factory.get.assert_called_once_with('test_aspect')
-        self.assertEqual(self.session.context.cur_aspect, mock_aspect)
+        self.assertEqual(self.session.context.current_scope, mock_aspect)
         mock_intent.handle.assert_called_once_with(
             "test message",
             context=IntentContext(
@@ -258,7 +258,7 @@ class SessionTestCase(unittest.IsolatedAsyncioTestCase):
         response = await self.session.invoke(command)
 
         self.aspect_factory.get.assert_called_once_with('test_aspect')
-        self.assertEqual(self.session.context.cur_aspect, mock_aspect)
+        self.assertEqual(self.session.context.current_scope, mock_aspect)
         mock_intent.handle.assert_called_once_with(
             "test message",
             context=IntentContext(
@@ -373,7 +373,7 @@ class SessionTestCase(unittest.IsolatedAsyncioTestCase):
 
         # Verify aspect was not switched
         self.aspect_factory.get.assert_not_called()
-        self.assertIsNone(self.session.context.cur_aspect)
+        self.assertIsNone(self.session.context.current_scope)
 
         # Verify session intent was called
         self.session_intent.handle.assert_called_once_with(
@@ -449,7 +449,7 @@ class SessionTestCase(unittest.IsolatedAsyncioTestCase):
 
         # Verify aspect wasn't switched again
         self.aspect_factory.get.assert_called_once_with("test_aspect")  # Only from first call
-        self.assertEqual(self.session.context.cur_aspect, mock_aspect)
+        self.assertEqual(self.session.context.current_scope, mock_aspect)
 
         # Verify session intent was called with existing aspect
         self.session_intent.handle.assert_called_once_with(

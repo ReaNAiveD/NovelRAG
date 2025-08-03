@@ -1,0 +1,464 @@
+You are an expert at designing comprehensive aspect metadata structures for narrative elements and story resources. Based on the provided aspect name and description, you need to generate a JSON response containing detailed metadata that defines the structure, requirements, and constraints for this aspect type.
+
+## Understanding the Task
+
+You are tasked with creating aspect metadata that serves as a blueprint for a type of resource in the narrative system. This involves:
+
+- **Comprehensive Analysis**: The provided aspect description is from a third party and likely incomplete. You must analyze the aspect name and create a full, comprehensive description that captures all relevant dimensions
+- **Structural Definition**: Defining how resources of this aspect should be organized and structured
+- **Field Specification**: Determining required and optional fields that resources of this aspect should contain
+- **Relationship Modeling**: Identifying if resources can form hierarchical relationships (trees/forests)
+- **Constraint Definition**: Establishing rules and limitations for creating resources of this aspect
+- **Extensibility Planning**: Allowing for future expansion with additional metadata fields
+
+## Aspect Metadata Components
+
+### Core Structure
+- **children_keys**: Array of field names that contain lists of child resources (empty array if not hierarchical)
+- **description**: Clear explanation of what this aspect represents and its purpose
+- **structure**: Detailed specification of required and optional fields
+- **constraints**: Rules and limitations for creating resources of this aspect
+
+### Additional Metadata Fields
+Beyond the core structure, you should consider adding any relevant top-level fields that enhance the aspect definition:
+
+- **definition**: Detailed definition with behavioral rules, requirements, or conceptual framework
+- **validation**: Data validation rules and integrity constraints
+- **relationships**: How this aspect interacts with other aspects
+- **lifecycle**: Stages, phases, or states in the aspect's existence
+- **metadata**: Classification, tagging, or categorization information
+- **configuration**: Default settings, options, or customization parameters
+- **permissions**: Access control, usage restrictions, or authorization rules
+- **dependencies**: Required or optional relationships with other aspects
+- **examples**: Sample instances, templates, or reference implementations
+- **workflow**: Process flows or operational procedures related to this aspect
+
+### Field Categories
+1. **Required Fields**: Essential fields that every resource of this aspect must have
+2. **Optional Fields**: Additional fields that enhance the resource but aren't mandatory
+3. **Extensibility**: Guidelines for adding custom fields in the future
+
+### Metadata Dimensions to Consider
+
+When designing aspect metadata, consider these dimensions:
+
+#### **Description Development**
+- The provided description is from a third party and may be limited or biased
+- Analyze the aspect name to understand its full potential scope
+- Consider all possible interpretations and applications of this aspect type
+- Create a comprehensive description that covers functional, structural, and conceptual dimensions
+- Think beyond the initial description to capture the complete essence of the aspect
+
+#### **Purpose & Identity**
+- What is the primary purpose of this aspect?
+- How does it fit into the larger narrative system?
+- What unique characteristics define resources of this type?
+
+#### **Structural Organization**
+- Can resources of this aspect contain other resources? (hierarchical vs. flat)
+- What relationships exist between resources of this aspect?
+- How should resources be identified and referenced?
+
+#### **Content Requirements**
+- What core information must every resource contain?
+- What optional information would enhance the resource?
+- What data types are appropriate for each field?
+
+#### **Domain Specificity**
+- What narrative domains does this aspect typically operate in?
+- Are there genre-specific considerations?
+- What cultural or contextual factors matter?
+
+#### **Behavioral Constraints**
+- What rules govern how resources of this aspect are created?
+- Are there uniqueness requirements?
+- What validation rules apply?
+
+#### **Temporal Considerations**
+- Do resources of this aspect change over time?
+- Are there versioning or history requirements?
+- What lifecycle stages exist?
+
+#### **Relationship Dynamics**
+- How do resources of this aspect relate to other aspects?
+- Are there dependency requirements?
+- What cross-references are needed?
+
+#### **Semantic Richness**
+- What thematic elements are relevant?
+- Are there symbolic or metaphorical considerations?
+- What literary devices apply?
+
+## Response Format
+
+Your response must be a valid JSON object with the following structure:
+
+```json
+{
+  "children_keys": ["field_name1", "field_name2"],
+  "description": "Comprehensive description of the aspect",
+  "structure": {
+    "required_fields": [
+      {
+        "name": "field_name",
+        "type": "data_type",
+        "description": "Clear explanation of the field's purpose"
+      }
+    ],
+    "optional_fields": [
+      {
+        "name": "field_name", 
+        "type": "data_type",
+        "description": "Clear explanation of the field's purpose"
+      }
+    ],
+    "extensibility": {
+      "description": "Guidelines for adding custom fields",
+      "examples": ["example_field1", "example_field2"]
+    }
+  },
+  "constraints": [
+    {
+      "name": "Constraint Name",
+      "description": "Detailed description of the constraint"
+    }
+  ]
+}
+```
+
+**Important**: The above shows the **minimum required structure**. You should add additional top-level fields as needed to fully capture the aspect's metadata. Consider adding fields such as:
+
+- **definition**: Detailed definition with requirements, purpose, or behavioral rules
+- **validation**: Validation rules and data integrity requirements  
+- **relationships**: How this aspect relates to other aspects
+- **lifecycle**: Stages or phases in the aspect's existence
+- **metadata**: Additional categorization or tagging information
+- **configuration**: Default settings or configuration options
+- **permissions**: Access control or usage restrictions
+- **versioning**: Version control or change management rules
+- **dependencies**: Required or optional dependencies on other aspects
+- **examples**: Sample instances or use cases
+- **templates**: Default templates or patterns for this aspect
+
+Add any fields that enhance understanding and usage of the aspect type.
+
+## Data Type Guidelines
+
+Use these standard data types:
+- **string**: Text values
+- **integer**: Whole numbers
+- **number**: Numeric values (including decimals)
+- **boolean**: True/false values
+- **array<type>**: Lists of values (specify the element type)
+- **object**: Complex nested structures
+- **uri**: Resource identifiers or references
+
+## Examples
+
+### Example 1: Character Aspect
+**Aspect Name**: "character"
+**Aspect Description**: "Individual personas in the narrative with distinct personalities, backgrounds, and roles"
+
+**Response**:
+```json
+{
+  "children_keys": [],
+  "description": "Individual personas in the narrative with distinct personalities, backgrounds, and roles. Characters serve as the driving force of story events and represent various themes, conflicts, and perspectives within the narrative world.",
+  "structure": {
+    "required_fields": [
+      {
+        "name": "name",
+        "type": "string", 
+        "description": "The character's full name or primary identifier"
+      },
+      {
+        "name": "role",
+        "type": "string",
+        "description": "The character's narrative function (protagonist, antagonist, supporting, etc.)"
+      },
+      {
+        "name": "description",
+        "type": "string",
+        "description": "A comprehensive description of the character's appearance, personality, and background"
+      }
+    ],
+    "optional_fields": [
+      {
+        "name": "age",
+        "type": "integer",
+        "description": "The character's age in years"
+      },
+      {
+        "name": "physical_traits",
+        "type": "object",
+        "description": "Detailed physical characteristics including height, build, distinctive features"
+      },
+      {
+        "name": "personality_traits",
+        "type": "array<string>",
+        "description": "List of key personality characteristics and behavioral patterns"
+      },
+      {
+        "name": "background",
+        "type": "object", 
+        "description": "Character's personal history, family, education, and formative experiences"
+      },
+      {
+        "name": "motivations",
+        "type": "array<string>",
+        "description": "Core drives and desires that motivate the character's actions"
+      },
+      {
+        "name": "dialogue_voice",
+        "type": "object",
+        "description": "Distinctive speech patterns, vocabulary, and communication style"
+      },
+      {
+        "name": "internal_conflicts",
+        "type": "array<string>",
+        "description": "Psychological struggles and moral dilemmas the character faces"
+      },
+      {
+        "name": "skills_abilities",
+        "type": "array<string>", 
+        "description": "Special talents, professional skills, or supernatural abilities"
+      }
+    ],
+    "extensibility": {
+      "description": "Additional fields can be added to capture genre-specific traits, cultural background details, or unique character elements",
+      "examples": ["magical_affinity", "social_status", "family_lineage", "combat_skills", "psychological_profile"]
+    }
+  },
+  "constraints": [
+    {
+      "name": "Unique Identity",
+      "description": "Each character must have a unique name within the narrative scope"
+    },
+    {
+      "name": "Role Consistency", 
+      "description": "Character roles must align with their actions and development throughout the story"
+    }
+  ]
+}
+```
+
+### Example 2: Setting Aspect
+**Aspect Name**: "setting"
+**Aspect Description**: "Physical and temporal locations where narrative events occur"
+
+**Response**:
+```json
+{
+  "children_keys": ["sub_locations"],
+  "description": "Physical and temporal locations where narrative events occur. Settings provide the environmental context that influences character behavior, plot development, and thematic expression, ranging from intimate personal spaces to vast geographical regions.",
+  "structure": {
+    "required_fields": [
+      {
+        "name": "name",
+        "type": "string",
+        "description": "The primary name or identifier for the location"
+      },
+      {
+        "name": "description", 
+        "type": "string",
+        "description": "Detailed description of the physical appearance, atmosphere, and characteristics"
+      },
+      {
+        "name": "scope",
+        "type": "string", 
+        "description": "The scale of the setting (room, building, city, region, world, etc.)"
+      }
+    ],
+    "optional_fields": [
+      {
+        "name": "geographical_features",
+        "type": "object",
+        "description": "Natural and artificial geographic elements like mountains, rivers, buildings"
+      },
+      {
+        "name": "climate_weather",
+        "type": "object",
+        "description": "Weather patterns, seasonal variations, and climate characteristics"
+      },
+      {
+        "name": "cultural_atmosphere",
+        "type": "object",
+        "description": "Social customs, traditions, and cultural practices associated with the location"
+      },
+      {
+        "name": "historical_significance",
+        "type": "string",
+        "description": "Important historical events or background associated with the location"
+      },
+      {
+        "name": "sub_locations",
+        "type": "array<object>",
+        "description": "Smaller locations contained within this setting"
+      },
+      {
+        "name": "connected_areas", 
+        "type": "array<uri>",
+        "description": "References to adjacent or accessible locations and their connection methods"
+      },
+      {
+        "name": "time_period",
+        "type": "object",
+        "description": "Temporal context including era, season, time of day relevance"
+      },
+      {
+        "name": "mood_tone",
+        "type": "object",
+        "description": "Emotional atmosphere and psychological impact of the location"
+      },
+      {
+        "name": "resources_economy",
+        "type": "object", 
+        "description": "Available resources, economic activities, and trade relationships"
+      }
+    ],
+    "extensibility": {
+      "description": "Additional fields can be added to capture specific environmental, magical, technological, or genre-specific elements",
+      "examples": ["magical_properties", "technology_level", "population_demographics", "architectural_style", "political_structure"]
+    }
+  },
+  "constraints": [
+    {
+      "name": "Geographical Consistency",
+      "description": "All geographical and spatial relationships must be logically consistent"
+    },
+    {
+      "name": "Scope Hierarchy", 
+      "description": "Sub-locations must have a smaller scope than their parent location"
+    },
+    {
+      "name": "Temporal Coherence",
+      "description": "Time period and historical elements must align with the overall narrative timeline"
+    }
+  ]
+}
+```
+
+### Example 3: Event Aspect (Hierarchical)
+**Aspect Name**: "event"  
+**Aspect Description**: "Significant occurrences that drive narrative progression and character development"
+
+**Response**:
+```json
+{
+  "children_keys": ["subevents"],
+  "description": "Significant occurrences that drive narrative progression and character development. Events represent discrete moments of action, decision, or revelation that advance the plot and create meaningful change in the story world. Complex events can contain smaller subevents that contribute to the overall narrative impact.",
+  "structure": {
+    "required_fields": [
+      {
+        "name": "name",
+        "type": "string", 
+        "description": "A concise, memorable title for the event"
+      },
+      {
+        "name": "description",
+        "type": "string",
+        "description": "Detailed account of what happens during the event"
+      },
+      {
+        "name": "significance",
+        "type": "string",
+        "description": "The impact and importance of this event to the overall narrative"
+      }
+    ],
+    "optional_fields": [
+      {
+        "name": "participants",
+        "type": "array<uri>",
+        "description": "Characters involved in or affected by the event"
+      },
+      {
+        "name": "location",
+        "type": "uri",
+        "description": "Reference to the setting where the event occurs"
+      },
+      {
+        "name": "timing",
+        "type": "object",
+        "description": "Temporal placement within the narrative timeline"
+      },
+      {
+        "name": "triggers",
+        "type": "array<string>",
+        "description": "Causes or conditions that lead to this event occurring"
+      },
+      {
+        "name": "consequences", 
+        "type": "array<string>",
+        "description": "Direct and indirect results of the event"
+      },
+      {
+        "name": "event_type",
+        "type": "string",
+        "description": "Category of event (conflict, revelation, decision, transformation, etc.)"
+      },
+      {
+        "name": "event_stage",
+        "type": "string",
+        "description": "Narrative stage of the event (exposition, rising_action, climax, falling_action, resolution, denouement)"
+      },
+      {
+        "name": "subevents",
+        "type": "array<object>",
+        "description": "Smaller component events that make up this larger event"
+      },
+      {
+        "name": "emotional_impact",
+        "type": "object",
+        "description": "Emotional effects on characters and overall story mood"
+      }
+    ],
+    "extensibility": {
+      "description": "Additional fields can be added to capture specific narrative techniques, genre elements, or thematic significance",
+      "examples": ["symbolic_meaning", "foreshadowing_elements", "parallel_events", "dramatic_irony", "pacing_function", "tension_level", "narrative_arc_position"]
+    }
+  },
+  "constraints": [
+    {
+      "name": "Causality Chain",
+      "description": "Events must have logical connections to their triggers and consequences"
+    },
+    {
+      "name": "Character Consistency",
+      "description": "Character actions within events must align with their established personalities and motivations"
+    },
+    {
+      "name": "Timeline Coherence", 
+      "description": "Event timing must be consistent with the overall narrative chronology"
+    }
+  ]
+}
+```
+
+## Your Task
+
+Create comprehensive aspect metadata for the provided aspect name and description.
+
+**Aspect Name:** {{ aspect_name }}
+
+**Aspect Description:** {{ aspect_description }}
+
+## Instructions
+
+1. **Analyze the aspect** to understand its purpose, scope, and role in the narrative system
+2. **Rethink and expand the description** - the provided description is from a third party and likely only covers a small part of the aspect. Create a comprehensive, fair, and complete description that captures the full scope and potential of this aspect type
+3. **Determine hierarchical structure** - decide if resources of this aspect can contain children and identify relevant children_keys
+4. **Design required fields** - identify the minimum essential information every resource must have
+5. **Plan optional fields** - think of valuable additional information that would enhance resources
+6. **Consider extensibility** - provide guidelines and examples for future field additions  
+7. **Define constraints** - establish important rules and limitations for this aspect
+8. **Add relevant top-level fields** - include any additional metadata fields that would enhance the aspect definition (e.g., definition, validation, relationships, lifecycle, etc.)
+9. **Ensure comprehensive coverage** - address multiple dimensions of metadata (structural, behavioral, semantic, temporal, etc.)
+10. **Think creatively** - consider what unique characteristics this aspect type might need beyond the basic structure
+11. **Format as clean JSON** - return only the JSON object with no additional text
+
+**Important Notes**: 
+- The provided aspect description is from a third party and may be incomplete or narrow in scope. Don't just copy it - analyze what the aspect name suggests and create a comprehensive description that covers all relevant dimensions.
+- You are not limited to just `children_keys`, `description`, `structure`, and `constraints`. Add any top-level fields that would make the aspect definition more complete and useful.
+- The examples show basic structures, but feel free to include additional fields as needed for the specific aspect being defined.
+
+Generate the aspect metadata as a JSON object:
