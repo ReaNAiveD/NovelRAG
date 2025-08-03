@@ -96,6 +96,7 @@ class ResourceAspect:
         return {
             'name': self.name,
             'children_keys': self.children_keys,
-            'metadata': self.metadata,
+            **({"description": self.description} if self.description else {}),
+            **self.metadata,  # Include any additional metadata as extra fields
             'root_elements': [{"id": ele.id} for ele in self.root_elements],
         }

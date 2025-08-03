@@ -310,7 +310,7 @@ class ResourceWriteTool(LLMToolMixin, ContextualTool):
                     rationale=f"Chain updates discovered from operation: {operation[:100]}..."
                 )
         
-        backlog = await self.dicover_backlog(step_description, operation)
+        backlog = await self.discover_backlog(step_description, operation)
         if backlog:
             yield self.message(f"Discovered {len(backlog)} backlog items.")
             for item in backlog:
@@ -381,7 +381,7 @@ class ResourceWriteTool(LLMToolMixin, ContextualTool):
             operation=operation,
         )).splitlines()
     
-    async def dicover_backlog(self, step_description: str, operation: str) -> list[str]:
+    async def discover_backlog(self, step_description: str, operation: str) -> list[str]:
         return (await self.call_template(
             'discover_backlog.jinja2',
             step_description=step_description,
@@ -389,13 +389,89 @@ class ResourceWriteTool(LLMToolMixin, ContextualTool):
         )).splitlines()
 
 
-class ResourceTypeCreateTool:
-    """Tool for creating new resource types."""
-    
-    def __init__(self, name: str, description: str):
-        self.name = name
-        self.description = description
+class ResourceRelationWriteTool(LLMToolMixin, SchematicTool):
+    def __init__(self, repo: ResourceRepository, template_env: TemplateEnvironment, chat_llm: ChatLLM):
+        self.repo = repo
+        super().__init__(template_env=template_env, chat_llm=chat_llm)
 
-    async def create(self, data: dict) -> str:
-        """Create a new resource and return its identifier."""
-        raise NotImplementedError("Subclasses should implement this method.")
+    @property
+    def name(self) -> str:
+        return self.__class__.__name__
+    
+    @property
+    def description(self) -> str:
+        return 'This tool is used to write relations between resources in the repository. ' \
+                'It allows you to define relationships between resources, such as A do something with object B or A take part in event C. ' \
+                'The tool will generate a proposal for the relationship and apply it to the repository.'
+    
+    @property
+    def output_description(self) -> str | None:
+        return 'Returns the updated resource with the new relationship applied.'
+
+    @property
+    def input_schema(self) -> dict[str, Any]:
+        return {
+            "type": "object",
+            "properties": {
+                "source_resource_uri": {
+                    "type": "string",
+                    "description": "The URI of the source resource to which the relation will be added."
+                },
+                "target_resource_uri": {
+                    "type": "string",
+                    "description": "The URI of the target resource to which the relation will be added."
+                },
+                "operation": {
+                    "type": "string",
+                    "description": "The operation to perform on the relation, e.g., 'add', 'remove', 'update'."
+                },
+                "relation_description": {
+                    "type": "string",
+                    "description": "A human-readable description of the relationship between the source and target resources."
+                }
+            },
+            "required": ["source_resource_uri", "target_resource_uri", "operation", "relation_description"],
+        }
+
+    async def call(self, **kwargs) -> AsyncGenerator[ToolOutput, bool | str | None]:
+        source_resource_uri = kwargs.get('source_resource_uri')
+        target_resource_uri = kwargs.get('target_resource_uri')
+        operation = kwargs.get('operation')
+        relation_description = kwargs.get('relation_description')
+        if not source_resource_uri or not target_resource_uri or not operation or not relation_description:
+            yield self.error("Missing required parameters: source_resource_uri, target_resource_uri, operation, relation_description.")
+            return
+        source_resource = await self.repo.find_by_uri(source_resource_uri)
+        target_resource = await self.repo.find_by_uri(target_resource_uri)
+        if isinstance(target_resource, list):
+            yield self.error(f"Target resource URI '{target_resource_uri}' points to multiple resources. Please specify a single resource.")
+            return
+        if isinstance(source_resource, DirectiveElement):
+            existing_relation = source_resource.relations.get(target_resource_uri)
+            updated_relations = await self.get_updated_relations(
+                source_resource, target_resource, existing_relation or [], operation, relation_description
+            )
+            await self.repo.update_relations(source_resource_uri, target_resource_uri, updated_relations)
+            yield self.message(f"Updated relations for source resource '{source_resource_uri}' to target resource '{target_resource_uri}'.")
+            if isinstance(target_resource, DirectiveElement):
+                existing_relation = target_resource.relations.get(source_resource_uri)
+                updated_relations = await self.get_updated_relations(
+                    target_resource, source_resource, existing_relation or [], operation, relation_description
+                )
+                await self.repo.update_relations(target_resource_uri, source_resource_uri, updated_relations)
+                yield self.message(f"Updated relations for target resource '{target_resource_uri}' to source resource '{source_resource_uri}'.")
+            yield self.output(json.dumps(source_resource.context_dict, ensure_ascii=False))
+        else:
+            yield self.error(f"Source resource URI '{source_resource_uri}' does not point to a valid resource. Please check the URI.")
+            return
+
+    async def get_updated_relations(self, source_resource: DirectiveElement, target_resource: DirectiveElement | ResourceAspect, existing_relation: list[str], operation: str, relation_description: str) -> list[str]:
+        return json.loads(await self.call_template(
+            'get_updated_relations.jinja2',
+            json_format=True,
+            source_resource=source_resource.context_dict,
+            target_resource=target_resource.context_dict,
+            existing_relation=existing_relation,
+            operation=operation,
+            relation_description=relation_description,
+        ))['relations']

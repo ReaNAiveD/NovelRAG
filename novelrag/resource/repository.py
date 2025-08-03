@@ -66,6 +66,18 @@ class ResourceRepository(ABC):
         """
         pass
 
+    @abstractmethod
+    async def update_relations(self, element_uri: str, target_uri: str, relations: list[str]) -> Element:
+        """Update the relations of an element by its URI.
+        Args:
+            element_uri: The URI of the element to update
+            target_uri: The URI of the target element to relate to
+            relations: A dictionary of relations to set for the element
+        Returns:
+            Element: The updated element with new relations
+        """
+        pass
+
 
 class LanceDBResourceRepository(ResourceRepository):
     def __init__(
@@ -96,15 +108,25 @@ class LanceDBResourceRepository(ResourceRepository):
             embedder: EmbeddingLLM,
             default_resource_dir: str = '.',
     ) -> 'LanceDBResourceRepository':
-        """Build a ResourceRepository from a dictionary of aspect configurations.
-        
+        """Build a LanceDBResourceRepository from a YAML configuration file.
+
+        This method loads resource aspects from a YAML configuration file, creates
+        a vector store, and populates it with all elements from the loaded aspects.
+
         Args:
-            resource_config: Dictionary mapping aspect names to their ResourceConfig objects
-            vector_store_config: configuration of vector store
-            embedder: embedding llm
-            
+            config_path: Path to the YAML configuration file containing aspect definitions
+            vector_store_config: Configuration object for the LanceDB vector store
+            embedder: Embedding LLM instance used for generating vector embeddings
+            default_resource_dir: Default directory for resource files (defaults to '.')
+
         Returns:
-            A new ResourceRepository instance initialized with the configured aspects
+            A new LanceDBResourceRepository instance initialized with the configured
+            aspects and a populated vector store
+
+        Raises:
+            FileNotFoundError: If the config_path file doesn't exist
+            yaml.YAMLError: If the configuration file contains invalid YAML
+            ValidationError: If aspect configurations don't match the expected schema
         """
         aspects = {}
         elements = []
@@ -240,6 +262,24 @@ class LanceDBResourceRepository(ResourceRepository):
             undo = ele.update(op.data)
             await self._handle_updated(ele)
             return op.create_undo(undo)
+
+    async def update_relations(self, element_uri: str, target_uri: str, relations: list[str]) -> Element:
+        """Update the relations of an element by its URI.
+
+        Args:
+            element_uri: The URI of the element to update
+            target_uri: The URI of the target element to relate to
+            relations: A dictionary of relations to set for the element
+
+        Returns:
+            Element: The updated element with new relations
+        """
+        ele = self.lut.find_by_uri(element_uri)
+        if not isinstance(ele, DirectiveElement):
+            raise ElementNotFoundError(element_uri)
+        _ = ele.update_relations(target_uri, relations)
+        # await self._handle_updated(ele)
+        return ele.inner
 
     async def _handle_added(self, ele: DirectiveElement):
         self.lut[ele.uri] = ele
