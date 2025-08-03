@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 class Element(BaseModel):
     id: Annotated[str, Field(description='Id of the element')]
     uri: Annotated[str, Field(description='URI of the element')]
-    relations: Annotated[dict[str, str], Field(description='Related Elements. <Id>: <Description>', default_factory=lambda: {})]
+    relations: Annotated[dict[str, list[str]], Field(description='Related Elements. <Id>: <Description>', default_factory=lambda: {})]
     aspect: Annotated[str, Field(description='Aspect of the element')]
     children_keys: Annotated[list[str], Field(default_factory=lambda: [])]
 
@@ -130,9 +130,9 @@ class Element(BaseModel):
         else:
             logger.warning(f'Ignore Update for Element with no model_extra: {self.uri}')
 
-    def update_relations(self, rel: dict[str, str]):
-        old = self.relations
-        self.relations = rel
+    def update_relations(self, target_uri: str, relations: list[str]):
+        old = self.relations.get(target_uri, [])
+        self.relations[target_uri] = relations
         return old
 
 
@@ -213,8 +213,8 @@ class DirectiveElement:
     def update(self, props: dict[str, Any]):
         return self.inner.update(props)
 
-    def update_relations(self, rel: dict[str, str]):
-        return self.inner.update_relations(rel)
+    def update_relations(self, target_uri: str, relations: list[str]):
+        return self.inner.update_relations(target_uri, relations)
 
     def splice_at(self, children_key: str, start: int, end: int, *items: 'Element') -> tuple[list['DirectiveElement'], list['DirectiveElement']]:
         old = self.children_of(children_key)[start: end]
