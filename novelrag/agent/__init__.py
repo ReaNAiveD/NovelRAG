@@ -7,11 +7,13 @@ scheduling, and coordination in the NovelRAG framework.
 # Main agent class
 from .agent import Agent
 
+from .channel import AgentChannel, SessionChannel, ShellSessionChannel
+
 # Core tool classes and mixins
 from .tool import BaseTool, LLMToolMixin, SchematicTool, ContextualTool, SchematicToolAdapter
 
 # Scheduling system
-from .schedule import Step, GoalPursuit
+from .schedule import Step, GoalPursuit, GoalPlanner
 
 # Proposal system
 from .proposals import (
@@ -24,7 +26,8 @@ from .proposals import (
 
 # Resource tools
 from .resource_tools import (
-    ResourceQueryTool,
+    ResourceFetchTool,
+    ResourceSearchTool,
     ResourceWriteTool,
     ResourceTypeCreateTool,
 )
@@ -66,6 +69,10 @@ __all__ = [
     # Main agent
     "Agent",
     
+    "AgentChannel",
+    "SessionChannel",
+    "ShellSessionChannel",
+
     # Tool system
     "BaseTool",
     "LLMToolMixin", 
@@ -75,6 +82,8 @@ __all__ = [
     
     # Scheduling
     "Step",
+    "GoalPursuit",
+    "GoalPlanner",
     
     # Proposals
     "ProposalSelector",
@@ -84,7 +93,8 @@ __all__ = [
     "ContentProposer",
     
     # Resource tools
-    "ResourceQueryTool",
+    "ResourceFetchTool",
+    "ResourceSearchTool",
     "ResourceWriteTool",
     "ResourceTypeCreateTool",
     

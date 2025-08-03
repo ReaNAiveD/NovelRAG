@@ -5,7 +5,7 @@ from typing import Any
 from unittest.mock import AsyncMock
 
 from novelrag.config.llm import AzureOpenAIEmbeddingConfig, EmbeddingLLMType
-from novelrag.config.resource import ResourceConfig, VectorStoreConfig
+from novelrag.config.resource import AspectConfig, VectorStoreConfig
 from novelrag.resource import LanceDBResourceRepository
 from novelrag.resource.operation import ElementOperation, PropertyOperation, AspectLocation, OperationTarget
 from novelrag.llm import EmbeddingLLM
@@ -48,12 +48,14 @@ class MockEmbeddingLLM(EmbeddingLLM):
 async def create_test_repository(*, use_mock: bool = True):
     """Helper to create a test repository with standard config"""
     resource_config = {
-        'character': ResourceConfig(
+        'character': AspectConfig(
             path='resource/characters.yml',
+            description='A collection of characters in the story',
             children_keys=['relationships']
         ),
-        'event': ResourceConfig(
+        'event': AspectConfig(
             path='resource/events.yml',
+            description='A collection of events in the story',
             children_keys=['subEvents']
         )
     }

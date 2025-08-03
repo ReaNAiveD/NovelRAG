@@ -6,16 +6,12 @@ from novelrag.config.llm import EmbeddingConfig, ChatConfig
 from novelrag.config.resource import VectorStoreConfig
 
 
-class AspectConfig(BaseModel):
-    path: Annotated[str | None, Field(description='Path to the aspect data file', default=None)]
-    children_keys: Annotated[list[str], Field(description='The keys of fields that hold children in resource.', default_factory=lambda: [])]
-    intents: Annotated[dict[str, IntentConfig], Field()]
-
-
 class NovelRagConfig(BaseModel):
     embedding: Annotated[EmbeddingConfig, Field()]
     chat_llm: Annotated[ChatConfig | None, Field(default=None)]
     vector_store: Annotated[VectorStoreConfig, Field()]
     template_lang: Annotated[str | None, Field(default=None)]
-    aspects: Annotated[dict[str, AspectConfig], Field()]
+    resource_config: Annotated[str, Field(description='Path to the aspect metadata file', default='aspect.yml')]
+    scopes: Annotated[dict[str, Annotated[dict[str, IntentConfig], Field(default_factory=dict)]], Field(default_factory=dict)]
     intents: Annotated[dict[str, IntentConfig], Field(description="Intents for session level")]
+    default_resource_dir: Annotated[str, Field(description="Default directory for resources of new aspect", default='.')]

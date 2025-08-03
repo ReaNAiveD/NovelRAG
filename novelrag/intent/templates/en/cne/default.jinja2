@@ -103,7 +103,7 @@ This schema is used to batch edit, annotate, supplement, or enhance textual cont
   },
   {
     "target": "property",
-    "element_id": "FAKE_UUID",
+    "element_id": "FAKE_ELEMENT_ID",
     "data": {
       "description": "Reveals procedural justice flaws in the continental legal system through a wrongful imprisonment case, showing how rent-seeking corrupts the judiciary",
       "domains": ["Institutional Critique", "Judicial System", "Social Structure"]
@@ -125,7 +125,7 @@ Schema Explanation:
 
 - `element_id` (string, optional):
   - Only applicable when `target = "property"`.
-  - Must reference a previously defined element's UUID. It precisely identifies which element's properties are to be modified.
+  - Must reference a previously defined element's ID. It precisely identifies which element's properties are to be modified.
 
 - `data` (object or array):
   - Defines the new or updated content information.

@@ -1,6 +1,8 @@
 import logging
 from dataclasses import dataclass
 
+from novelrag.agent import ShellSessionChannel
+from novelrag.agent.intent import AgentIntent
 from novelrag.conversation import ConversationHistory
 from novelrag.exceptions import IntentNotFoundError, SessionQuitError, NoItemToSubmitError, NoItemToUndoError
 from novelrag.intent import IntentFactory, DictionaryIntentFactory, IntentContext
@@ -9,7 +11,7 @@ from novelrag.pending_queue import PendingUpdateQueue
 from novelrag.resource import ResourceRepository
 from novelrag.template import TemplateEnvironment
 from .command import Command
-from .context import Context, AspectFactory
+from .context import Context, IntentScopeFactory
 from .undo import UndoQueue
 
 logger = logging.getLogger(__name__)
@@ -25,14 +27,15 @@ class Session:
     def __init__(
             self,
             *,
-            aspect_factory: AspectFactory,
+            aspect_factory: IntentScopeFactory,
+            resource_repository: ResourceRepository,
             default_lang: str | None = None,
             conversation: ConversationHistory | None = None,
             update_queue: PendingUpdateQueue | None = None,
-            resource_repository: ResourceRepository | None = None,
             intents: IntentFactory | None = None,
             chat_llm_factory: ChatLLMFactory | None = None,
             embedding_factory: EmbeddingLLMFactory | None = None,
+            enable_agent: bool = True,
     ):
         self.template_env = TemplateEnvironment("novelrag.intent", default_lang)
 
@@ -45,6 +48,8 @@ class Session:
         self.update_queue: PendingUpdateQueue = update_queue or PendingUpdateQueue()
         self.resource_repository = resource_repository
         self.undo = UndoQueue()
+        self.enable_agent = enable_agent
+
 
     async def invoke(self, command: Command):
         messages = []
@@ -53,10 +58,12 @@ class Session:
             logger.info(f'Switched to new Aspect: {command.aspect}')
 
         intent = None
-        if self.context.cur_aspect:
-            intent = await self.context.cur_aspect.intents.get_intent(command.intent)
+        if self.context.current_scope:
+            intent = await self.context.current_scope.intents.get_intent(command.intent or '_default')
         if not intent and self.intent_registry:
-            intent = await self.intent_registry.get_intent(command.intent)
+            intent = await self.intent_registry.get_intent(command.intent or '_default')
+        if not intent and self.enable_agent:
+            intent = AgentIntent(name="Agent", channel=ShellSessionChannel(logger))
         if not intent:
             raise IntentNotFoundError(command.intent or '_default')
 
@@ -64,7 +71,7 @@ class Session:
             command.message,
             context=IntentContext(
                 current_element=self.context.cur_element,
-                current_aspect=self.context.cur_aspect.data if self.context.cur_aspect else None,
+                current_aspect=self.context.current_scope.data if self.context.current_scope else None,
                 raw_command=command.raw,
                 pending_update=self.update_queue,
                 resource_repository=self.resource_repository,
@@ -79,7 +86,7 @@ class Session:
 
         self.conversation.add_user(
             command.text,
-            aspect=self.context.cur_aspect.name if self.context.cur_aspect else None,
+            aspect=self.context.current_scope.name if self.context.current_scope else None,
             intent=intent.name if intent else None,
         )
 
@@ -89,7 +96,7 @@ class Session:
         if output.message:
             self.conversation.add_assistant(
                 '\n'.join(output.message),
-                aspect=self.context.cur_aspect.name if self.context.cur_aspect else None,
+                aspect=self.context.current_scope.name if self.context.current_scope else None,
                 intent=intent.name if intent else None,
             )
             messages.extend(output.message)
@@ -117,12 +124,13 @@ class Session:
                 self.update_queue.clear()
                 for op in undo.ops:
                     _ = await self.resource_repository.apply(op)
-                self.update_queue.lpush(undo.redo)
+                if undo.redo:
+                    self.update_queue.lpush(undo.redo)
                 logger.info(f"Undo with {len(undo.ops)} Operations")
             else:
                 raise NoItemToUndoError()
         if output.quit:
-            if self.context.cur_aspect:
+            if self.context.current_scope:
                 await self.context.switch(None)
                 logger.info(f'Quit current Aspect')
             else:
