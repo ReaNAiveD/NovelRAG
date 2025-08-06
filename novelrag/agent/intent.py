@@ -1,5 +1,5 @@
 from novelrag.agent import Agent, ResourceFetchTool, ResourceSearchTool, ResourceWriteTool, SessionChannel, GoalPlanner
-from novelrag.agent.resource_tools import AspectCreateTool
+from novelrag.agent.resource_tools import AspectCreateTool, ResourceRelationWriteTool
 from novelrag.intent import LLMIntent, IntentContext, Action
 from novelrag.template import TemplateEnvironment
 
@@ -25,10 +25,12 @@ class AgentIntent(LLMIntent):
             search_tool = ResourceSearchTool(context.resource_repository)
             writer_tool = ResourceWriteTool(context.resource_repository, template_env=self.template_env, chat_llm=self.chat_llm(context.chat_llm_factory))
             aspect_create_tool = AspectCreateTool(context.resource_repository, template_env=self.template_env, chat_llm=self.chat_llm(context.chat_llm_factory))
+            relation_tool = ResourceRelationWriteTool(context.resource_repository, template_env=self.template_env, chat_llm=self.chat_llm(context.chat_llm_factory))
             tools['resource_fetch'] = fetch_tool
             tools['resource_search'] = search_tool
             tools['resource_write'] = writer_tool
             tools['aspect_create'] = aspect_create_tool
+            tools['resource_relation_write'] = relation_tool
         self.planner = GoalPlanner(template_env=self.template_env, chat_llm=self.chat_llm(context.chat_llm_factory))
         agent = Agent(
             tools=tools,

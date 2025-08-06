@@ -84,7 +84,7 @@ class InvalidIndexError(ActionError):
 
 class InvalidMessageFormatError(ActionError):
     """Raised when action message format is invalid"""
-    def __init__(self, action: str, aspect: str, message: str, expected_format: str | None):
+    def __init__(self, action: str, aspect: str, message: str, expected_format: str | None = None):
         self.action = action
         self.aspect = aspect
         self.message = message

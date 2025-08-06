@@ -16,6 +16,7 @@ You are tasked with creating aspect metadata that serves as a blueprint for a ty
 ### Core Structure
 - **children_keys**: Array of field names that contain lists of child resources (empty array if not hierarchical)
 - **description**: Clear explanation of what this aspect represents and its purpose
+- **dependencies**: Required or optional relationships with other aspects that must be queried before create/update operations
 - **structure**: Detailed specification of required and optional fields
 - **constraints**: Rules and limitations for creating resources of this aspect
 
@@ -84,6 +85,12 @@ When designing aspect metadata, consider these dimensions:
 - Are there dependency requirements?
 - What cross-references are needed?
 
+#### **Dependencies Planning**
+- What other aspects must be queried before creating or updating resources of this aspect?
+- Are there restrictions or limitations from related aspects that need to be considered?
+- Should the aspect include "cne" (Core Narrative Element) as a dependency in most cases?
+- What validation checks should be performed against dependent aspects?
+
 #### **Semantic Richness**
 - What thematic elements are relevant?
 - Are there symbolic or metaphorical considerations?
@@ -97,6 +104,7 @@ Your response must be a valid JSON object with the following structure:
 {
   "children_keys": ["field_name1", "field_name2"],
   "description": "Comprehensive description of the aspect",
+  "dependencies": ["cne"],
   "structure": {
     "required_fields": [
       {
@@ -164,6 +172,7 @@ Use these standard data types:
 {
   "children_keys": [],
   "description": "Individual personas in the narrative with distinct personalities, backgrounds, and roles. Characters serve as the driving force of story events and represent various themes, conflicts, and perspectives within the narrative world.",
+  "dependencies": ["cne"],
   "structure": {
     "required_fields": [
       {
@@ -251,6 +260,7 @@ Use these standard data types:
 {
   "children_keys": ["sub_locations"],
   "description": "Physical and temporal locations where narrative events occur. Settings provide the environmental context that influences character behavior, plot development, and thematic expression, ranging from intimate personal spaces to vast geographical regions.",
+  "dependencies": ["cne"],
   "structure": {
     "required_fields": [
       {
@@ -347,6 +357,7 @@ Use these standard data types:
 {
   "children_keys": ["subevents"],
   "description": "Significant occurrences that drive narrative progression and character development. Events represent discrete moments of action, decision, or revelation that advance the plot and create meaningful change in the story world. Complex events can contain smaller subevents that contribute to the overall narrative impact.",
+  "dependencies": ["cne", "character", "setting"],
   "structure": {
     "required_fields": [
       {
@@ -447,18 +458,19 @@ Create comprehensive aspect metadata for the provided aspect name and descriptio
 1. **Analyze the aspect** to understand its purpose, scope, and role in the narrative system
 2. **Rethink and expand the description** - the provided description is from a third party and likely only covers a small part of the aspect. Create a comprehensive, fair, and complete description that captures the full scope and potential of this aspect type
 3. **Determine hierarchical structure** - decide if resources of this aspect can contain children and identify relevant children_keys
-4. **Design required fields** - identify the minimum essential information every resource must have
-5. **Plan optional fields** - think of valuable additional information that would enhance resources
-6. **Consider extensibility** - provide guidelines and examples for future field additions  
-7. **Define constraints** - establish important rules and limitations for this aspect
-8. **Add relevant top-level fields** - include any additional metadata fields that would enhance the aspect definition (e.g., definition, validation, relationships, lifecycle, etc.)
-9. **Ensure comprehensive coverage** - address multiple dimensions of metadata (structural, behavioral, semantic, temporal, etc.)
-10. **Think creatively** - consider what unique characteristics this aspect type might need beyond the basic structure
-11. **Format as clean JSON** - return only the JSON object with no additional text
+4. **Define dependencies** - identify which other aspects must be queried before creating or updating resources of this aspect. In most cases, include "cne" (Core Narrative Element) as a dependency, and add any other relevant aspects that provide restrictions or limitations
+5. **Design required fields** - identify the minimum essential information every resource must have
+6. **Plan optional fields** - think of valuable additional information that would enhance resources
+7. **Consider extensibility** - provide guidelines and examples for future field additions
+8. **Define constraints** - establish important rules and limitations for this aspect
+9. **Add relevant top-level fields** - include any additional metadata fields that would enhance the aspect definition (e.g., definition, validation, relationships, lifecycle, etc.)
+10. **Ensure comprehensive coverage** - address multiple dimensions of metadata (structural, behavioral, semantic, temporal, etc.)
+11. **Think creatively** - consider what unique characteristics this aspect type might need beyond the basic structure
+12. **Format as clean JSON** - return only the JSON object with no additional text
 
-**Important Notes**: 
+**Important Notes**:
 - The provided aspect description is from a third party and may be incomplete or narrow in scope. Don't just copy it - analyze what the aspect name suggests and create a comprehensive description that covers all relevant dimensions.
-- You are not limited to just `children_keys`, `description`, `structure`, and `constraints`. Add any top-level fields that would make the aspect definition more complete and useful.
+- You are not limited to just `children_keys`, `description`, `dependencies`, `structure`, and `constraints`. Add any top-level fields that would make the aspect definition more complete and useful.
 - The examples show basic structures, but feel free to include additional fields as needed for the specific aspect being defined.
 
 Generate the aspect metadata as a JSON object:

@@ -9,6 +9,7 @@ You are tasked with decomposing a high-level goal into a series of concrete, exe
 - **Tool Selection**: Choosing the most appropriate tools for each step based on their capabilities
 - **Step Sequencing**: Ordering steps logically so that earlier steps provide foundation for later ones
 - **Dependency Management**: Ensuring that steps build upon each other when necessary
+- **Logic Branching**: Including conditional steps that depend on the results of previous steps
 - **Completeness**: Covering all aspects needed to fully achieve the goal
 
 ## Step Planning Guidelines
@@ -21,22 +22,39 @@ Each step should:
 - **Build logically**: Steps should progress from foundational work to more specific tasks
 - **Be actionable**: Each step should be concrete enough that the tool can execute it
 - **Contribute to the goal**: Every step should clearly advance toward achieving the main goal
+- **Include conditional logic**: Use natural language to describe when steps should be executed based on previous results
+
+### Logic Branching and Conditional Steps
+Steps can include conditional logic expressed in natural language within the intent description:
+- **Query-based branching**: Steps that search for existing resources and then decide whether to create new ones
+- **Condition checking**: Steps that verify certain conditions before proceeding
+- **Fallback actions**: Alternative steps when primary actions cannot be completed
+- **Existence validation**: Check if resources already exist before creating duplicates
+
+Common conditional patterns:
+- "Query for [criteria], and if not found, proceed with creation"
+- "Check if [condition exists], and if so, modify existing [resource]"
+- "Search for similar [items], and only create new if none match [criteria]"
+- "If [previous step found X], then [do Y], otherwise [do Z]"
 
 ### Step Sequencing Principles
 1. **Foundation First**: Start with steps that gather necessary context or setup required state
 2. **Logical Progression**: Each step should build upon the results of previous steps
 3. **Dependency Respect**: Ensure prerequisite information is available before dependent steps
 4. **Broad to Specific**: Begin with general context gathering, then focus on specific actions
-5. **Efficient Flow**: Minimize redundant work while ensuring thorough coverage
+5. **Conditional Flow**: Include query steps followed by conditional creation/modification steps
+6. **Efficient Flow**: Minimize redundant work while ensuring thorough coverage
 
 ### Intent Description Best Practices
 - Be specific about what you want the tool to accomplish
 - Include relevant context from the goal and beliefs
 - Mention dependencies on previous steps when applicable
 - Use action-oriented language (e.g., "read", "create", "update", "edit")
+- **Express conditional logic clearly**: Use natural language to describe when and why steps should execute
 - Keep descriptions concise but informative
 - For reader/query tools, specify exactly what information to gather
 - For creator/editor tools, specify what to create or modify and how
+- **Include decision criteria**: Specify what conditions determine whether to proceed with a step
 
 ## Response Format
 
@@ -46,7 +64,7 @@ Your response must be a valid JSON object with the following structure:
   "steps": [
     {
       "tool": "tool_name",
-      "intent": "Clear intent description for what this step should accomplish"
+      "intent": "Clear intent description for what this step should accomplish, including any conditional logic in natural language"
     }
   ]
 }
@@ -54,7 +72,7 @@ Your response must be a valid JSON object with the following structure:
 
 ## Examples
 
-### Example 1: Character Development Goal
+### Example 1: Character Development Goal with Conditional Logic
 **Goal**: Create a compelling antagonist for a fantasy novel
 **Beliefs**: 
 - The story is set in a medieval fantasy world
@@ -74,18 +92,26 @@ Your response must be a valid JSON object with the following structure:
       "intent": "Read world-building details about the medieval fantasy setting and how magic is perceived by society"
     },
     {
+      "tool": "character_query",
+      "intent": "Search for existing antagonist characters or opposing figures with keywords like 'antagonist', 'villain', 'enemy', or 'opposition'"
+    },
+    {
       "tool": "character_creator",
-      "intent": "Create an antagonist character profile with motivations that directly oppose the protagonist's goals and leverage the magic-fear theme"
+      "intent": "Create a new antagonist character profile only if no suitable existing antagonist was found in the previous search, with motivations that directly oppose the protagonist's goals and leverage the magic-fear theme"
+    },
+    {
+      "tool": "character_editor",
+      "intent": "If an existing antagonist was found in the search, modify their profile to better align with the protagonist's arc and strengthen the magic-fear theme"
     },
     {
       "tool": "relationship_editor",
-      "intent": "Establish the relationship dynamics and shared history between the protagonist and antagonist"
+      "intent": "Establish or update the relationship dynamics and shared history between the protagonist and the antagonist (whether newly created or modified)"
     }
   ]
 }
 ```
 
-### Example 2: Plot Development Goal
+### Example 2: Plot Development Goal with Existence Checking
 **Goal**: Develop the climax scene for a mystery novel
 **Beliefs**:
 - All major clues have been planted in previous chapters
@@ -105,16 +131,59 @@ Your response must be a valid JSON object with the following structure:
       "intent": "Read character motivations and background for both the detective and the suspect"
     },
     {
+      "tool": "scene_query",
+      "intent": "Search for existing scenes with keywords like 'climax', 'confrontation', 'final', or 'resolution' to check if a climax scene already exists"
+    },
+    {
       "tool": "location_reader",
-      "intent": "Read detailed information about the suspect's workplace to understand the setting"
+      "intent": "Read detailed information about the suspect's workplace to understand the setting for the confrontation"
     },
     {
       "tool": "scene_creator",
-      "intent": "Create the climax scene incorporating clue revelations, character confrontation, and workplace setting"
+      "intent": "Create the climax scene only if no existing climax scene was found in the search, incorporating clue revelations, character confrontation, and workplace setting"
     },
     {
       "tool": "scene_editor",
-      "intent": "Refine the scene pacing and dialogue to ensure a satisfying resolution"
+      "intent": "If an existing climax scene was found, modify it to incorporate the workplace setting and ensure all clues are properly revealed; otherwise refine the newly created scene's pacing and dialogue"
+    }
+  ]
+}
+```
+
+### Example 3: World-Building Goal with Resource Validation
+**Goal**: Establish a magic system for the fantasy world
+**Beliefs**:
+- Magic should have clear rules and limitations
+- Different types of magic users exist
+- Magic has both positive and negative consequences
+
+**Steps**:
+```json
+{
+  "steps": [
+    {
+      "tool": "world_reader",
+      "intent": "Read existing world-building information to understand the current state of magic in the world"
+    },
+    {
+      "tool": "system_query",
+      "intent": "Search for existing magic system documentation using keywords like 'magic system', 'spell rules', 'magical laws', or 'arcane principles'"
+    },
+    {
+      "tool": "character_query",
+      "intent": "Query for existing magic user characters with keywords like 'mage', 'wizard', 'sorcerer', 'magical abilities' to understand what powers are already established"
+    },
+    {
+      "tool": "system_creator",
+      "intent": "Create a comprehensive magic system with rules and limitations only if no existing system was found that adequately covers the requirements"
+    },
+    {
+      "tool": "system_editor",
+      "intent": "If an existing magic system was found, expand or modify it to include clearer rules, limitations, and consequences while maintaining consistency with existing magic users"
+    },
+    {
+      "tool": "character_editor",
+      "intent": "Update existing magic user characters to align with the finalized magic system rules, ensuring their abilities fit within the established limitations"
     }
   ]
 }
@@ -124,12 +193,16 @@ Your response must be a valid JSON object with the following structure:
 
 - **One tool per step**: Each step must use exactly one tool from the available tools list
 - **Tools can be reused**: The same tool can be used in multiple steps for different purposes (e.g., multiple reader calls for different information)
+- **Conditional execution**: Steps can include natural language conditions that determine when they should be executed
+- **Query-first pattern**: When creating new resources, first query for existing similar resources using relevant keywords to avoid duplication
 - **Clear progression**: Steps should follow a logical sequence where each builds on previous results
 - **Goal alignment**: Every step should clearly contribute to achieving the stated goal
 - **Tool appropriateness**: Select tools that are specifically designed for the type of work needed in each step
 - **Belief integration**: Leverage the agent's current beliefs to inform step planning and tool selection
 - **Actionable intents**: Each step's intent should be specific enough for the tool to understand and execute
 - **Query specificity**: When using reader/query tools multiple times, make each call target specific information needed
+- **Branching logic**: Use natural language to express when steps should execute based on the results of previous steps
+- **Keyword specification**: For query tools, include specific keywords or search terms to help locate relevant existing resources
 
 ## Current Task
 
@@ -163,11 +236,13 @@ When selecting tools for each step, consider their specific capabilities:
 Analyze the provided goal, beliefs, and available tools to create an optimal sequence of steps that will achieve the goal effectively. Remember to:
 
 1. **Start with foundation steps** that gather context or setup required state using reader tools
-2. **Progress logically** with each step building on previous results  
+2. **Progress logically** with each step building on previous results
 3. **Use exactly one tool per step** but the same tool can be used multiple times for different purposes
 4. **Write clear, actionable intents** that specify what the tool should accomplish
 5. **Leverage agent beliefs** to inform your planning decisions
 6. **Ensure completeness** so all aspects of the goal are addressed
 7. **Use multiple reader calls** when different pieces of information are needed from the same source type
+8. **Apply conditional logic** using natural language to describe when steps should execute based on previous results
+9. **Follow the query-first pattern** when creating new resources to avoid duplication
 
 Provide your response as a valid JSON object following the specified format.

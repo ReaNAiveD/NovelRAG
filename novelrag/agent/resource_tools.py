@@ -30,7 +30,9 @@ class AspectCreateTool(LLMToolMixin, SchematicTool):
     @property
     def description(self):
         return "This tool is used to create new aspects in the resource repository. " \
-                "It allows you to define the structure and metadata of a new aspect, including its name, path, and any additional fields required for your application."
+                "It allows you to define the structure and metadata of a new aspect, including its name, path, and any additional fields required for your application." \
+                "Before using this tool, you should have a clear understanding of all other aspects in the repository, " \
+                "as the new aspect will be added to the existing structure."
     
     @property
     def output_description(self) -> str | None:
@@ -224,7 +226,10 @@ class ResourceWriteTool(LLMToolMixin, ContextualTool):
         return "This tool is used to edit existing content in the resource repository. " \
         "It generates proposals based on current beliefs and context, sorts them, " \
         "selects one for editing, builds an operation, and applies it to the repository. " \
-        "It also discovers chain updates and backlog items based on the operation."
+        "It also discovers chain updates and backlog items based on the operation. " \
+        "Before using this tool, ensure you have a clear understanding of the aspect you are going to edit, " \
+        "you should follow the guidelines and limitations according to the aspect, " \
+        "usually this is through the ResourceFetchTool or ResourceSearchTool."
 
     async def call(self, believes: list[str] | None = None, step_description: str | None = None, context: list[str] | None = None, tools: dict[str, str] | None = None) -> AsyncGenerator[ToolOutput, bool | str | None]:
         """Edit existing content and return the updated content."""
