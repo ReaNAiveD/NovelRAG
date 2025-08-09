@@ -1,5 +1,8 @@
-from novelrag.agent import Agent, ResourceFetchTool, ResourceSearchTool, ResourceWriteTool, SessionChannel, GoalPlanner
-from novelrag.agent.resource_tools import AspectCreateTool, ResourceRelationWriteTool
+from .agent import Agent
+from .channel import SessionChannel
+from .planning import GoalPlanner
+from .pursuit import PursuitSummarizer
+from .resource_tools import ResourceFetchTool, ResourceSearchTool, ResourceWriteTool, AspectCreateTool, ResourceRelationWriteTool
 from novelrag.intent import LLMIntent, IntentContext, Action
 from novelrag.template import TemplateEnvironment
 
@@ -31,16 +34,18 @@ class AgentIntent(LLMIntent):
             tools['resource_write'] = writer_tool
             tools['aspect_create'] = aspect_create_tool
             tools['resource_relation_write'] = relation_tool
-        self.planner = GoalPlanner(template_env=self.template_env, chat_llm=self.chat_llm(context.chat_llm_factory))
+        planner = GoalPlanner(template_env=self.template_env, chat_llm=self.chat_llm(context.chat_llm_factory))
+        summarizer = PursuitSummarizer(template_env=self.template_env, chat_llm=self.chat_llm(context.chat_llm_factory))
         agent = Agent(
             tools=tools,
             channel=self.channel,
-            planner=self.planner,
+            planner=planner,
+            summarizer=summarizer,
             template_env=self.template_env,
             chat_llm=self.chat_llm(context.chat_llm_factory)
         )
 
-        await agent.handle_goal(message)
+        await agent.pursue_goal(message)
         output = self.channel.get_output()
         return Action(
             message=output,

@@ -1,7 +1,7 @@
 from logging import Logger
 from typing import Protocol
 
-from novelrag.agent.types import AgentMessageLevel
+from .types import AgentMessageLevel
 
 
 class AgentChannel(Protocol):

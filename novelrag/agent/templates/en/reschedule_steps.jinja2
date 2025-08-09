@@ -200,11 +200,11 @@ Your response must be a valid JSON object with the following structure:
 **Last Step**: {"tool": "character_creator", "intent": "Create new supporting character", "status": "success", "results": ["Created character: David (tech expert, age 25)"]}
 **Spawned Steps**: []
 **Triggered Steps**: [
-  {"tool": "relationship_editor", "intent": "Define David's relationships with existing characters"},
-  {"tool": "backstory_writer", "intent": "Write David's backstory and motivation"}
+  {"tool": "relationship_mapper", "intent": "Map relationships between David and existing characters"},
+  {"tool": "backstory_writer", "intent": "Write David's backstory focusing on his tech expertise"}
 ]
-**Target Steps**: [{"tool": "scene_editor", "intent": "Add character to existing scenes"}, {"tool": "story_validator", "intent": "Check story consistency"}]
-**Goal**: "Add a new character to the story"
+**Target Steps**: [{"tool": "scene_finder", "intent": "Find scenes where David would naturally appear"}, {"tool": "scene_editor", "intent": "Add David to identified scenes"}]
+**Goal**: "Integrate the new character into the story"
 
 **Final Execution Order**: [triggered_steps] + [new_steps] + [remaining_target_steps]
 
@@ -213,60 +213,24 @@ Your response must be a valid JSON object with the following structure:
 {
   "new_steps": [
     {
-      "tool": "scene_analyzer",
-      "intent": "Identify scenes where David's tech expertise would be relevant"
-    },
-    {
-      "tool": "scene_editor",
-      "intent": "Add David to identified scenes with meaningful interactions based on his relationships and backstory"
+      "tool": "character_integration_analyzer",
+      "intent": "Analyze how David's tech expertise and relationships can enhance existing plot points"
     }
   ],
-  "delete_count": 1
+  "delete_count": 0
 }
 ```
 
-### Example 4: Failed Step Requiring Alternative Approach
-**Last Step**: {"tool": "file_reader", "intent": "Read character database", "status": "failed", "error_message": "File not found: characters.json"}
-**Spawned Steps**: []
-**Triggered Steps**: []
-**Target Steps**: [{"tool": "character_creator", "intent": "Create new character"}, {"tool": "story_editor", "intent": "Update story with new character"}]
-**Goal**: "Add a new character to the story"
-
-**Final Execution Order**: [file_reader_rerun] + [new_steps] + [remaining_target_steps]
-
-**Response**:
-```json
-{
-  "new_steps": [
-    {
-      "tool": "story_reader",
-      "intent": "Read existing story content to understand current characters and context"
-    },
-    {
-      "tool": "character_creator",
-      "intent": "Create new character based on story context without relying on character database"
-    },
-    {
-      "tool": "story_editor",
-      "intent": "Update story with the new character, ensuring consistency with existing narrative"
-    }
-  ],
-  "delete_count": 2
-}
-```
-
-### Example 5: Conditional Steps with Query Results
-**Last Step**: {"tool": "character_query", "intent": "Search for existing antagonist characters with keywords 'villain', 'enemy', 'antagonist'", "status": "success", "results": ["No antagonist characters found"]}
+### Example 4: Failed Step with Conditional Logic
+**Last Step**: {"tool": "file_reader", "intent": "Read character database", "status": "failed", "error_message": "File not found", "progress": {"attempted_paths": ["/characters.json", "/data/characters.yml"]}}
 **Spawned Steps**: []
 **Triggered Steps**: []
 **Target Steps**: [
-  {"tool": "character_creator", "intent": "Create new antagonist character only if no existing antagonist was found"},
-  {"tool": "character_editor", "intent": "If existing antagonist was found, modify their profile to better fit the story"},
-  {"tool": "relationship_editor", "intent": "Establish relationships between protagonist and antagonist"}
+  {"tool": "character_creator", "intent": "Create characters if database exists, otherwise use default templates"},
+  {"tool": "story_generator", "intent": "Generate story outline"},
+  {"tool": "scene_creator", "intent": "Create opening scene"}
 ]
-**Goal**: "Create a compelling antagonist for the story"
-
-**Analysis**: Since no antagonist was found, the condition "only if no existing antagonist was found" is satisfied for the first step, but the second step's condition "if existing antagonist was found" is NOT satisfied.
+**Goal**: "Initialize story with characters"
 
 **Response**:
 ```json
@@ -274,70 +238,100 @@ Your response must be a valid JSON object with the following structure:
   "new_steps": [
     {
       "tool": "character_creator",
-      "intent": "Create new antagonist character with compelling motivations and background"
-    },
-    {
-      "tool": "relationship_editor",
-      "intent": "Establish relationships between protagonist and the newly created antagonist"
-    }
-  ],
-  "delete_count": 2
-}
-```
-
-### Example 6: Loop Condition Still Active
-**Last Step**: {"tool": "scene_validator", "intent": "Check if all plot holes are resolved, repeat scene editing until no issues remain", "status": "success", "results": ["Found 2 remaining plot holes in scenes 5 and 8"]}
-**Spawned Steps**: []
-**Triggered Steps**: []
-**Target Steps**: [
-  {"tool": "scene_editor", "intent": "Fix identified plot holes"},
-  {"tool": "scene_validator", "intent": "Repeat validation until no plot holes remain"},
-  {"tool": "story_finalizer", "intent": "Finalize story when all issues resolved"}
-]
-**Goal**: "Complete story revision by fixing all plot holes"
-
-**Analysis**: Loop condition is still active since plot holes were found. Need to repeat the scene editing and validation cycle.
-
-**Response**:
-```json
-{
-  "new_steps": [
-    {
-      "tool": "scene_editor",
-      "intent": "Fix the 2 remaining plot holes identified in scenes 5 and 8"
-    },
-    {
-      "tool": "scene_validator",
-      "intent": "Check if all plot holes are resolved after fixing scenes 5 and 8, repeat if issues remain"
-    }
-  ],
-  "delete_count": 2
-}
-```
-
-### Example 7: Mixed Conditional Steps with Partial Deletion
-**Last Step**: {"tool": "resource_query", "intent": "Search for existing magic system documentation", "status": "success", "results": ["Found partial magic system covering elemental magic only"]}
-**Spawned Steps**: []
-**Triggered Steps**: []
-**Target Steps**: [
-  {"tool": "system_creator", "intent": "Create comprehensive magic system only if no existing system found"},
-  {"tool": "system_editor", "intent": "If existing system found, expand it to cover all magic types"},
-  {"tool": "character_query", "intent": "Search for magic user characters"},
-  {"tool": "character_editor", "intent": "Update magic users to align with finalized system"}
-]
-**Goal**: "Establish complete magic system for the fantasy world"
-
-**Analysis**: Existing system was found, so first step condition is NOT satisfied, but second step condition IS satisfied. Keep remaining steps as they're still needed.
-
-**Response**:
-```json
-{
-  "new_steps": [
-    {
-      "tool": "system_editor",
-      "intent": "Expand the existing elemental magic system to cover divine, arcane, and nature magic types"
+      "intent": "Create default character templates since database was not found"
     }
   ],
   "delete_count": 1
 }
 ```
+
+### Example 5: Conditional Step Evaluation
+**Last Step**: {"tool": "story_analyzer", "intent": "Check if story has romance subplot", "status": "success", "results": ["Romance subplot confirmed: Alice and David romantic tension"]}
+**Spawned Steps**: []
+**Triggered Steps**: []
+**Target Steps**: [
+  {"tool": "scene_creator", "intent": "If romance subplot exists, create romantic scene; otherwise skip"},
+  {"tool": "dialogue_writer", "intent": "Write romance dialogue if subplot confirmed"},
+  {"tool": "plot_weaver", "intent": "Integrate romance into main plot"}
+]
+**Goal**: "Develop romance subplot if it exists"
+
+**Response**:
+```json
+{
+  "new_steps": [
+    {
+      "tool": "scene_creator",
+      "intent": "Create romantic scene between Alice and David based on confirmed romantic tension"
+    },
+    {
+      "tool": "dialogue_writer",
+      "intent": "Write romance dialogue between Alice and David"
+    },
+    {
+      "tool": "plot_weaver",
+      "intent": "Integrate Alice-David romance into main plot structure"
+    }
+  ],
+  "delete_count": 3
+}
+```
+
+## Your Task
+
+Reschedule the execution plan based on the provided information.
+
+**Goal:**
+```
+{{ goal }}
+```
+
+**Last Completed Step:**
+```json
+{{ last_step | tojson }}
+```
+
+**Spawned Steps from Last Step:**
+{% for step in spawned_steps %}
+- Tool: {{ step.tool }}, Intent: {{ step.intent }}
+{% endfor %}
+
+**Triggered Steps from Last Step:**
+{% for step in triggered_steps %}
+- Tool: {{ step.tool }}, Intent: {{ step.intent }}
+{% endfor %}
+
+**Current Target Steps (Pending):**
+{% for step in target_steps %}
+- Tool: {{ step.tool }}, Intent: {{ step.intent }}
+{% endfor %}
+
+**Previous Completed Steps:**
+{% for step in prev_steps %}
+- Tool: {{ step.tool }}, Intent: {{ step.intent }}, Status: {{ step.status }}
+{% endfor %}
+
+**Current Agent Beliefs:**
+{% for belief in believes %}
+- {{ belief }}
+{% endfor %}
+
+**Available Tools:**
+{% for tool_name, tool_desc in tools.items() %}
+- **{{ tool_name }}**: {{ tool_desc }}
+{% endfor %}
+
+## Instructions
+
+1. **Analyze the last step outcome** to understand its impact on the remaining work
+2. **Evaluate spawned and triggered steps** to avoid duplication and build upon their expected results
+3. **Process conditional logic** in target steps based on the current state and last step results
+4. **Determine step modifications** needed based on new information or changing circumstances
+5. **Handle loop conditions** if any iterative processes need continuation or termination
+6. **Calculate delete_count** for target steps that should be removed due to conditional logic or obsolescence
+7. **Create new_steps** that fill gaps, address new requirements, or replace modified target steps
+8. **Ensure goal alignment** - all steps should contribute to achieving the overall goal
+9. **Maintain logical sequencing** - new steps should execute in the optimal order
+10. **Format as clean JSON** - return only the JSON object with no additional text
+
+Generate the rescheduling decision as a JSON object:

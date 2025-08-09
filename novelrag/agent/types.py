@@ -101,21 +101,6 @@ def validate_tool_output_json(data: str) -> ToolOutput:
     return TypeAdapter(ToolOutput).validate_json(data)
 
 
-class StepStatus(Enum):
-    """Status of an action's execution."""
-    SUCCESS = "success"
-    FAILED = "failed"
-    DECOMPOSED = "decomposed"  # Action was broken down into sub-actions
-    CANCELLED = "cancelled"
-
-
-class PursuitStatus(Enum):
-    """Status of a goal pursuit."""
-    COMPLETED = "completed"
-    FAILED = "failed"
-    ABANDONED = "abandoned"
-
-
 class AgentMessageLevel(str, Enum):
     """Message levels for agent outputs"""
     DEBUG = "debug"

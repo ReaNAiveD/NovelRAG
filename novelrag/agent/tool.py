@@ -17,7 +17,7 @@ class LLMToolMixin:
         self.template_env = template_env
         self.chat_llm = chat_llm
     
-    async def call_template(self, template_name: str, user_question: str | None = None, json_format: bool = False, **kwargs: str | list | dict) -> str:
+    async def call_template(self, template_name: str, user_question: str | None = None, json_format: bool = False, **kwargs: bool | int | float | str | list | dict) -> str:
         """Call an LLM with a template and return the response."""
         template = self.template_env.load_template(template_name)
         prompt = template.render(**kwargs)
@@ -167,6 +167,7 @@ class SchematicToolAdapter(LLMToolMixin, ContextualTool):
                 yield self.warning(f"Error building tool arguments: {str(e)}")
                 tool_args = None
             if tool_args is not None:
+                yield self.debug(f"Built tool arguments: {tool_args}")
                 break
             if attempt < max_retries - 1:
                 yield self.warning(f"Failed to build tool arguments (attempt {attempt + 1}/{max_retries}). Retrying...")

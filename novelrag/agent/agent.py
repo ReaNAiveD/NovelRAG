@@ -8,7 +8,8 @@ from novelrag.llm.types import ChatLLM
 from novelrag.template import TemplateEnvironment
 
 from .tool import BaseTool, ContextualTool, LLMToolMixin, SchematicTool
-from .schedule import GoalPlanner, GoalPursuit, GoalPursuitResult
+from .planning import GoalPlanner
+from .pursuit import GoalPursuit, PursuitSummarizer
 from .proposals import TargetProposer
 
 logger = logging.getLogger(__name__)
@@ -63,12 +64,13 @@ class Agent(LLMToolMixin):
     - AgentExecutor: Executes actions and tools
     """
 
-    def __init__(self, tools: dict[str, BaseTool], channel: AgentChannel, planner: GoalPlanner, template_env: TemplateEnvironment, chat_llm: ChatLLM):
+    def __init__(self, tools: dict[str, BaseTool], channel: AgentChannel, planner: GoalPlanner, summarizer: PursuitSummarizer, template_env: TemplateEnvironment, chat_llm: ChatLLM):
         # Initialize core components
         self.mind = AgentMind()
         self.channel = channel
 
         self.planner = planner
+        self.summarizer = summarizer
         self.tools: dict[str, BaseTool] = tools
         self.contextual_tools: dict[str, ContextualTool] = dict()
         for (name, tool) in self.tools.items():
@@ -101,15 +103,21 @@ class Agent(LLMToolMixin):
         # TODO: Implement decision logic in mind component
         pass
 
-    async def handle_goal(self, goal: str):
-        pursuit = await self.planner.plan_goal(goal, self.believes, self.contextual_tools)
-        while isinstance(pursuit, GoalPursuit):
-            pursuit = await pursuit.advance(self.contextual_tools, self.channel)
-        if isinstance(pursuit, GoalPursuitResult):
-            records = pursuit.records.completed_steps
-            if not records:
-                await self.channel.error(f'No steps completed for goal "{goal}".')
-                return
-            last_step = records[-1]
-            for result in last_step.results:
-                await self.channel.output(result)
+    async def pursue_goal(self, goal: str):
+        pursuit = await GoalPursuit.initialize_pursuit(
+            goal=goal,
+            believes=self.believes,
+            tools=self.contextual_tools,
+            planner=self.planner
+        )
+        await self.channel.debug(f"Initial plan for goal '{goal}': {pursuit.plan.pending_steps}")
+        result = await pursuit.run_to_completion(self.contextual_tools, self.channel, self.planner)
+        records = result.records.completed_steps
+        if not records:
+            await self.channel.error(f'No steps completed for goal "{goal}".')
+            return
+        # last_step = records[-1]
+        # for result in last_step.results:
+        #     await self.channel.output(result)
+        summary = await self.summarizer.summarize_pursuit(result)
+        await self.channel.output(summary)

@@ -7,116 +7,54 @@ scheduling, and coordination in the NovelRAG framework.
 # Main agent class
 from .agent import Agent
 
+# Communication channels
 from .channel import AgentChannel, SessionChannel, ShellSessionChannel
 
-# Core tool classes and mixins
-from .tool import BaseTool, LLMToolMixin, SchematicTool, ContextualTool, SchematicToolAdapter
+# Core tool interfaces for extension
+from .tool import BaseTool, SchematicTool, ContextualTool
 
-# Scheduling system
-from .schedule import Step, GoalPursuit, GoalPlanner
-
-# Proposal system
-from .proposals import (
-    ProposalSelector,
-    TargetProposal,
-    TargetProposer,
-    ContentProposal,
-    ContentProposer,
-)
-
-# Resource tools
-from .resource_tools import (
-    ResourceFetchTool,
-    ResourceSearchTool,
-    ResourceWriteTool,
-    ResourceTypeCreateTool,
-)
-
-# Type definitions and enums
+# Essential types for public API
 from .types import (
-    # Message and output levels
+    # Core enums
     MessageLevel,
     AgentMessageLevel,
-    
-    # Tool output types
     ToolOutputType,
-    ToolOutput,
-    ToolMessage,
-    ToolConfirmation,
-    ToolResult,
-    ToolUserInput,
-    ToolStepProgress,
-    ToolStepDecomposition,
-    ToolBacklogOutput,
-    
-    # Agent output types
     AgentOutputType,
+
+    # Main union types
+    ToolOutput,
     AgentOutput,
-    AgentMessage,
-    AgentConfirmation,
-    AgentUserInput,
-    AgentResult,
-    
-    # Step status
-    StepStatus,
-    
+
     # Validation functions
     validate_tool_output,
     validate_tool_output_json,
+    validate_agent_output,
 )
 
 __all__ = [
     # Main agent
     "Agent",
     
+    # Communication channels
     "AgentChannel",
     "SessionChannel",
     "ShellSessionChannel",
 
-    # Tool system
+    # Core tool interfaces
     "BaseTool",
-    "LLMToolMixin", 
     "SchematicTool",
     "ContextualTool",
-    "SchematicToolAdapter",
-    
-    # Scheduling
-    "Step",
-    "GoalPursuit",
-    "GoalPlanner",
-    
-    # Proposals
-    "ProposalSelector",
-    "TargetProposal",
-    "TargetProposer", 
-    "ContentProposal",
-    "ContentProposer",
-    
-    # Resource tools
-    "ResourceFetchTool",
-    "ResourceSearchTool",
-    "ResourceWriteTool",
-    "ResourceTypeCreateTool",
-    
-    # Types and enums
+
+    # Essential types
     "MessageLevel",
     "AgentMessageLevel",
     "ToolOutputType",
-    "ToolOutput",
-    "ToolMessage",
-    "ToolConfirmation",
-    "ToolResult",
-    "ToolUserInput",
-    "ToolStepProgress",
-    "ToolStepDecomposition",
-    "ToolBacklogOutput",
     "AgentOutputType",
+    "ToolOutput",
     "AgentOutput",
-    "AgentMessage",
-    "AgentConfirmation",
-    "AgentUserInput",
-    "AgentResult",
-    "StepStatus",
+
+    # Validation functions
     "validate_tool_output",
     "validate_tool_output_json",
+    "validate_agent_output",
 ]
