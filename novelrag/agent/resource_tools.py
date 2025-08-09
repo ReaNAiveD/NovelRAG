@@ -88,16 +88,19 @@ class ResourceFetchTool(SchematicTool):
 
     @property
     def description(self):
-        return "This tool is used to fetch a specific resource or aspect from the repository by its URI. " \
-        "Use this tool when you have a known URI and want to retrieve its complete content and metadata. " \
-        "Supports root URI (`/`), aspect URIs (e.g., `/aspect`), and individual resource URIs (e.g., `/aspect/{+resource_id}` or `/aspect/parent_id/child_id`)."
-    
+        return "This tool fetches a specific resource, aspect, or repository root by its URI. " \
+            "Use this when you have a known URI and want to retrieve complete content and metadata. " \
+            "Supports: root URI (/), aspect URIs (/{aspect}), and resource URIs (/{aspect}/{resource_id} or /{aspect}/{parent_id}/{child_id}). " \
+            "The repository uses hierarchical structure: query root URI for all aspects, " \
+            "aspect URIs for metadata and root elements, " \
+            "and resource URIs for full hierarchical structure including sub-resources."
+
     @property
     def output_description(self) -> str | None:
         return "Returns the specific resource or aspect identified by the URI. " \
                "For root URI (`/`): Returns all aspects in the repository. " \
-               "For aspect URIs (`/aspect`): Returns aspect metadata including name, path, children_keys, and a list of root elements. " \
-               "For resource URIs (`/aspect/resource_id` or `/aspect/parent_id/child_id`): Returns the individual resource with hierarchical structure. " \
+               "For aspect URIs (`/{aspect}`): Returns aspect metadata including name, path, children_keys, and a list of root elements. " \
+               "For resource URIs (`/{aspect}/{resource_id}` or `/{aspect}/{parent_id}/{child_id}`): Returns the individual resource with hierarchical structure. " \
                "Use the URI to navigate between parent and child resources. " \
                "The `relations` field maps related resource URIs to human-readable relationship descriptions. " \
                "Child resources are listed by ID only - compose full child URIs by combining the parent URI with the child ID."
@@ -162,7 +165,7 @@ class ResourceSearchTool(SchematicTool):
     @property
     def output_description(self) -> str | None:
         return "Returns a list of resources that are semantically similar to the search query, ordered by relevance. " \
-               "Each resource has a hierarchical URI structure: `/aspect/resource_id` or `/aspect/parent_id/child_id`. " \
+               "Each resource has a hierarchical URI structure: `/{aspect}/{resource_id}` or `/{aspect}/{parent_id}/{child_id}`. " \
                "Use the URI to navigate between parent and child resources. " \
                "The `relations` field maps related resource URIs to human-readable relationship descriptions. " \
                "Child resources are listed by ID only - compose full child URIs by combining the parent URI with the child ID."

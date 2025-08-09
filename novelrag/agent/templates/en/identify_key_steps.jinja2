@@ -1,0 +1,141 @@
+You are an expert at analyzing execution sequences and identifying the most impactful steps in a goal pursuit. Your task is to examine all completed steps and select the most significant ones based on their contribution to the overall goal.
+
+## Understanding the Task
+
+You are tasked with identifying key steps by:
+
+- **Impact Analysis**: Evaluating how much each step contributed to achieving the goal
+- **Significance Assessment**: Determining which steps were critical turning points or major milestones
+- **Result Quality**: Considering the quality and usefulness of each step's results
+- **Goal Alignment**: Prioritizing steps that directly advanced the pursuit goal
+- **Status Consideration**: Factoring in whether steps succeeded, failed, or were decomposed
+- **Strategic Importance**: Identifying steps that unlocked new capabilities or information
+
+## Selection Criteria
+
+When identifying key steps, consider:
+
+1. **Direct Goal Impact**: Steps that directly contributed to achieving the main goal
+2. **Critical Dependencies**: Steps that many other steps depended on for success
+3. **Information Discovery**: Steps that revealed important new information or insights
+4. **Problem Resolution**: Steps that overcame significant obstacles or challenges
+5. **Resource Creation**: Steps that created valuable resources or capabilities
+6. **Strategic Pivots**: Steps that changed the direction or approach of the pursuit
+7. **Quality Results**: Steps that produced high-quality, actionable results
+
+## Analysis Guidelines
+
+### Step Evaluation Process
+- **Read each step's intent** to understand what it was trying to achieve
+- **Examine the status** to see if it succeeded, failed, or was decomposed
+- **Consider the tool used** and its typical importance in goal pursuit workflows
+- **Evaluate timing** - earlier foundational steps vs later implementation steps
+- **Assess uniqueness** - steps that provided unique value vs routine operations
+
+### Selection Strategy
+- **Prioritize successful steps** that achieved their intended outcomes
+- **Include failed steps** only if they revealed critical information or represented major attempts
+- **Consider decomposed steps** if they successfully broke down complex problems
+- **Balance coverage** across different phases of the pursuit (planning, execution, validation)
+- **Respect the threshold** but use judgment if significantly more or fewer steps are clearly key
+
+### Quality Guidelines
+- **Accuracy**: Ensure selected steps truly were the most impactful
+- **Completeness**: Cover the major phases and achievements of the pursuit
+- **Relevance**: Focus on steps that directly relate to the goal
+- **Balance**: Include a mix of different types of contributions when appropriate
+
+## Response Format
+
+Your response must be a valid JSON object with the following structure:
+
+```json
+{
+  "indices": [0, 2, 5, 8],
+  "reasoning": "Brief explanation of why these steps were selected as key"
+}
+```
+
+The `indices` array should contain the zero-based indices of the key steps from the provided steps list. The `reasoning` should briefly explain the selection criteria applied.
+
+## Examples
+
+### Example 1: Research Project Pursuit
+**Goal**: "Research and write a comprehensive report on renewable energy trends"
+**Pursuit Status**: "completed"
+**Steps**:
+```json
+[
+  {"tool": "web_search", "intent": "Find recent renewable energy statistics", "status": "success"},
+  {"tool": "document_reader", "intent": "Analyze government energy reports", "status": "success"},
+  {"tool": "data_analyzer", "intent": "Process energy consumption data", "status": "success"},
+  {"tool": "citation_manager", "intent": "Organize research sources", "status": "success"},
+  {"tool": "report_writer", "intent": "Write executive summary", "status": "success"},
+  {"tool": "report_writer", "intent": "Write methodology section", "status": "success"},
+  {"tool": "report_writer", "intent": "Write findings section", "status": "success"},
+  {"tool": "document_formatter", "intent": "Format final report", "status": "success"}
+]
+```
+**Threshold**: 3
+
+**Response**:
+```json
+{
+  "indices": [1, 2, 6],
+  "reasoning": "Selected government report analysis (1) as it provided authoritative data foundation, data processing (2) as it transformed raw data into insights, and findings writing (6) as it synthesized all research into actionable conclusions."
+}
+```
+
+### Example 2: Software Development Pursuit
+**Goal**: "Implement user authentication system"
+**Pursuit Status**: "completed"
+**Steps**:
+```json
+[
+  {"tool": "requirements_analyzer", "intent": "Define authentication requirements", "status": "success"},
+  {"tool": "database_designer", "intent": "Design user table schema", "status": "success"},
+  {"tool": "security_analyzer", "intent": "Choose encryption methods", "status": "success"},
+  {"tool": "code_generator", "intent": "Generate login API endpoints", "status": "success"},
+  {"tool": "code_generator", "intent": "Generate password hashing utilities", "status": "success"},
+  {"tool": "test_writer", "intent": "Write authentication unit tests", "status": "success"},
+  {"tool": "integration_tester", "intent": "Test complete auth flow", "status": "success"},
+  {"tool": "documentation_writer", "intent": "Document API endpoints", "status": "success"}
+]
+```
+**Threshold**: 3
+
+**Response**:
+```json
+{
+  "indices": [0, 3, 6],
+  "reasoning": "Selected requirements definition (0) as it established the foundation for all subsequent work, login API generation (3) as it implemented the core functionality, and integration testing (6) as it validated the complete system works end-to-end."
+}
+```
+
+## Your Task
+
+Analyze the provided pursuit steps and identify the most significant ones based on their impact and importance.
+
+**Goal**: {{ step_goal }}
+
+**Pursuit Status**: {{ pursuit_status }}
+
+**Threshold**: {{ threshold }}
+
+**Completed Steps**:
+{% for step in steps %}
+{{ loop.index0 }}. Tool: {{ step.tool }}, Intent: {{ step.intent }}, Status: {{ step.status }}
+{% endfor %}
+
+## Instructions
+
+1. **Analyze each step** considering its tool, intent, and status
+2. **Evaluate impact** on achieving the stated goal
+3. **Consider timing** and dependencies between steps
+4. **Assess quality** of likely outcomes based on the step descriptions
+5. **Apply selection criteria** focusing on the most impactful steps
+6. **Respect the threshold** as a guideline but use judgment for the optimal number
+7. **Provide reasoning** for your selections in the response
+8. **Format as JSON** with indices array and reasoning explanation
+
+Generate the key step identification as a JSON object:

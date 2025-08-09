@@ -22,15 +22,18 @@ ensuring the agent's behavioral contracts are properly verified.
 
 import unittest
 from unittest.mock import AsyncMock, MagicMock
-from typing import Any, AsyncGenerator
+from typing import AsyncGenerator
+from datetime import datetime
 
 from novelrag.agent.agent import Agent, AgentMind
 from novelrag.agent.channel import AgentChannel
-from novelrag.agent.schedule import GoalPlanner, Step, GoalPursuit, GoalPursuitResult, ExecutionPlan
+from novelrag.agent.execution import ExecutableStep, StepDefinition, ExecutionPlan, StepOutcome, StepStatus
+from novelrag.agent.planning import GoalPlanner
+from novelrag.agent.pursuit import GoalPursuit, GoalPursuitResult, PursuitStatus, PursuitSummarizer
 from novelrag.agent.tool import BaseTool, ContextualTool
 from novelrag.agent.types import (
-    AgentMessage, AgentResult, AgentMessageLevel, ToolMessage, ToolResult, 
-    ToolStepDecomposition, ToolBacklogOutput, MessageLevel, ToolOutput, PursuitStatus
+    ToolMessage, ToolResult,
+    ToolStepDecomposition, ToolBacklogOutput, MessageLevel, ToolOutput
 )
 from novelrag.llm.types import ChatLLM
 from novelrag.template import TemplateEnvironment
@@ -84,247 +87,147 @@ class TestAgent(unittest.IsolatedAsyncioTestCase):
         self.mock_chat_llm = AsyncMock(spec=ChatLLM)
         self.mock_planner = AsyncMock(spec=GoalPlanner)
         self.mock_channel = AsyncMock(spec=AgentChannel)
+        self.mock_summarizer = AsyncMock(spec=PursuitSummarizer)
+
         self.agent = Agent(
             tools=self.mock_tools,
             template_env=self.mock_template_env,
             chat_llm=self.mock_chat_llm,
             planner=self.mock_planner,
-            channel=self.mock_channel
+            channel=self.mock_channel,
+            summarizer=self.mock_summarizer,
         )
     
-    async def test_tool_execution_with_context_passing(self):
-        """Test that tool execution properly passes context and handles results."""
-        # Set up agent state with a realistic workflow
-        self.agent.mind.set_goal("Test tool execution")
-        self.agent.mind.add_belief("Tools should receive proper context")
-        
-        # Use a tool that's already in the agent's tools
-        mock_tool = self.mock_tools["test_tool"]
-        assert isinstance(mock_tool, MockContextualTool)  # Type assertion for mypy
-        mock_tool.outputs = [
-            ToolMessage(content="Processing request", level=MessageLevel.INFO),
-            ToolResult(result="test result")
+    def test_agent_initialization(self):
+        """Test that agent initializes correctly with all components."""
+        self.assertIsInstance(self.agent.mind, AgentMind)
+        self.assertEqual(len(self.agent.contextual_tools), 2)
+        self.assertIn("test_tool", self.agent.contextual_tools)
+        self.assertIn("other_tool", self.agent.contextual_tools)
+
+    def test_agent_properties(self):
+        """Test that agent properties delegate to mind component."""
+        # Test belief property
+        self.agent.mind.add_belief("Test belief")
+        self.assertIn("Test belief", self.agent.believes)
+
+        # Test target property
+        self.agent.mind.set_goal("Test goal")
+        self.assertEqual(self.agent.target, "Test goal")
+
+        # Test backlog property
+        self.agent.mind.add_to_backlog("Test item")
+        self.assertIn("Test item", self.agent.backlog)
+
+    async def test_pursue_goal_successful_completion(self):
+        """Test successful goal pursuit with tool execution."""
+        goal = "Test goal pursuit"
+
+        # Set up mock planner to return initial steps
+        mock_steps = [
+            ExecutableStep(definition=StepDefinition(tool="test_tool", intent="Execute test operation"))
         ]
-        
-        # Create a mock goal pursuit that will call our tool
-        from novelrag.agent.schedule import StepOutcome, StepStatus
-        from datetime import datetime
-        
-        step = Step(tool="test_tool", intent="Execute test operation")
-        step_outcome = StepOutcome(
-            action=step,
-            status=StepStatus.SUCCESS,
-            results=["test result"],
-            started_at=datetime.now(),
-            completed_at=datetime.now()
-        )
-        
-        plan = ExecutionPlan(
-            goal="Test tool execution",
-            completed_steps=[step_outcome]
-        )
-        
-        pursuit_result = GoalPursuitResult(
-            goal="Test tool execution",
-            status=PursuitStatus.COMPLETED,
-            records=plan,
-            started_at=datetime.now(),
-            completed_at=datetime.now()
-        )
-        
-        # Mock the planner to return our pursuit result
-        self.mock_planner.plan_goal.return_value = pursuit_result
-        
-        # Execute the goal
-        await self.agent.handle_goal("Test tool execution")
-        
-        # Verify planner was called
-        self.mock_planner.plan_goal.assert_called_once_with(
-            "Test tool execution", 
-            self.agent.believes, 
-            self.agent.contextual_tools
-        )
-        
-        # Verify output was sent to channel
-        self.mock_channel.output.assert_called()
-    
-    async def test_schedule_execution_error_handling(self):
-        """Test that schedule execution properly handles tool errors and failures."""
-        # Set up a plan with a failing tool
-        failing_tool = MockContextualTool(
-            "failing_tool", 
-            "A tool that fails",
-            outputs=[ToolMessage(content="Something went wrong", level=MessageLevel.ERROR)]
-        )
-        
-        # Add to agent's tools
-        self.agent.tools["failing_tool"] = failing_tool
-        self.agent.contextual_tools["failing_tool"] = failing_tool
-        
-        # Create a mock goal pursuit that encounters an error
-        from novelrag.agent.schedule import StepOutcome, StepStatus
-        from datetime import datetime
-        
-        step = Step(tool="failing_tool", intent="This will fail")
-        step_outcome = StepOutcome(
-            action=step,
-            status=StepStatus.FAILED,
-            error_message="Something went wrong",
-            started_at=datetime.now(),
-            completed_at=datetime.now()
-        )
-        
-        plan = ExecutionPlan(
-            goal="Test error handling",
-            failed_steps=[step_outcome]
-        )
-        
-        pursuit_result = GoalPursuitResult(
-            goal="Test error handling",
-            status=PursuitStatus.FAILED,
-            records=plan,
-            started_at=datetime.now(),
-            completed_at=datetime.now()
-        )
-        
-        # Mock the planner to return our pursuit result
-        self.mock_planner.plan_goal.return_value = pursuit_result
-        
-        # Execute the goal
-        await self.agent.handle_goal("Test error handling")
-        
-        # Verify planner was called
-        self.mock_planner.plan_goal.assert_called_once_with(
-            "Test error handling", 
-            self.agent.believes, 
-            self.agent.contextual_tools
-        )
-    
-    async def test_step_decomposition_workflow(self):
-        """Test that step decomposition properly creates and manages sub-steps."""
-        # Create a tool that decomposes its task
-        decomposing_tool = MockContextualTool(
-            "decomposing_tool",
-            "A tool that breaks down tasks",
-            outputs=[
-                ToolStepDecomposition(
-                    steps=[
-                        {"tool": "test_tool", "description": "First subtask"},
-                        {"tool": "other_tool", "description": "Second subtask"}
-                    ],
-                    rationale="Breaking down complex task into manageable parts"
+        self.mock_planner.create_initial_plan.return_value = mock_steps
+
+        # Set up mock pursuit result
+        execution_plan = ExecutionPlan(
+            goal=goal,
+            pending_steps=[],
+            completed_steps=[
+                StepOutcome(
+                    action=mock_steps[0],
+                    status=StepStatus.SUCCESS,
+                    results=["test result"],
+                    started_at=datetime.now(),
+                    completed_at=datetime.now()
                 )
             ]
         )
         
-        # Add to agent's tools
-        self.agent.tools["decomposing_tool"] = decomposing_tool
-        self.agent.contextual_tools["decomposing_tool"] = decomposing_tool
-        
-        # Create a mock goal pursuit that uses the decomposing tool
-        from novelrag.agent.schedule import StepOutcome, StepStatus
-        from datetime import datetime
-        
-        step = Step(tool="decomposing_tool", intent="Complex task to decompose")
-        step_outcome = StepOutcome(
-            action=step,
-            status=StepStatus.DECOMPOSED,
-            spawned_actions=[
-                Step(tool="test_tool", intent="First subtask"),
-                Step(tool="other_tool", intent="Second subtask")
-            ],
+        pursuit_result = GoalPursuitResult(
+            goal=goal,
+            status=PursuitStatus.COMPLETED,
+            records=execution_plan,
             started_at=datetime.now(),
             completed_at=datetime.now()
         )
         
-        plan = ExecutionPlan(
-            goal="Test decomposition",
-            completed_steps=[step_outcome]
+        # Mock the summarizer
+        self.mock_summarizer.summarize_pursuit.return_value = "Goal completed successfully"
+
+        # Mock GoalPursuit.initialize_pursuit and run_to_completion
+        with unittest.mock.patch('novelrag.agent.agent.GoalPursuit') as mock_pursuit_class:
+            mock_pursuit_instance = AsyncMock()
+            mock_pursuit_instance.plan.pending_steps = mock_steps
+            mock_pursuit_instance.run_to_completion.return_value = pursuit_result
+            mock_pursuit_class.initialize_pursuit.return_value = mock_pursuit_instance
+
+            # Execute the goal
+            await self.agent.pursue_goal(goal)
+
+            # Verify initialization was called correctly
+            mock_pursuit_class.initialize_pursuit.assert_called_once_with(
+                goal=goal,
+                believes=self.agent.believes,
+                tools=self.agent.contextual_tools,
+                planner=self.mock_planner
+            )
+
+            # Verify run_to_completion was called
+            mock_pursuit_instance.run_to_completion.assert_called_once_with(
+                self.agent.contextual_tools,
+                self.mock_channel,
+                self.mock_planner
+            )
+
+            # Verify summarizer was called
+            self.mock_summarizer.summarize_pursuit.assert_called_once_with(pursuit_result)
+
+            # Verify output was sent to channel
+            self.mock_channel.output.assert_called_with("Goal completed successfully")
+
+    async def test_pursue_goal_with_no_completed_steps(self):
+        """Test goal pursuit when no steps are completed."""
+        goal = "Test goal with no completion"
+
+        # Set up mock pursuit result with no completed steps
+        execution_plan = ExecutionPlan(
+            goal=goal,
+            pending_steps=[],
+            completed_steps=[]
         )
         
         pursuit_result = GoalPursuitResult(
-            goal="Test decomposition",
-            status=PursuitStatus.COMPLETED,
-            records=plan,
+            goal=goal,
+            status=PursuitStatus.FAILED,
+            records=execution_plan,
             started_at=datetime.now(),
             completed_at=datetime.now()
         )
         
-        # Mock the planner to return our pursuit result
-        self.mock_planner.plan_goal.return_value = pursuit_result
-        
-        # Execute the goal
-        await self.agent.handle_goal("Test decomposition")
-        
-        # Verify planner was called
-        self.mock_planner.plan_goal.assert_called_once_with(
-            "Test decomposition", 
-            self.agent.believes, 
-            self.agent.contextual_tools
-        )
-    
-    async def test_backlog_management_during_execution(self):
-        """Test that backlog items are properly managed during execution."""
-        # Create a tool that adds items to backlog
-        backlog_tool = MockContextualTool(
-            "backlog_tool",
-            "A tool that discovers new items",
-            outputs=[
-                ToolBacklogOutput(content="Research medieval weapons", priority="high"),
-                ToolResult(result="Main task completed")
-            ]
-        )
-        
-        # Add to agent's tools
-        self.agent.tools["backlog_tool"] = backlog_tool
-        self.agent.contextual_tools["backlog_tool"] = backlog_tool
-        
-        # Start with empty backlog
-        initial_backlog_size = len(self.agent.backlog)
-        
-        # Create a mock goal pursuit that uses the backlog tool
-        from novelrag.agent.schedule import StepOutcome, StepStatus
-        from datetime import datetime
-        
-        step = Step(tool="backlog_tool", intent="Task that discovers more work")
-        step_outcome = StepOutcome(
-            action=step,
-            status=StepStatus.SUCCESS,
-            results=["Main task completed"],
-            backlog_items=["Research medieval weapons"],
-            started_at=datetime.now(),
-            completed_at=datetime.now()
-        )
-        
-        plan = ExecutionPlan(
-            goal="Test backlog management",
-            completed_steps=[step_outcome]
-        )
-        
-        pursuit_result = GoalPursuitResult(
-            goal="Test backlog management",
-            status=PursuitStatus.COMPLETED,
-            records=plan,
-            started_at=datetime.now(),
-            completed_at=datetime.now()
-        )
-        
-        # Mock the planner to return our pursuit result
-        self.mock_planner.plan_goal.return_value = pursuit_result
-        
-        # Execute the goal
-        await self.agent.handle_goal("Test backlog management")
-        
-        # Verify planner was called
-        self.mock_planner.plan_goal.assert_called_once_with(
-            "Test backlog management", 
-            self.agent.believes, 
-            self.agent.contextual_tools
-        )
-        
-        # Note: In the real implementation, backlog management would happen during step execution
-        # For this test, we're verifying that the agent framework can handle backlog outputs
-        # The actual backlog updating would be done by the step execution logic
+        # Mock GoalPursuit.initialize_pursuit and run_to_completion
+        with unittest.mock.patch('novelrag.agent.agent.GoalPursuit') as mock_pursuit_class:
+            mock_pursuit_instance = AsyncMock()
+            mock_pursuit_instance.plan.pending_steps = []
+            mock_pursuit_instance.run_to_completion.return_value = pursuit_result
+            mock_pursuit_class.initialize_pursuit.return_value = mock_pursuit_instance
+
+            # Execute the goal
+            await self.agent.pursue_goal(goal)
+
+            # Verify error was sent to channel
+            self.mock_channel.error.assert_called_with(f'No steps completed for goal "{goal}".')
+
+            # Verify summarizer was not called
+            self.mock_summarizer.summarize_pursuit.assert_not_called()
+
+    async def test_contextual_tools_setup(self):
+        """Test that contextual tools are properly set up from regular tools."""
+        # Test that ContextualTool instances are added directly
+        test_tool = self.agent.contextual_tools["test_tool"]
+        self.assertIsInstance(test_tool, MockContextualTool)
+        self.assertEqual(test_tool.name, "test_tool")
+        self.assertEqual(test_tool.description, "A test tool")
 
 
 if __name__ == '__main__':
