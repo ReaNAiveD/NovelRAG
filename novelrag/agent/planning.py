@@ -90,8 +90,13 @@ class PursuitPlanner(LLMToolMixin):
             believes=believes,
             tools=tools
         )
-        # TODO: Determine the final steps
-        raise NotImplementedError("This method needs to be implemented to handle success adaptation.")
+
+        original_remaining = original_plan.pending_steps[1:]
+        final_steps = await self._merge_plans(remaining_steps_from_scratch, original_remaining, last_step, planned_steps, believes, tools)
+
+        triggered_steps = last_step.triggered_actions
+        all_steps = triggered_steps + final_steps
+        return await self._build_step_dependencies(all_steps)
 
     async def _adapt_plan_from_failure(self, last_step: StepOutcome, original_plan: ExecutionPlan, believes: list[str], tools: dict[str, ContextualTool]) -> list[ExecutableStep]:
         """
@@ -121,8 +126,12 @@ class PursuitPlanner(LLMToolMixin):
             believes=believes,
             tools=tools
         )
-        # TODO: Determine the final steps
-        raise NotImplementedError("This method needs to be implemented to handle failure adaptation.")
+
+
+        original_remaining = original_plan.pending_steps[1:]
+        final_steps = await self._merge_plans(remaining_steps_from_scratch, original_remaining, last_step, planned_steps, believes, tools)
+
+        return await self._build_step_dependencies(final_steps)
 
     async def _adapt_plan_from_decomposition(
             self, last_step: StepOutcome, original_plan: ExecutionPlan, believes: list[str],
@@ -151,9 +160,13 @@ class PursuitPlanner(LLMToolMixin):
             believes=believes,
             tools=tools
         )
-        # TODO: Determine the final steps
-        raise NotImplementedError("This method needs to be implemented to handle decomposition adaptation.")
 
+        original_remaining = original_plan.pending_steps[1:]
+        final_steps = await self._merge_plans(remaining_steps_from_scratch, original_remaining, last_step, planned_steps, believes, tools)
+
+        spawned_steps = last_step.spawned_actions
+        all_steps = spawned_steps + final_steps
+        return await self._build_step_dependencies(all_steps)
 
     async def _plan_remaining_steps(self, executed_steps: list[StepOutcome], planned_steps: list[StepDefinition],
                                     goal: str, believes: list[str], tools: dict[str, ContextualTool]) -> list[StepDefinition]:
@@ -378,3 +391,87 @@ class PursuitPlanner(LLMToolMixin):
             updated_steps.append(updated_step)
         
         return updated_steps
+
+    async def _merge_plans(
+            self, new_steps: list[StepDefinition], original_steps: list[ExecutableStep],
+            last_step: StepOutcome, planned_steps: list[StepDefinition], believes: list[str], tools: dict[str, ContextualTool]) -> list[ExecutableStep]:
+        """
+        Intelligently merge a fresh plan with the original plan, preserving valuable context
+        while avoiding anchoring bias.
+
+        Args:
+            new_steps: Fresh steps planned from scratch based on current state
+            original_steps: Original remaining steps from the previous plan
+            last_step: The outcome of the last executed step for context
+            planned_steps: Steps that are already committed/triggered by the last step
+            believes: Current beliefs that influence merging decisions
+            tools: Available tools for validation
+
+        Returns:
+            Merged list of ExecutableStep instances representing the optimal plan
+        """
+        # Convert to serializable format for template processing
+        new_step_dicts = [{"tool": step.tool, "intent": step.intent} for step in new_steps]
+        original_step_dicts = [{
+            "tool": step.tool,
+            "intent": step.intent,
+            "has_progress": bool(step.definition.progress),
+            "has_relationships": bool(step.contribute_to or step.spawned_by or step.triggered_by)
+        } for step in original_steps]
+
+        planned_step_dicts = [{"tool": step.tool, "intent": step.intent} for step in planned_steps]
+
+        last_step_dict = {
+            "tool": last_step.action.tool,
+            "intent": last_step.action.intent,
+            "status": last_step.status.value,
+            "results": last_step.results,
+            "error_message": last_step.error_message
+        }
+
+        # Use template to make intelligent merging decisions
+        response = await self.call_template(
+            "merge_plans.jinja2",
+            json_format=True,
+            new_steps=new_step_dicts,
+            original_steps=original_step_dicts,
+            planned_steps=planned_step_dicts,
+            last_step=last_step_dict,
+            believes=believes,
+            tools={name: tool.description for name, tool in tools.items()}
+        )
+
+        merge_result = json.loads(response)
+        final_step_configs = merge_result["final_steps"]
+
+        # Build the final step list based on template decisions
+        final_steps = []
+        for step_config in final_step_configs:
+            source = step_config["source"]  # "new", "original", or "modified"
+            step_index = step_config["step_index"]
+
+            if source == "new":
+                final_steps.append(ExecutableStep(new_steps[step_index]))
+            elif source == "original":
+                # Preserve the original step with its relationships and progress
+                final_steps.append(original_steps[step_index])
+            elif source == "modified":
+                # Create a new step but preserve valuable context from original
+                original_step = original_steps[step_config["original_index"]]
+                new_step = new_steps[step_index]
+
+                # Preserve relationships and progress from original, but use new intent/tool if different
+                merged_step = ExecutableStep(
+                    definition=StepDefinition(
+                        tool=step_config.get("tool", new_step.tool),
+                        intent=step_config.get("intent", new_step.intent),
+                        step_id=original_step.step_id,  # Keep original ID for tracking
+                        progress=original_step.definition.progress  # Preserve progress
+                    ),
+                    contribute_to=original_step.contribute_to,
+                    spawned_by=original_step.spawned_by,
+                    triggered_by=original_step.triggered_by
+                )
+                final_steps.append(merged_step)
+
+        return final_steps
