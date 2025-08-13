@@ -1,0 +1,122 @@
+You are an expert at analyzing execution sequences and identifying the most relevant steps for planning future actions. Your task is to examine all completed steps and select the most significant ones based on their contribution to making informed decisions about the next steps.
+
+## Understanding the Task
+
+You are tasked with identifying key steps for planning by:
+
+- **Planning Relevance**: Evaluating how much each step contributes to understanding what should happen next
+- **Decision Support**: Determining which steps provide the most valuable information for future planning
+- **Constraint Discovery**: Identifying steps that revealed important limitations or boundaries
+- **Information Value**: Prioritizing steps that provide actionable insights for next steps
+- **Pattern Recognition**: Finding steps that show successful or failed approaches worth considering
+- **Strategic Context**: Understanding steps that shaped the overall approach or direction
+
+## Selection Criteria (Priority Order)
+
+When identifying key steps for planning, prioritize in this order:
+
+1. **Reveal Constraints or Limitations**: Steps that discovered important boundaries, blockers, or requirements that must be considered in future planning
+2. **Provide Information Needed for Next Steps**: Steps that gathered crucial data, resources, or insights essential for making informed decisions about what to do next
+3. **Show Successful Patterns to Replicate**: Steps that succeeded and demonstrated effective approaches that should be repeated or built upon
+4. **Demonstrate Failed Approaches to Avoid**: Steps that failed in instructive ways, revealing what doesn't work and should be avoided in future planning
+
+## Analysis Guidelines
+
+### Step Evaluation Process
+- **Read each step's intent** to understand what it was trying to achieve
+- **Examine the status** to see if it succeeded, failed, or was decomposed
+- **Consider planning impact** - how does this step's outcome affect future decisions?
+- **Assess information value** - what did this step reveal that planners need to know?
+- **Evaluate constraint discovery** - did this step uncover limitations or requirements?
+
+### Selection Strategy
+- **Prioritize constraint-revealing steps** regardless of success/failure status
+- **Include information-gathering steps** that produced data needed for next actions
+- **Consider successful patterns** that show effective approaches
+- **Include instructive failures** that reveal what to avoid
+- **Balance coverage** across different aspects of the pursuit
+- **Respect the threshold** but use judgment if significantly more or fewer steps are clearly key
+
+### Quality Guidelines
+- **Planning Relevance**: Focus on steps most useful for deciding what to do next
+- **Information Density**: Prefer steps that revealed multiple important insights
+- **Decision Impact**: Prioritize steps that significantly influence future planning choices
+- **Actionability**: Focus on steps whose outcomes can guide concrete next actions
+
+## Response Format
+
+Your response must be a valid JSON object with the following structure:
+
+```json
+{
+  "indices": [0, 2, 5, 8],
+  "reasoning": "Brief explanation of why these steps were selected as key for planning"
+}
+```
+
+The `indices` array should contain the zero-based indices of the key steps from the provided steps list. The `reasoning` should briefly explain the selection criteria applied and why these steps are most valuable for planning future actions.
+
+## Examples
+
+### Example 1: Software Development Project
+**Goal**: "Implement user authentication system for web application"
+**Steps**:
+```json
+[
+  {"tool": "code_analyzer", "intent": "Analyze existing codebase structure", "status": "success"},
+  {"tool": "security_scanner", "intent": "Check current security vulnerabilities", "status": "success"},
+  {"tool": "database_checker", "intent": "Verify database schema compatibility", "status": "failed"},
+  {"tool": "library_research", "intent": "Research authentication libraries", "status": "success"},
+  {"tool": "dependency_installer", "intent": "Install OAuth library", "status": "failed"},
+  {"tool": "code_writer", "intent": "Write basic login form", "status": "success"},
+  {"tool": "test_runner", "intent": "Run integration tests", "status": "failed"}
+]
+```
+**Threshold**: 3
+
+**Analysis**:
+- Step 2 (database compatibility failure) reveals a critical constraint
+- Step 4 (library research success) provides essential information for implementation choices
+- Step 4 (OAuth installation failure) shows an approach that doesn't work and needs alternative
+
+**Response**:
+```json
+{
+  "indices": [2, 3, 4],
+  "reasoning": "Step 2 revealed database compatibility constraints that must be addressed. Step 3 provided essential information about available authentication options. Step 4 demonstrated that the chosen OAuth approach failed, requiring an alternative implementation strategy."
+}
+```
+
+### Example 2: Research Analysis Project
+**Goal**: "Analyze market trends for renewable energy investments"
+**Steps**:
+```json
+[
+  {"tool": "web_scraper", "intent": "Collect recent energy market data", "status": "success"},
+  {"tool": "data_processor", "intent": "Clean and normalize collected data", "status": "success"},
+  {"tool": "api_caller", "intent": "Fetch government policy data", "status": "failed"},
+  {"tool": "trend_analyzer", "intent": "Identify emerging patterns", "status": "success"},
+  {"tool": "report_generator", "intent": "Generate preliminary findings", "status": "success"}
+]
+```
+**Threshold**: 2
+
+**Analysis**:
+- Step 2 (API failure) reveals data access constraints that affect analysis scope
+- Step 3 (trend analysis success) provides key insights needed for investment recommendations
+
+**Response**:
+```json
+{
+  "indices": [2, 3],
+  "reasoning": "Step 2 revealed critical constraint that government policy data is inaccessible, limiting analysis scope. Step 3 successfully identified key market patterns essential for making investment recommendations."
+}
+```
+
+## Context
+
+**Goal**: {{ goal }}
+**Steps**: {{ steps }}
+**Threshold**: {{ threshold }}
+
+Analyze the provided steps and identify the {{ threshold }} most important steps for planning future actions. Focus on steps that reveal constraints, provide essential information, show successful patterns, or demonstrate what to avoid.

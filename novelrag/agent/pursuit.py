@@ -5,7 +5,7 @@ from enum import Enum
 
 from .channel import AgentChannel
 from .execution import ExecutionPlan, ExecutableStep, StepStatus, StepOutcome
-from .planning import GoalPlanner
+from .planning import PursuitPlanner
 from .tool import ContextualTool, LLMToolMixin
 from ..llm import ChatLLM
 from ..template import TemplateEnvironment
@@ -54,14 +54,14 @@ class GoalPursuit:
             cls,
             goal: str,
             believes: list[str],
-            planner: GoalPlanner,
+            planner: PursuitPlanner,
             tools: dict[str, ContextualTool],
     ):
         """Initialize a goal pursuit with a plan based on the goal and beliefs."""
         steps = await planner.create_initial_plan(goal, believes, tools)
         return cls.new(goal, believes, steps)
 
-    async def execute_next_step(self, tools: dict[str, ContextualTool], channel: AgentChannel, planner: 'GoalPlanner') -> 'GoalPursuitResult | None':
+    async def execute_next_step(self, tools: dict[str, ContextualTool], channel: AgentChannel, planner: 'PursuitPlanner') -> 'GoalPursuitResult | None':
         """Execute the goal pursuit."""
         plan = self.plan
         if not plan.finished():
@@ -70,13 +70,11 @@ class GoalPursuit:
                 await channel.error(f"The plan is not ready to execute the next step.")
                 return None
 
-            new_steps = await planner.reschedule_plan(
-                goal=self.goal,
+            new_steps = await planner.adapt_plan(
                 believes=self.initial_believes,
                 tools=tools,
                 last_step=outcome,
-                target_steps=self.plan.pending_steps[1:],
-                prev_steps=self.plan.completed_steps,
+                original_plan=self.plan
             )
             await channel.debug(f"Rescheduled steps: {[step.intent for step in new_steps]}")
             # Handle dependencies of deleted steps
@@ -113,7 +111,7 @@ class GoalPursuit:
             )
         return None
 
-    async def run_to_completion(self, tools: dict[str, ContextualTool], channel: AgentChannel, planner: 'GoalPlanner') -> GoalPursuitResult:
+    async def run_to_completion(self, tools: dict[str, ContextualTool], channel: AgentChannel, planner: 'PursuitPlanner') -> GoalPursuitResult:
         """Run the goal pursuit until completion."""
         while True:
             result = await self.execute_next_step(tools, channel, planner)

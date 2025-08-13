@@ -1,6 +1,6 @@
 from .agent import Agent
 from .channel import SessionChannel
-from .planning import GoalPlanner
+from .planning import PursuitPlanner
 from .pursuit import PursuitSummarizer
 from .resource_tools import ResourceFetchTool, ResourceSearchTool, ResourceWriteTool, AspectCreateTool, ResourceRelationWriteTool
 from novelrag.intent import LLMIntent, IntentContext, Action
@@ -34,7 +34,7 @@ class AgentIntent(LLMIntent):
             tools['resource_write'] = writer_tool
             tools['aspect_create'] = aspect_create_tool
             tools['resource_relation_write'] = relation_tool
-        planner = GoalPlanner(template_env=self.template_env, chat_llm=self.chat_llm(context.chat_llm_factory))
+        planner = PursuitPlanner(template_env=self.template_env, chat_llm=self.chat_llm(context.chat_llm_factory))
         summarizer = PursuitSummarizer(template_env=self.template_env, chat_llm=self.chat_llm(context.chat_llm_factory))
         agent = Agent(
             tools=tools,
