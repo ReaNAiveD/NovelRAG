@@ -8,7 +8,7 @@ from novelrag.llm.types import ChatLLM
 from novelrag.template import TemplateEnvironment
 
 from .tool import BaseTool, ContextualTool, LLMToolMixin, SchematicTool
-from .planning import GoalPlanner
+from .planning import PursuitPlanner
 from .pursuit import GoalPursuit, PursuitSummarizer
 from .proposals import TargetProposer
 
@@ -64,7 +64,7 @@ class Agent(LLMToolMixin):
     - AgentExecutor: Executes actions and tools
     """
 
-    def __init__(self, tools: dict[str, BaseTool], channel: AgentChannel, planner: GoalPlanner, summarizer: PursuitSummarizer, template_env: TemplateEnvironment, chat_llm: ChatLLM):
+    def __init__(self, tools: dict[str, BaseTool], channel: AgentChannel, planner: PursuitPlanner, summarizer: PursuitSummarizer, template_env: TemplateEnvironment, chat_llm: ChatLLM):
         # Initialize core components
         self.mind = AgentMind()
         self.channel = channel

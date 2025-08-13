@@ -28,7 +28,7 @@ from datetime import datetime
 from novelrag.agent.agent import Agent, AgentMind
 from novelrag.agent.channel import AgentChannel
 from novelrag.agent.execution import ExecutableStep, StepDefinition, ExecutionPlan, StepOutcome, StepStatus
-from novelrag.agent.planning import GoalPlanner
+from novelrag.agent.planning import PursuitPlanner
 from novelrag.agent.pursuit import GoalPursuit, GoalPursuitResult, PursuitStatus, PursuitSummarizer
 from novelrag.agent.tool import BaseTool, ContextualTool
 from novelrag.agent.types import (
@@ -85,7 +85,7 @@ class TestAgent(unittest.IsolatedAsyncioTestCase):
         }
         self.mock_template_env = MagicMock(spec=TemplateEnvironment)
         self.mock_chat_llm = AsyncMock(spec=ChatLLM)
-        self.mock_planner = AsyncMock(spec=GoalPlanner)
+        self.mock_planner = AsyncMock(spec=PursuitPlanner)
         self.mock_channel = AsyncMock(spec=AgentChannel)
         self.mock_summarizer = AsyncMock(spec=PursuitSummarizer)
 
