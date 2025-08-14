@@ -38,11 +38,10 @@ class ToolDecomposition(ToolOutputBase):
 
 
 # Union type for all possible outputs
-ToolOutput = Annotated[(
-        ToolResult |
-        ToolError |
-        ToolDecomposition
-), Field(discriminator='type')]
+ToolOutput = Annotated[
+    ToolResult | ToolError | ToolDecomposition,
+    Field(discriminator='type')
+]
 
 
 def validate_tool_output(data: dict) -> ToolOutput:
