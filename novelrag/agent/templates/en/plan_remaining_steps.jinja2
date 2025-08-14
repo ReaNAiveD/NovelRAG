@@ -58,6 +58,19 @@ Each step must include:
 - **tool**: The name of the tool to use (must be from available tools)
 - **intent**: Clear description of what to accomplish with that tool
 
+### Important Condition: Goal Already Achieved
+If analysis shows that:
+- the executed steps have already completed the goal, OR
+- the executed steps plus the fixed planned steps will complete the goal with no further work,
+
+then do NOT propose any additional steps. In this case, the response MUST be:
+
+```json
+{ "new_steps": [] }
+```
+
+Optionally, you may include an explanatory field like "reason" (ignored by the system), but "new_steps" MUST be present and be an empty array.
+
 ## Response Format
 
 Your response must be valid JSON with the following structure:
@@ -71,6 +84,12 @@ Your response must be valid JSON with the following structure:
     }
   ]
 }
+```
+
+When no additional steps are needed, return an empty array for new_steps:
+
+```json
+{ "new_steps": [] }
 ```
 
 ## Examples
@@ -161,6 +180,26 @@ Your response must be valid JSON with the following structure:
 }
 ```
 
+### Example 3: Goal Already Achieved (No New Steps)
+**Goal**: "Draft initial one-page executive summary"
+
+**Executed Steps**:
+- Tool: report_builder | Intent: Generate the one-page executive summary | Status: success
+
+**Key Results**:
+- Tool: report_builder | Intent: Generate the one-page executive summary | Results: "Completed executive summary with key findings and recommendations"
+
+**Planned Steps** (Fixed - will execute next):
+(No planned steps)
+
+**Available Tools**:
+- Any other tools (not needed)
+
+**Expected Response**:
+```json
+{ "new_steps": [] }
+```
+
 ## Analysis Framework
 
 ### 1. Execution Review
@@ -233,5 +272,7 @@ Analyze the provided execution context and generate an optimized plan for the re
 4. **Strategic Planning**: Design an optimal sequence of steps to execute after the planned steps
 5. **Generate Plan**: Create a JSON response with the new_steps array containing work needed after planned steps
 6. **Validate Completeness**: Ensure the plan covers all necessary work to fully achieve the goal
+7. **Apply the Important Condition**: If the goal is already achieved (now or after fixed planned steps), return { "new_steps": [] } and nothing else is required.
 
 Generate the remaining steps plan as a JSON object:
+
