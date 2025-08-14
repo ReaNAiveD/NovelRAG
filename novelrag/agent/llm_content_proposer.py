@@ -1,7 +1,6 @@
 """LLM-based content proposer using Sequential Diverse Prompting."""
 
 import json
-import random
 from typing import Any
 
 from novelrag.llm.types import ChatLLM

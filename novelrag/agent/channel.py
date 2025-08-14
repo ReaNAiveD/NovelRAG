@@ -70,8 +70,6 @@ class ShellSessionChannel(SessionChannel):
                 self.logger.warning(content)
             case AgentMessageLevel.ERROR:
                 self.logger.error(content)
-            case _:
-                self.logger.info(content)
 
     async def confirm(self, prompt: str) -> bool:
         result = input(prompt + 'y/N')
