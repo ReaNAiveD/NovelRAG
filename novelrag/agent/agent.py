@@ -110,7 +110,7 @@ class Agent(LLMToolMixin):
             tools=self.contextual_tools,
             planner=self.planner
         )
-        await self.channel.debug(f"Initial plan for goal '{goal}': {pursuit.plan.pending_steps}")
+        await self.channel.info(f"Initial plan for goal '{goal}': {pursuit.plan.pending_steps}")
         result = await pursuit.run_to_completion(self.contextual_tools, self.channel, self.planner)
         records = result.records.completed_steps
         if not records:

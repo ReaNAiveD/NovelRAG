@@ -9,7 +9,7 @@ class AgentChannel(Protocol):
         """Send a message to the user."""
         pass
 
-    async def message(self, content: str):
+    async def info(self, content: str):
         """Send a message to the user."""
         return await self.send_message(content, AgentMessageLevel.INFO)
     

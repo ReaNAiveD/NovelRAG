@@ -76,7 +76,7 @@ class GoalPursuit:
                 last_step=outcome,
                 original_plan=self.plan
             )
-            await channel.debug(f"Rescheduled steps: {[step.intent for step in new_steps]}")
+            await channel.info(f"Rescheduled steps: {[step.intent for step in new_steps]}")
             # Handle dependencies of deleted steps
             completed_steps = self.plan.completed_steps + [
                 outcome] if outcome.status == StepStatus.SUCCESS else self.plan.completed_steps
@@ -99,7 +99,7 @@ class GoalPursuit:
                     outcome] if outcome.status != StepStatus.SUCCESS else self.plan.failed_steps
             )
             self.plan = new_plan
-            await channel.debug(f"Updated plan: {self.plan.pending_steps}")
+            await channel.info(f"Updated plan: {self.plan.pending_steps}")
 
         if plan.finished():
             return GoalPursuitResult(
