@@ -3,6 +3,7 @@ import shutil
 import unittest
 from typing import Any
 from unittest.mock import AsyncMock
+import yaml
 
 from novelrag.config.llm import AzureOpenAIEmbeddingConfig, EmbeddingLLMType
 from novelrag.config.resource import AspectConfig, VectorStoreConfig
@@ -45,6 +46,53 @@ class MockEmbeddingLLM(EmbeddingLLM):
         return [[0.0] * self.dimension]
 
 
+class DummyVectorStore:
+    def __init__(self, embedder: EmbeddingLLM | None = None):
+        self.embedder = embedder
+        self._store: dict[str, dict[str, Any]] = {}
+
+    async def vector_search(self, vector: list[float], *, aspect: str | None = None, limit: int | None = 20):
+        items = []
+        for uri, rec in self._store.items():
+            if aspect and rec['aspect'] != aspect:
+                continue
+            data = rec['data']
+            # Prefer events containing Alice in mainCharacters
+            score = 0.0
+            if isinstance(data, dict):
+                chars = data.get('mainCharacters')
+                if not (isinstance(chars, list) and 'Alice' in chars):
+                    score = 1.0
+            items.append((score, uri))
+        items.sort(key=lambda x: x[0])
+        if limit is not None:
+            items = items[:limit]
+        class Result:
+            def __init__(self, element_uri: str, distance: float):
+                self.element_uri = element_uri
+                self.distance = distance
+        return [Result(uri, dist) for dist, uri in [(s, u) for (s, u) in items]]
+
+    async def get(self, element_uri: str):
+        return None
+
+    async def batch_add(self, elements: list[Element]):
+        for ele in elements:
+            await self.add(ele, unchecked=True)
+
+    async def add(self, element: Element, *, unchecked: bool = False):
+        self._store[element.uri] = {
+            'aspect': element.aspect,
+            'data': element.element_dict(),
+        }
+
+    async def update(self, element: Element):
+        await self.add(element)
+
+    async def delete(self, element_uri: str):
+        self._store.pop(element_uri, None)
+
+
 async def create_test_repository(*, use_mock: bool = True):
     """Helper to create a test repository with standard config"""
     resource_config = {
@@ -80,11 +128,29 @@ async def create_test_repository(*, use_mock: bool = True):
         )
         embedder = OpenAIEmbeddingLLM.from_config(embedding_config)
 
-    return await LanceDBResourceRepository.from_config(
-        resource_config, 
-        vector_store_config,
-        embedder
-    )
+    os.makedirs('resource', exist_ok=True)
+    cfg_path = os.path.join('resource', 'test_resources.yml')
+    with open(cfg_path, 'w', encoding='utf-8') as f:
+        yaml.safe_dump({
+            'character': {
+                'path': 'resource/characters.yml',
+                'description': 'A collection of characters in the story',
+                'children_keys': ['relationships']
+            },
+            'event': {
+                'path': 'resource/events.yml',
+                'description': 'A collection of events in the story',
+                'children_keys': ['subEvents']
+            }
+        }, f, allow_unicode=True)
+
+    # Patch LanceDBStore.create to return our dummy store
+    with unittest.mock.patch('novelrag.resource.repository.LanceDBStore.create', new=AsyncMock(side_effect=lambda **kwargs: DummyVectorStore(embedder))):
+        return await LanceDBResourceRepository.from_config(
+            cfg_path,
+            vector_store_config,
+            embedder
+        )
 
 
 class RepositoryTestCase(unittest.IsolatedAsyncioTestCase):

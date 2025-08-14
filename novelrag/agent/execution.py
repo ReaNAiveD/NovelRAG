@@ -4,10 +4,11 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
+from typing import Any
 
 from .channel import AgentChannel
-from .tool import ContextualTool
-from .types import ToolMessage, ToolConfirmation, ToolUserInput, ToolResult, ToolStepProgress, ToolStepDecomposition, ToolBacklogOutput, AgentMessageLevel
+from .tool import ContextualTool, ToolRuntime
+from .types import ToolResult, ToolDecomposition, ToolError
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,59 @@ class StepDefinition:
     intent: str  # What the agent intends to achieve with this action
     step_id: str = field(default_factory=lambda: uuid.uuid4().hex)
     progress: dict[str, list[str]] = field(default_factory=dict)  # Progress for recovery and tracking
+
+
+class ExecutionToolRuntime(ToolRuntime):
+    def __init__(self, channel: AgentChannel | None = None, backlog: list[str] | None = None, progress: dict[str, list[str]] | None = None):
+        self.channel = channel
+        self._backlog = backlog
+        self._progress = progress
+
+    async def debug(self, content: str):
+        if self.channel:
+            await self.channel.debug(content)
+        else:
+            logger.debug(content)
+
+    async def message(self, content: str):
+        if self.channel:
+            await self.channel.message(content)
+        else:
+            logger.info(content)
+
+    async def warning(self, content: str):
+        if self.channel:
+            await self.channel.warning(content)
+        else:
+            logger.warning(content)
+
+    async def error(self, content: str):
+        if self.channel:
+            await self.channel.error(content)
+        else:
+            logger.error(content)
+
+    async def confirmation(self, prompt: str):
+        if self.channel:
+            return await self.channel.confirm(prompt)
+        else:
+            raise RuntimeError("Confirmation required but no channel provided")
+
+    async def user_input(self, prompt: str):
+        if self.channel:
+            return await self.channel.request(prompt)
+        else:
+            raise RuntimeError("User input required but no channel provided")
+
+    async def progress(self, key: str, value: Any, description: str | None = None):
+        if self._progress is not None:
+            if key not in self._progress:
+                self._progress[key] = []
+            self._progress[key].append(value)
+
+    async def backlog(self, content: str, priority: str | None = None):
+        if self._backlog is not None:
+            self._backlog.append(content)
 
 
 @dataclass
@@ -60,13 +114,14 @@ class ExecutableStep:
         start_time = datetime.now()
         outcome = StepOutcome(
             action=self,
-            status=StepStatus.FAILED,
+            status=StepStatus.SUCCESS,
             started_at=start_time
         )
 
         # Validate tool exists
         tool = tools.get(self.tool)
         if not tool:
+            outcome.status = StepStatus.FAILED
             outcome.error_message = f"Tool {self.tool} not found."
             outcome.completed_at = datetime.now()
             if channel:
@@ -74,68 +129,47 @@ class ExecutableStep:
             return outcome
 
         try:
-            # Initialize tool call
-            tool_call = tool.call(
+            # Initialize tool call (supports both generator-style and return-style tools)
+            runtime = ExecutionToolRuntime(
+                channel=channel,
+                backlog=outcome.backlog_items,
+                progress=outcome.progress
+            )
+            result = await tool.call(
+                runtime=runtime,
                 believes=believes,
                 step_description=self.intent,
                 context=context,
                 tools={name: t.description or '' for name, t in tools.items()}
             )
 
-            # Process tool outputs
-            user_input = None
-            while True:
-                output = await tool_call.asend(user_input)
-                user_input = None  # Reset for next iteration
-
-                if isinstance(output, ToolMessage):
-                    if channel:
-                        level = AgentMessageLevel(output.level.value)
-                        await channel.send_message(output.content, level=level)
-                elif isinstance(output, ToolConfirmation):
-                    if not channel:
-                        raise RuntimeError("Confirmation required but no channel provided")
-                    user_input = await channel.confirm(output.prompt)
-                    await channel.debug(f"User confirmed: {user_input}")
-                elif isinstance(output, ToolUserInput):
-                    if not channel:
-                        raise RuntimeError("User input required but no channel provided")
-                    user_input = await channel.request(output.prompt)
-                    await channel.debug(f"User input received: {user_input}")
-                elif isinstance(output, ToolResult):
-                    outcome.results.append(output.result)
-                elif isinstance(output, ToolStepProgress):
-                    outcome.progress[output.field].append(output.description)
-                elif isinstance(output, ToolStepDecomposition):
-                    if channel:
-                        await channel.message(f"Decomposing into {len(output.steps)} sub-actions")
-                    for step in output.steps:
-                        sub_action = ExecutableStep(
-                            definition=StepDefinition(
-                                tool=step['tool'],
-                                intent=step['description']
-                            ),
-                            spawned_by=outcome,
-                            contribute_to=self,
-                        )
-                        outcome.spawned_actions.append(sub_action)
-                    outcome.status = StepStatus.DECOMPOSED
-                elif isinstance(output, ToolBacklogOutput):
-                    outcome.backlog_items.append(output.content)
-                    await channel.debug(f"Added to backlog: {output.content}")
-                else:
-                    raise ValueError(f"Unexpected output type: {type(output)}")
-        except StopAsyncIteration:
-            # Tool completed successfully
-            outcome.status = StepStatus.SUCCESS if outcome.status != StepStatus.DECOMPOSED else outcome.status
-            if channel:
-                await channel.message(f"Action completed: {outcome.status.value}")
-
+            if isinstance(result, ToolDecomposition):
+                # Handle tool decomposition into sub-actions
+                outcome.status = StepStatus.DECOMPOSED
+                outcome.progress = result.progress
+                for step in result.steps:
+                    sub_action = ExecutableStep(
+                        definition=StepDefinition(
+                            tool=step['tool'],
+                            intent=step['description'],
+                            progress=result.progress
+                        ),
+                        spawned_by=outcome,
+                        contribute_to=self,
+                    )
+                    outcome.spawned_actions.append(sub_action)
+            elif isinstance(result, ToolResult):
+                # Handle tool result
+                outcome.status = StepStatus.SUCCESS
+                outcome.results.append(result.result)
+            elif isinstance(result, ToolError):
+                outcome.status = StepStatus.FAILED
+                outcome.error_message = result.error_message
+            else:
+                raise ValueError(f"Unexpected tool output type: {type(result)}")
         except Exception as e:
             outcome.status = StepStatus.FAILED
             outcome.error_message = str(e)
-            if channel:
-                await channel.error(f"Error: {outcome.error_message}")
 
         outcome.completed_at = datetime.now()
         return outcome
@@ -216,7 +250,7 @@ class ExecutionPlan:
             return None
         context = self.gather_execution_context()
         next_action = self.pending_steps[0]
-        await channel.debug(f"Executing action: {next_action.intent} with tool {next_action.tool}")
+        await channel.debug(f"[{next_action.tool}]: {next_action.intent}")
         await channel.debug(f"Context for action: {context}")
         outcome = await next_action.execute(tools, believes=believes, context=context, channel=channel)
         await channel.debug(f"Action outcome: {outcome.status.value} with results: {outcome.results}")

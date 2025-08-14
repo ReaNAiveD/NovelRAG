@@ -11,24 +11,20 @@ from .agent import Agent
 from .channel import AgentChannel, SessionChannel, ShellSessionChannel
 
 # Core tool interfaces for extension
-from .tool import BaseTool, SchematicTool, ContextualTool
+from .tool import BaseTool, SchematicTool, ContextualTool, ToolRuntime
 
 # Essential types for public API
 from .types import (
-    # Core enums
-    MessageLevel,
-    AgentMessageLevel,
     ToolOutputType,
-    AgentOutputType,
 
     # Main union types
     ToolOutput,
-    AgentOutput,
 
     # Validation functions
     validate_tool_output,
     validate_tool_output_json,
-    validate_agent_output,
+
+    AgentMessageLevel,
 )
 
 __all__ = [
@@ -44,17 +40,14 @@ __all__ = [
     "BaseTool",
     "SchematicTool",
     "ContextualTool",
+    "ToolRuntime",
 
     # Essential types
-    "MessageLevel",
-    "AgentMessageLevel",
     "ToolOutputType",
-    "AgentOutputType",
     "ToolOutput",
-    "AgentOutput",
+    "AgentMessageLevel",
 
     # Validation functions
     "validate_tool_output",
     "validate_tool_output_json",
-    "validate_agent_output",
 ]

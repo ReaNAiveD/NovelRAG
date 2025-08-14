@@ -22,19 +22,15 @@ ensuring the agent's behavioral contracts are properly verified.
 
 import unittest
 from unittest.mock import AsyncMock, MagicMock
-from typing import AsyncGenerator
 from datetime import datetime
 
 from novelrag.agent.agent import Agent, AgentMind
 from novelrag.agent.channel import AgentChannel
 from novelrag.agent.execution import ExecutableStep, StepDefinition, ExecutionPlan, StepOutcome, StepStatus
 from novelrag.agent.planning import PursuitPlanner
-from novelrag.agent.pursuit import GoalPursuit, GoalPursuitResult, PursuitStatus, PursuitSummarizer
+from novelrag.agent.pursuit import GoalPursuitResult, PursuitStatus, PursuitSummarizer
 from novelrag.agent.tool import BaseTool, ContextualTool
-from novelrag.agent.types import (
-    ToolMessage, ToolResult,
-    ToolStepDecomposition, ToolBacklogOutput, MessageLevel, ToolOutput
-)
+from novelrag.agent.types import ToolResult
 from novelrag.llm.types import ChatLLM
 from novelrag.template import TemplateEnvironment
 
@@ -44,10 +40,10 @@ class MockContextualTool(ContextualTool):
     
     def __init__(self, name: str = "mock_contextual_tool", 
                  description: str = "A mock contextual tool",
-                 outputs: list[ToolOutput] | None = None):
+                 output: ToolResult | None = None):
         self._name = name
         self._description = description
-        self.outputs = outputs or [ToolResult(result="mock_result")]
+        self.output = output or ToolResult(result="mock_result")
         self.call_count = 0
         self.last_call_args = None
     
@@ -59,9 +55,9 @@ class MockContextualTool(ContextualTool):
     def description(self) -> str:
         return self._description
     
-    async def call(self, believes: list[str] | None = None, step_description: str | None = None, 
-                   context: list[str] | None = None, tools: dict[str, str] | None = None) -> AsyncGenerator[ToolOutput, bool | str | None]:
-        """Mock call method that returns predefined outputs."""
+    async def call(self, runtime, believes: list[str] | None = None, step_description: str | None = None,
+                   context: list[str] | None = None, tools: dict[str, str] | None = None):
+        """Mock call method that returns a predefined ToolResult."""
         self.call_count += 1
         self.last_call_args = {
             'believes': believes,
@@ -69,9 +65,7 @@ class MockContextualTool(ContextualTool):
             'context': context,
             'tools': tools
         }
-        
-        for output in self.outputs:
-            yield output
+        return self.output
 
 
 class TestAgent(unittest.IsolatedAsyncioTestCase):
@@ -157,10 +151,10 @@ class TestAgent(unittest.IsolatedAsyncioTestCase):
 
         # Mock GoalPursuit.initialize_pursuit and run_to_completion
         with unittest.mock.patch('novelrag.agent.agent.GoalPursuit') as mock_pursuit_class:
-            mock_pursuit_instance = AsyncMock()
+            mock_pursuit_instance = MagicMock()
             mock_pursuit_instance.plan.pending_steps = mock_steps
-            mock_pursuit_instance.run_to_completion.return_value = pursuit_result
-            mock_pursuit_class.initialize_pursuit.return_value = mock_pursuit_instance
+            mock_pursuit_instance.run_to_completion = AsyncMock(return_value=pursuit_result)
+            mock_pursuit_class.initialize_pursuit = AsyncMock(return_value=mock_pursuit_instance)
 
             # Execute the goal
             await self.agent.pursue_goal(goal)
@@ -207,10 +201,10 @@ class TestAgent(unittest.IsolatedAsyncioTestCase):
         
         # Mock GoalPursuit.initialize_pursuit and run_to_completion
         with unittest.mock.patch('novelrag.agent.agent.GoalPursuit') as mock_pursuit_class:
-            mock_pursuit_instance = AsyncMock()
+            mock_pursuit_instance = MagicMock()
             mock_pursuit_instance.plan.pending_steps = []
-            mock_pursuit_instance.run_to_completion.return_value = pursuit_result
-            mock_pursuit_class.initialize_pursuit.return_value = mock_pursuit_instance
+            mock_pursuit_instance.run_to_completion = AsyncMock(return_value=pursuit_result)
+            mock_pursuit_class.initialize_pursuit = AsyncMock(return_value=mock_pursuit_instance)
 
             # Execute the goal
             await self.agent.pursue_goal(goal)
