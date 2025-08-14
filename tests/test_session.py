@@ -66,6 +66,7 @@ class SessionTestCase(unittest.IsolatedAsyncioTestCase):
             resource_repository=self.repository,
             intents=self.intent_factory,
             conversation=self.history,
+            enable_agent=False,
         )
 
     async def test_invoke_with_aspect_switch(self):
@@ -86,6 +87,7 @@ class SessionTestCase(unittest.IsolatedAsyncioTestCase):
             resource_repository=self.repository,
             intents=self.intent_factory,
             conversation=self.history,
+            enable_agent=False,
         )
         
         command = Command(
@@ -428,6 +430,7 @@ class SessionTestCase(unittest.IsolatedAsyncioTestCase):
             resource_repository=self.repository,
             intents=self.intent_factory,
             conversation=self.history,
+            enable_agent=False,
         )
         
         # First switch to aspect (this will use the default intent)

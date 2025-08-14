@@ -7,7 +7,7 @@ from typing import Any, AsyncGenerator
 from novelrag.llm.types import ChatLLM
 from novelrag.template import TemplateEnvironment
 
-from .types import MessageLevel, ToolOutput, ToolMessage, ToolConfirmation, ToolResult, ToolUserInput, ToolStepProgress, ToolStepDecomposition, ToolBacklogOutput
+from .types import ToolOutput, ToolDecomposition, ToolResult, ToolError
 
 
 class LLMToolMixin:
@@ -25,6 +25,107 @@ class LLMToolMixin:
             {'role': 'system', 'content': prompt},
             {'role': 'user', 'content': user_question or 'Please answer the question.'}
         ], response_format='json_object' if json_format else None)
+
+
+class ToolRuntime(ABC):
+    """Runtime interaction interface for tools.
+
+    Why this exists: as part of an upcoming refactor, tool.call will accept a
+    ToolRuntime instance instead of returning an AsyncGenerator of ToolOutput.
+    The tool will return its final output (or raise on error), while side-channel
+    interactions such as debug/info/warnings, confirmations, user input, progress
+    updates, and backlog management will be routed through this interface.
+
+    This decouples tool I/O from return values, simplifies testing, and allows
+    different runtime implementations (CLI, UI, logs, etc.).
+    """
+
+    @abstractmethod
+    async def debug(self, content: str):
+        """Emit a developer-focused debug message.
+
+        Intended for verbose diagnostics not shown to end users. Implementations
+        should avoid blocking and may buffer or drop if necessary. Async: must be
+        awaited by callers.
+        """
+        pass
+
+    @abstractmethod
+    async def message(self, content: str):
+        """Emit a user-visible message.
+
+        Args:
+        content: the message text to display
+
+        Implementations should surface this in UI/logs. Non-blocking; async and
+        should be awaited.
+        """
+        pass
+
+    @abstractmethod
+    async def warning(self, content: str):
+        """Emit a user-visible warning about a recoverable condition.
+
+        Use when execution can continue but attention is warranted. This does not
+        raise; callers decide whether to proceed. Async and should be awaited.
+        """
+        pass
+
+    @abstractmethod
+    async def error(self, content: str):
+        """Emit a user-visible error message describing a failure.
+
+        This reports the error via the runtime side-channel but does not itself
+        raise an exception. Tools may still raise to abort execution. Async and
+        should be awaited.
+        """
+        pass
+
+    @abstractmethod
+    async def confirmation(self, prompt: str):
+        """Request an explicit yes/no confirmation from the user.
+
+        Implementations should present the prompt and resolve to a truthy value to
+        proceed and a falsy value to abort/skip. Async and must be awaited.
+        Return semantics are implementation-defined but should behave like a bool.
+        """
+        pass
+
+    @abstractmethod
+    async def user_input(self, prompt: str):
+        """Prompt the user for free-form input and return it.
+
+        Implementations should collect input via UI/CLI and return the entered
+        string (or equivalent). Async and must be awaited.
+        """
+        pass
+
+    @abstractmethod
+    async def progress(self, field: str, value: Any, description: str | None = None):
+        """Record a progress update for the current step.
+
+        Parameters:
+        - field: canonical progress key (e.g., 'downloaded_bytes')
+        - value: new value for this key (any JSON-serializable data is preferred)
+        - description: optional human-readable note
+
+        Implementations should persist/emit the update and be non-blocking when
+        possible. Async and should be awaited.
+        """
+        pass
+
+    @abstractmethod
+    async def backlog(self, content: Any, priority: str | None = None):
+        """Add an item to the backlog for later processing.
+
+        Parameters:
+        - content: arbitrary data or description of the follow-up work
+        - priority: optional label (e.g., 'low' | 'normal' | 'high')
+
+        Implementations should enqueue the item durably. Async and should be
+        awaited.
+        """
+        pass
 
 
 class BaseTool(ABC):
@@ -46,45 +147,19 @@ class BaseTool(ABC):
         """Description of the output format"""
         return None
 
-    def debug(self, content: str) -> ToolMessage:
-        """Create a debug Message output"""
-        return ToolMessage(content=content, level=MessageLevel.DEBUG)
+    @staticmethod
+    def result(result: str) -> ToolResult:
+        return ToolResult(result=result)
 
-    def message(self, content: str, level: MessageLevel = MessageLevel.INFO) -> ToolMessage:
-        """Create a Message output"""
-        return ToolMessage(content=content, level=level)
-    
-    def warning(self, content: str) -> ToolMessage:
-        """Create a warning Message output"""
-        return ToolMessage(content=content, level=MessageLevel.WARNING)
-    
-    def error(self, content: str) -> ToolMessage:
-        """Create an error Message output"""
-        return ToolMessage(content=content, level=MessageLevel.ERROR)
+    @staticmethod
+    def error(error_message: str) -> ToolError:
+        """Create a ToolError output with the given error message"""
+        return ToolError(error_message=error_message)
 
-    def confirmation(self, prompt: str) -> ToolConfirmation:
-        """Create a Confirmation output"""
-        return ToolConfirmation(prompt=prompt)
-
-    def output(self, output: str) -> ToolResult:
-        """Create an Output result"""
-        return ToolResult(result=output)
-
-    def user_input(self, prompt: str) -> ToolUserInput:
-        """Create a UserInput request"""
-        return ToolUserInput(prompt=prompt)
-    
-    def step_progress(self, field: str, value: Any, description: str | None = None) -> ToolStepProgress:
-        """Create a StepProgress output"""
-        return ToolStepProgress(field=field, value=value, description=description)
-
-    def step_decomposition(self, steps: list[dict[str, str]], rationale: str | None = None) -> ToolStepDecomposition:
-        """Create a StepDecomposition output"""
-        return ToolStepDecomposition(steps=steps, rationale=rationale)
-
-    def backlog(self, content: Any, priority: str | None = None) -> ToolBacklogOutput:
-        """Create a BacklogOutput"""
-        return ToolBacklogOutput(content=content, priority=priority)
+    @staticmethod
+    def decomposition(steps: list[dict[str, str]], rationale: str | None = None) -> ToolDecomposition:
+        """Create a ToolDecomposition output with the given steps and rationale"""
+        return ToolDecomposition(steps=steps, rationale=rationale)
 
 
 class SchematicTool(BaseTool):
@@ -101,9 +176,9 @@ class SchematicTool(BaseTool):
         pass
 
     @abstractmethod
-    async def call(self, **kwargs) -> AsyncGenerator[ToolOutput, bool | str | None]:
+    async def call(self, runtime: ToolRuntime, **kwargs) -> ToolOutput:
         """Execute the tool with provided parameters and yield outputs asynchronously"""
-        yield self.error("Tool call not implemented")
+        raise NotImplementedError("SchematicTool subclasses must implement the call method")
 
     def wrapped(self, template_env: TemplateEnvironment, chat_llm: ChatLLM) -> 'SchematicToolAdapter':
         return SchematicToolAdapter(self, template_env, chat_llm)
@@ -111,9 +186,9 @@ class SchematicTool(BaseTool):
 
 class ContextualTool(BaseTool):
     @abstractmethod
-    async def call(self, believes: list[str] | None = None, step_description: str | None = None, context: list[str] | None = None, tools: dict[str, str] | None = None) -> AsyncGenerator[ToolOutput, bool | str | None]:
+    async def call(self, runtime: ToolRuntime, believes: list[str] | None = None, step_description: str | None = None, context: list[str] | None = None, tools: dict[str, str] | None = None) -> ToolOutput:
         """Execute the tool with contextual information and yield outputs asynchronously"""
-        yield self.error("Tool call not implemented")
+        raise NotImplementedError("ContextualTool subclasses must implement the call method")
 
 
 class SchematicToolAdapter(LLMToolMixin, ContextualTool):
@@ -138,8 +213,8 @@ class SchematicToolAdapter(LLMToolMixin, ContextualTool):
         """Output description of the tool, delegated to the inner tool"""
         return self.inner.output_description
 
-    async def call(self, believes: list[str] | None = None, step_description: str | None = None, context: list[str] | None = None, tools: dict[str, str] | None = None) -> AsyncGenerator[ToolOutput, bool | str | None]:
-        """Execute the tool with contextual information and yield outputs asynchronously"""
+    async def call(self, runtime: ToolRuntime, believes: list[str] | None = None, step_description: str | None = None, context: list[str] | None = None, tools: dict[str, str] | None = None) -> ToolOutput:
+        """Execute the tool with contextual information and return a final ToolOutput"""
         # Check if we need to gather additional context for missing inputs
         missing_fields = await self._identify_missing_inputs(believes, step_description, context)
         
@@ -148,15 +223,14 @@ class SchematicToolAdapter(LLMToolMixin, ContextualTool):
             steps = await self._build_data_gathering_steps(missing_fields, tools)
             # If we failed to build steps, we have to work with what we have
             if steps:
-                yield self.step_decomposition(
+                return self.decomposition(
                     steps=steps,
                     rationale=f"Need to gather missing inputs: {', '.join(missing_fields)}"
                 )
-                return
-            yield self.warning(f"Failed to build steps for missing inputs: {', '.join(missing_fields)}. Proceeding with available context.")
+            await runtime.warning(f"Failed to build steps for missing inputs: {', '.join(missing_fields)}. Proceeding with available context.")
         elif missing_fields:
             # Tool cannot decompose, must work with what we have
-            yield self.warning(f"Missing inputs: {', '.join(missing_fields)}. Proceeding with available context.")
+            await runtime.warning(f"Missing inputs: {', '.join(missing_fields)}. Proceeding with available context.")
         
         # Build arguments from context using LLM
         max_retries = 3
@@ -164,22 +238,21 @@ class SchematicToolAdapter(LLMToolMixin, ContextualTool):
             try:
                 tool_args = await self._build_tool_arguments(believes, step_description, context)
             except Exception as e:
-                yield self.warning(f"Error building tool arguments: {str(e)}")
+                await runtime.warning(f"Error building tool arguments: {str(e)}")
                 tool_args = None
             if tool_args is not None:
-                yield self.debug(f"Built tool arguments: {tool_args}")
+                await runtime.debug(f"Built tool arguments: {tool_args}")
                 break
             if attempt < max_retries - 1:
-                yield self.warning(f"Failed to build tool arguments (attempt {attempt + 1}/{max_retries}). Retrying...")
+                await runtime.warning(f"Failed to build tool arguments (attempt {attempt + 1}/{max_retries}). Retrying...")
         else:
-            yield self.error(f"Failed to build tool arguments after {max_retries} attempts")
-            return
+            return self.error(f"Failed to build tool arguments after {max_retries} attempts")
         try:
             # Call the inner schematic tool with the built arguments
-            async for output in self.inner.call(**tool_args):
-                yield output
+            result = await self.inner.call(runtime, **tool_args)
+            return result
         except Exception as e:
-            yield self.error(f"Failed to execute schematic tool {self.inner.name}: {str(e)}")
+            return self.error(f"Failed to execute schematic tool {self.inner.name}: {str(e)}")
 
     async def _identify_missing_inputs(self, believes: list[str] | None = None, step_description: str | None = None, context: list[str] | None = None) -> list[str]:
         """Identify which required inputs are missing from the current context"""
