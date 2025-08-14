@@ -72,4 +72,4 @@ class OpenAIChatLLM(ChatLLM):
             **self.chat_params,
             **params,
         )
-        return resp.choices[0].message.content
+        return resp.choices[0].info.content

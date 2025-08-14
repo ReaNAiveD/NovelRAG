@@ -44,7 +44,7 @@ class ExecutionToolRuntime(ToolRuntime):
 
     async def message(self, content: str):
         if self.channel:
-            await self.channel.message(content)
+            await self.channel.info(content)
         else:
             logger.info(content)
 
@@ -124,8 +124,6 @@ class ExecutableStep:
             outcome.status = StepStatus.FAILED
             outcome.error_message = f"Tool {self.tool} not found."
             outcome.completed_at = datetime.now()
-            if channel:
-                await channel.message(outcome.error_message)
             return outcome
 
         try:
@@ -250,8 +248,8 @@ class ExecutionPlan:
             return None
         context = self.gather_execution_context()
         next_action = self.pending_steps[0]
-        await channel.debug(f"[{next_action.tool}]: {next_action.intent}")
-        await channel.debug(f"Context for action: {context}")
+        await channel.info(f"[{next_action.tool}]: {next_action.intent}")
+        await channel.info(f"Context for action: {context}")
         outcome = await next_action.execute(tools, believes=believes, context=context, channel=channel)
-        await channel.debug(f"Action outcome: {outcome.status.value} with results: {outcome.results}")
+        await channel.info(f"Action outcome: {outcome.status.value} with results: {outcome.results}")
         return outcome
