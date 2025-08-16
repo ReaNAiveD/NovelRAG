@@ -24,7 +24,7 @@ You have access to:
 ### Current State
 - **Planned Steps**: Steps currently scheduled for execution (these are fixed and will be executed after completed steps)
 - **Agent Beliefs**: Current understanding of the world state and available knowledge
-- **Available Tools**: All tools available for use in new steps
+- **Available Tools**: All tools available for use in new steps, or logical operations without tools
 - **Goal Context**: The specific objective that all remaining work should advance
 
 ## Planning Guidelines
@@ -37,6 +37,11 @@ You have access to:
 5. **Maintain Focus**: Ensure all new steps directly contribute to achieving the stated goal
 6. **Optimize Sequence**: Order steps to create efficient dependencies and logical flow
 
+### Tool Selection for New Steps
+- **Specific Tools**: Use named tools from the available set when you need their specific capabilities
+- **Logical Operations**: Omit the "tool" field when the step involves pure reasoning, analysis, planning, summarization, or other cognitive tasks
+- **Fallback Handling**: The system automatically handles steps without tools using logical reasoning capabilities
+
 ### Planned Step Analysis
 For the currently planned steps, analyze:
 - **Expected Outcomes**: What results will these steps likely produce when executed?
@@ -48,7 +53,7 @@ For the currently planned steps, analyze:
 ### New Step Creation
 When adding new steps, ensure they:
 - **Address Gaps**: Fill specific needs identified through execution analysis
-- **Use Available Tools**: Select appropriate tools from the available set
+- **Use Available Tools or Logical Operations**: Select appropriate tools from the available set or use logical reasoning
 - **Build Incrementally**: Create logical progression from current state to goal completion
 - **Include Specific Intent**: Provide clear, actionable descriptions of what to accomplish
 - **Consider Conditions**: Include conditional logic when outcomes depend on previous results
@@ -275,4 +280,3 @@ Analyze the provided execution context and generate an optimized plan for the re
 7. **Apply the Important Condition**: If the goal is already achieved (now or after fixed planned steps), return { "new_steps": [] } and nothing else is required.
 
 Generate the remaining steps plan as a JSON object:
-

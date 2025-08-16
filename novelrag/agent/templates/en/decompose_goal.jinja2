@@ -6,7 +6,7 @@ You are tasked with decomposing a high-level goal into a series of concrete, exe
 
 - **Goal Analysis**: Understanding what the goal entails and what outcomes are expected
 - **Belief Integration**: Leveraging the agent's current beliefs and knowledge to inform planning
-- **Tool Selection**: Choosing the most appropriate tools for each step based on their capabilities
+- **Tool Selection**: Choosing the most appropriate tools for each step based on their capabilities, or omitting tools for logical operations
 - **Step Sequencing**: Ordering steps logically so that earlier steps provide foundation for later ones
 - **Dependency Management**: Ensuring that steps build upon each other when necessary
 - **Logic Branching**: Including conditional steps that depend on the results of previous steps
@@ -17,12 +17,17 @@ You are tasked with decomposing a high-level goal into a series of concrete, exe
 ### Step Composition
 Each step should:
 - **Target a specific sub-goal**: Focus on accomplishing one clear, measurable objective
-- **Use exactly one tool**: Each step must correspond to exactly one available tool (but the same tool can be used in multiple steps)
-- **Have clear intent**: The intent should describe what you want to achieve with that tool
+- **Use an appropriate tool or logical operation**: Each step can either use a specific available tool or perform a logical operation (analysis, reasoning, planning)
+- **Have clear intent**: The intent should describe what you want to achieve with that tool or logical operation
 - **Build logically**: Steps should progress from foundational work to more specific tasks
-- **Be actionable**: Each step should be concrete enough that the tool can execute it
+- **Be actionable**: Each step should be concrete enough that it can be executed
 - **Contribute to the goal**: Every step should clearly advance toward achieving the main goal
 - **Include conditional logic**: Use natural language to describe when steps should be executed based on previous results
+
+### Tool Selection Guidelines
+- **Specific tools**: Use named tools from the available set when you need their specific capabilities
+- **Logical operations**: Omit the "tool" field or set it to null when the step involves pure reasoning, analysis, planning, summarization, or other cognitive tasks that don't require specialized tools
+- **Fallback handling**: The system will automatically handle steps without tools using logical reasoning capabilities
 
 ### Logic Branching and Conditional Steps
 Steps can include conditional logic expressed in natural language within the intent description:
@@ -46,7 +51,7 @@ Common conditional patterns:
 6. **Efficient Flow**: Minimize redundant work while ensuring thorough coverage
 
 ### Intent Description Best Practices
-- Be specific about what you want the tool to accomplish
+- Be specific about what you want the tool or logical operation to accomplish
 - Include relevant context from the goal and beliefs
 - Mention dependencies on previous steps when applicable
 - Use action-oriented language (e.g., "read", "create", "update", "edit")
@@ -65,10 +70,18 @@ Your response must be a valid JSON object with the following structure:
     {
       "tool": "tool_name",
       "intent": "Clear intent description for what this step should accomplish, including any conditional logic in natural language"
+    },
+    {
+      "intent": "For logical operations, reasoning, or analysis tasks, you can omit the tool field entirely and the system will handle it with logical reasoning capabilities"
     }
   ]
 }
 ```
+
+**Tool Field Guidelines:**
+- **Include "tool"**: When you need a specific tool's capabilities from the available tools list
+- **Omit "tool"**: For pure logical operations like analysis, reasoning, planning, summarization, decision-making, or cognitive tasks that don't require specialized tools
+- **Tool field can be**: A string with the tool name, or omitted entirely for logical operations
 
 ## Examples
 
@@ -191,7 +204,7 @@ Your response must be a valid JSON object with the following structure:
 
 ## Important Notes
 
-- **One tool per step**: Each step must use exactly one tool from the available tools list
+- **One tool per step**: Each step must use exactly one tool from the available tools list, or omit the tool for logical operations
 - **Tools can be reused**: The same tool can be used in multiple steps for different purposes (e.g., multiple reader calls for different information)
 - **Conditional execution**: Steps can include natural language conditions that determine when they should be executed
 - **Query-first pattern**: When creating new resources, first query for existing similar resources using relevant keywords to avoid duplication
@@ -199,7 +212,7 @@ Your response must be a valid JSON object with the following structure:
 - **Goal alignment**: Every step should clearly contribute to achieving the stated goal
 - **Tool appropriateness**: Select tools that are specifically designed for the type of work needed in each step
 - **Belief integration**: Leverage the agent's current beliefs to inform step planning and tool selection
-- **Actionable intents**: Each step's intent should be specific enough for the tool to understand and execute
+- **Actionable intents**: Each step's intent should be specific enough for the tool or logical operation to understand and execute
 - **Query specificity**: When using reader/query tools multiple times, make each call target specific information needed
 - **Branching logic**: Use natural language to express when steps should execute based on the results of previous steps
 - **Keyword specification**: For query tools, include specific keywords or search terms to help locate relevant existing resources

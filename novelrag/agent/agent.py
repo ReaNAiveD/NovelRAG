@@ -7,7 +7,7 @@ from novelrag.agent.channel import AgentChannel
 from novelrag.llm.types import ChatLLM
 from novelrag.template import TemplateEnvironment
 
-from .tool import BaseTool, ContextualTool, LLMToolMixin, SchematicTool
+from .tool import BaseTool, ContextualTool, LLMToolMixin, SchematicTool, LLMLogicalOperationTool
 from .planning import PursuitPlanner
 from .pursuit import GoalPursuit, PursuitSummarizer
 from .proposals import TargetProposer
@@ -81,6 +81,10 @@ class Agent(LLMToolMixin):
                 self.contextual_tools[name] = tool.wrapped(template_env, chat_llm)
             else:
                 logger.warning(f'Tool {name} is not a ContextualTool or SchematicTool, skipping tool setup.')
+
+        # Create the fallback tool for logical operations
+        self.fallback_tool = LLMLogicalOperationTool(template_env, chat_llm)
+
         self.target_proposers: list[TargetProposer] = []
         super().__init__(template_env=template_env, chat_llm=chat_llm)
 
@@ -116,7 +120,7 @@ class Agent(LLMToolMixin):
             context=pursuit_context
         )
         await self.channel.info(f"Initial plan for goal '{goal}': {pursuit.plan.pending_steps}")
-        result = await pursuit.run_to_completion(self.contextual_tools, self.channel, self.planner)
+        result = await pursuit.run_to_completion(self.contextual_tools, self.channel, self.planner, self.fallback_tool)
         records = result.records.completed_steps
         if not records:
             await self.channel.error(f'No steps completed for goal "{goal}".')

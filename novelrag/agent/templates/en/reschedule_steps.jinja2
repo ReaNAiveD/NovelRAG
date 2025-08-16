@@ -290,6 +290,303 @@ Reschedule the execution plan based on the provided information.
 ```json
 {{ last_step | tojson }}
 ```
+- **Efficiency Optimization**: Removing obsolete steps and adding necessary ones for optimal goal achievement
+**Spawned Steps from Last Step:**
+{% for step in spawned_steps %}
+- Tool: {{ step.tool }}, Intent: {{ step.intent }}
+{% endfor %}
+## Step Composition Order
+**Triggered Steps from Last Step:**
+{% for step in triggered_steps %}
+- Tool: {{ step.tool }}, Intent: {{ step.intent }}
+{% endfor %}
+5. **Remaining Target Steps**: Existing target steps after deletion (target_steps[delete_count:])
+**Current Target Steps (Pending):**
+{% for step in target_steps %}
+- Tool: {{ step.tool }}, Intent: {{ step.intent }}
+{% endfor %}
+
+**Previous Completed Steps:**
+{% for step in prev_steps %}
+- Tool: {{ step.tool }}, Intent: {{ step.intent }}, Status: {{ step.status }}
+{% endfor %}
+
+**Current Agent Beliefs:**
+{% for belief in believes %}
+- {{ belief }}
+{% endfor %}
+- **Progress Assessment**: How much closer to the goal the agent has moved
+**Available Tools:**
+{% for tool_name, tool_desc in tools.items() %}
+- **{{ tool_name }}**: {{ tool_desc }}
+{% endfor %}
+
+## Instructions
+
+1. **Analyze the last step outcome** to understand its impact on the remaining work
+2. **Evaluate spawned and triggered steps** to avoid duplication and build upon their expected results
+3. **Process conditional logic** in target steps based on the current state and last step results
+4. **Determine step modifications** needed based on new information or changing circumstances
+5. **Handle loop conditions** if any iterative processes need continuation or termination
+6. **Calculate delete_count** for target steps that should be removed due to conditional logic or obsolescence
+7. **Create new_steps** that fill gaps, address new requirements, or replace modified target steps
+8. **Ensure goal alignment** - all steps should contribute to achieving the overall goal
+9. **Maintain logical sequencing** - new steps should execute in the optimal order
+10. **Format as clean JSON** - return only the JSON object with no additional text
+
+Generate the rescheduling decision as a JSON object:
+
+- **Conditional Logic Impact**: How the results affect conditional statements in upcoming steps
+
+### Conditional Steps Evaluation
+When processing conditional steps in the target_steps, analyze:
+- **Condition Satisfaction**: Determine which conditional statements are now satisfied or unsatisfied based on the last step's results
+- **If-Then Logic**: Evaluate "if condition X, then do Y" statements in step intents
+- **Existence Checks**: Assess "if resource exists/doesn't exist" conditions
+- **Query Results**: Use outcomes of search/query steps to determine conditional paths
+- **Loop Conditions**: Check if repetition conditions are met for iterative steps
+- **Branching Points**: Identify where execution should branch based on current state
+
+Common conditional patterns to evaluate:
+- "If [resource] was found, then [modify existing]; otherwise [create new]"
+- "Only proceed if [condition] is met based on previous results"
+- "Repeat until [criteria] is satisfied"
+- "Skip this step if [previous step] already accomplished [goal]"
+
+### Dynamic Steps Consideration
+When spawned or triggered steps are present:
+- **Spawned Steps**: These are sub-steps that will execute before the last step is re-attempted. Consider what additional work might be needed after they complete.
+- **Triggered Steps**: These are follow-up actions that will execute before your new steps. Consider what work remains after they complete.
+- **Avoid Duplication**: Don't create new steps that duplicate the intent of spawned or triggered steps
+- **Build on Results**: Create new steps that build upon the expected outcomes of spawned and triggered steps
+- **Conditional Impact**: Consider how spawned/triggered steps might affect conditional logic in remaining steps
+
+### Rescheduling Decision Factors
+Consider these factors when rescheduling:
+- **Goal Progress**: How much of the goal has been achieved and what remains
+- **Available Information**: What context and results are now available from completed steps
+- **Tool Capabilities**: Which tools are best suited for the remaining work
+- **Dependency Changes**: How the last step's outcome affects step relationships
+- **Dynamic Step Impact**: How spawned and triggered steps affect the remaining work
+- **Conditional Logic State**: Which conditional statements are now satisfied or unsatisfied
+- **Loop Progress**: Whether iterative processes should continue or terminate
+- **Efficiency Opportunities**: Ways to streamline the remaining work
+- **Risk Mitigation**: Steps needed to handle potential issues or failures
+
+### Step Modification Strategies
+Based on the last step outcome, you can:
+1. **Keep Existing Steps**: Maintain steps that are still relevant and necessary
+2. **Remove Obsolete Steps**: Eliminate steps that are no longer needed due to last step's results
+3. **Remove Conditional Steps**: Delete steps whose conditions are now unsatisfied
+4. **Modify Step Intents**: Update step descriptions to reflect new context or requirements
+5. **Add New Steps**: Insert additional steps needed based on discovered information
+6. **Add Loop Iterations**: Create repeated steps when loop conditions are still active
+7. **Reorder Steps**: Change execution sequence based on new dependencies or priorities
+8. **Replace Steps**: Substitute steps with more appropriate alternatives
+9. **Convert Conditional Steps**: Transform conditional steps based on evaluated conditions
+
+### Loop and Repetition Handling
+For steps that involve loops or repetition:
+- **Loop Condition Evaluation**: Check if the loop condition is still active based on last step results
+- **Iteration Planning**: Determine if another iteration of the current step is needed
+- **Progress Tracking**: Assess how many iterations have been completed and how many remain
+- **Termination Criteria**: Verify if loop termination conditions have been met
+- **Loop Step Creation**: Add new instances of the loop step when continuation is needed
+- **Position Management**: Place repeated steps in appropriate positions in the execution sequence
+
+### Conditional Deletion Strategy
+When deleting target steps based on conditional logic:
+- **Condition Evaluation**: Analyze each target step's conditional statements against current results
+- **Sequential Processing**: Evaluate conditions in order, as early steps may affect later conditions
+- **Batch Deletion**: Use delete_count to remove consecutive steps with unsatisfied conditions
+- **Selective Retention**: Keep steps whose conditions are satisfied or unconditional
+- **Dependency Preservation**: Ensure deleted steps don't break dependencies for remaining steps
+
+### Step Creation Best Practices
+When creating new or modified steps:
+- **Clear Intent**: Each step should have a specific, actionable purpose
+- **Tool Alignment**: Match step requirements with appropriate tool capabilities
+- **Context Awareness**: Reference available information from previous steps
+- **Goal Contribution**: Ensure each step meaningfully advances toward the goal
+- **Logical Sequencing**: Order steps for optimal execution flow
+- **Conditional Clarity**: Express any conditional logic clearly in natural language
+- **Loop Specification**: Include clear loop conditions and termination criteria when needed
+- **Completeness**: Cover all aspects needed to achieve the remaining goal
+
+## Response Format
+
+Your response must be a valid JSON object with the following structure:
+```json
+{
+  "new_steps": [
+    {
+      "tool": "tool_name",
+      "intent": "Clear intent description for what this step should accomplish"
+    }
+  ],
+  "delete_count": 0
+}
+```
+
+- **new_steps**: Array of new steps to be added to the schedule
+- **delete_count**: Number of existing target steps to remove from the beginning of the list (optional, defaults to 0)
+
+**DO NOT** wrap the response in any markdown code blocks or additional explanation. Return only the raw JSON object.
+
+## Examples
+
+### Example 1: Successful Information Gathering Step (No Dynamic Steps)
+**Last Step**: {"tool": "story_reader", "intent": "Read character profiles", "status": "success", "results": ["Found 3 main characters: Alice (protagonist), Bob (antagonist), Carol (mentor)"]}
+**Spawned Steps**: []
+**Triggered Steps**: []
+**Target Steps**: [{"tool": "character_creator", "intent": "Create new supporting character"}, {"tool": "scene_editor", "intent": "Add character to existing scenes"}]
+**Goal**: "Add a new character to the story"
+
+**Response**:
+```json
+{
+  "new_steps": [
+    {
+      "tool": "character_creator",
+      "intent": "Create new supporting character that complements the existing cast of Alice, Bob, and Carol"
+    },
+    {
+      "tool": "relationship_editor",
+      "intent": "Define relationships between the new character and Alice, Bob, and Carol"
+    },
+    {
+      "tool": "scene_editor",
+      "intent": "Add the new character to existing scenes where interactions with Alice, Bob, or Carol would be meaningful"
+    }
+  ],
+  "delete_count": 2
+}
+```
+
+### Example 2: Step with Spawned Actions (Decomposition)
+**Last Step**: {"tool": "scene_planner", "intent": "Plan dialogue scene", "status": "decomposed", "spawned_actions": ["research character voices", "outline conversation flow", "write dialogue draft"]}
+**Spawned Steps**: [
+  {"tool": "character_reader", "intent": "Research character voices and speaking patterns"},
+  {"tool": "scene_outliner", "intent": "Outline the conversation flow and key dialogue points"},
+  {"tool": "dialogue_writer", "intent": "Write initial dialogue draft"}
+]
+**Triggered Steps**: []
+**Target Steps**: [{"tool": "scene_editor", "intent": "Write the dialogue scene"}, {"tool": "story_validator", "intent": "Check scene consistency"}]
+**Goal**: "Create a dialogue scene between two characters"
+
+**Final Execution Order**: [spawned_steps] + [scene_planner_rerun] + [new_steps] + [remaining_target_steps]
+
+**Response**:
+```json
+{
+  "new_steps": [
+    {
+      "tool": "dialogue_refiner",
+      "intent": "Refine the dialogue draft based on character research and conversation outline"
+    },
+    {
+      "tool": "scene_editor",
+      "intent": "Finalize the dialogue scene with proper formatting and stage directions"
+    }
+  ],
+  "delete_count": 1
+}
+```
+
+### Example 3: Step with Triggered Actions (Chain Updates)
+**Last Step**: {"tool": "character_creator", "intent": "Create new supporting character", "status": "success", "results": ["Created character: David (tech expert, age 25)"]}
+**Spawned Steps**: []
+**Triggered Steps**: [
+  {"tool": "relationship_mapper", "intent": "Map relationships between David and existing characters"},
+  {"tool": "backstory_writer", "intent": "Write David's backstory focusing on his tech expertise"}
+]
+**Target Steps**: [{"tool": "scene_finder", "intent": "Find scenes where David would naturally appear"}, {"tool": "scene_editor", "intent": "Add David to identified scenes"}]
+**Goal**: "Integrate the new character into the story"
+
+**Final Execution Order**: [triggered_steps] + [new_steps] + [remaining_target_steps]
+
+**Response**:
+```json
+{
+  "new_steps": [
+    {
+      "tool": "character_integration_analyzer",
+      "intent": "Analyze how David's tech expertise and relationships can enhance existing plot points"
+    }
+  ],
+  "delete_count": 0
+}
+```
+
+### Example 4: Failed Step with Conditional Logic
+**Last Step**: {"tool": "file_reader", "intent": "Read character database", "status": "failed", "error_message": "File not found", "progress": {"attempted_paths": ["/characters.json", "/data/characters.yml"]}}
+**Spawned Steps**: []
+**Triggered Steps**: []
+**Target Steps**: [
+  {"tool": "character_creator", "intent": "Create characters if database exists, otherwise use default templates"},
+  {"tool": "story_generator", "intent": "Generate story outline"},
+  {"tool": "scene_creator", "intent": "Create opening scene"}
+]
+**Goal**: "Initialize story with characters"
+
+**Response**:
+```json
+{
+  "new_steps": [
+    {
+      "tool": "character_creator",
+      "intent": "Create default character templates since database was not found"
+    }
+  ],
+  "delete_count": 1
+}
+```
+
+### Example 5: Conditional Step Evaluation
+**Last Step**: {"tool": "story_analyzer", "intent": "Check if story has romance subplot", "status": "success", "results": ["Romance subplot confirmed: Alice and David romantic tension"]}
+**Spawned Steps**: []
+**Triggered Steps**: []
+**Target Steps**: [
+  {"tool": "scene_creator", "intent": "If romance subplot exists, create romantic scene; otherwise skip"},
+  {"tool": "dialogue_writer", "intent": "Write romance dialogue if subplot confirmed"},
+  {"tool": "plot_weaver", "intent": "Integrate romance into main plot"}
+]
+**Goal**: "Develop romance subplot if it exists"
+
+**Response**:
+```json
+{
+  "new_steps": [
+    {
+      "tool": "scene_creator",
+      "intent": "Create romantic scene between Alice and David based on confirmed romantic tension"
+    },
+    {
+      "tool": "dialogue_writer",
+      "intent": "Write romance dialogue between Alice and David"
+    },
+    {
+      "tool": "plot_weaver",
+      "intent": "Integrate Alice-David romance into main plot structure"
+    }
+  ],
+  "delete_count": 3
+}
+```
+
+## Your Task
+
+Reschedule the execution plan based on the provided information.
+
+**Goal:**
+```
+{{ goal }}
+```
+
+**Last Completed Step:**
+```json
+{{ last_step | tojson }}
+```
 
 **Spawned Steps from Last Step:**
 {% for step in spawned_steps %}

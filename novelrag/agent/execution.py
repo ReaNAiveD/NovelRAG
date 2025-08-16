@@ -6,7 +6,7 @@ from typing import Any
 from .channel import AgentChannel
 from .context import PursuitContext
 from .steps import StepDefinition, ExecutableStep, StepOutcome, StepStatus
-from .tool import ContextualTool, ToolRuntime
+from .tool import ContextualTool, ToolRuntime, LLMLogicalOperationTool
 from .types import ToolResult, ToolDecomposition, ToolError
 
 logger = logging.getLogger(__name__)
@@ -67,7 +67,8 @@ class ExecutionToolRuntime(ToolRuntime):
 
 # Add the execute method to ExecutableStep via monkey patching to avoid circular imports
 async def _execute_step(step: ExecutableStep, tools: dict[str, ContextualTool], believes: list[str] | None = None,
-                        context: list[str] | None = None, channel: AgentChannel | None = None) -> StepOutcome:
+                        context: list[str] | None = None, channel: AgentChannel | None = None,
+                        fallback_tool: LLMLogicalOperationTool | None = None) -> StepOutcome:
     """Execute the action and return its outcome."""
     start_time = datetime.now()
     outcome = StepOutcome(
@@ -76,8 +77,21 @@ async def _execute_step(step: ExecutableStep, tools: dict[str, ContextualTool], 
         started_at=start_time
     )
 
-    # Validate tool exists
-    tool = tools.get(step.tool)
+    # Get the tool, use fallback if tool is None or not found
+    tool = None
+    if step.tool and step.tool in tools:
+        tool = tools[step.tool]
+    elif step.tool is None or step.tool == '' or step.tool not in tools:
+        if fallback_tool:
+            tool = fallback_tool
+            if channel:
+                await channel.debug(f"Using LLMLogicalOperationTool for step with tool='{step.tool}' - performing logical operation: {step.intent}")
+        else:
+            outcome.status = StepStatus.FAILED
+            outcome.error_message = f"Tool {step.tool} not found and no fallback tool available."
+            outcome.completed_at = datetime.now()
+            return outcome
+
     if not tool:
         outcome.status = StepStatus.FAILED
         outcome.error_message = f"Tool {step.tool} not found."
@@ -148,7 +162,8 @@ class ExecutionPlan:
         return len(self.pending_steps) == 0
 
     async def execute_current_step(self, tools: dict[str, ContextualTool], believes: list[str],
-                                   channel: AgentChannel, context: PursuitContext) -> 'StepOutcome | None':
+                                   channel: AgentChannel, context: PursuitContext,
+                                   fallback_tool: LLMLogicalOperationTool | None = None) -> 'StepOutcome | None':
         """Advance the plan by executing the next pending action."""
         if self.finished():
             return None
@@ -160,7 +175,7 @@ class ExecutionPlan:
         step_context = await context.retrieve_context(next_action.definition)
         await channel.info(f"Retrieved context for step {next_action.definition.step_id}: {step_context}")
         # Execute the step with the retrieved context
-        outcome = await _execute_step(next_action, tools, believes, step_context, channel)
+        outcome = await _execute_step(next_action, tools, believes, step_context, channel, fallback_tool)
 
         # Store the outcome in context for future steps
         if outcome.status == StepStatus.SUCCESS:
