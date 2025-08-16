@@ -154,8 +154,7 @@ class ExecutionPlan:
     """
     goal: str
     pending_steps: list[ExecutableStep] = field(default_factory=list)
-    completed_steps: list[StepOutcome] = field(default_factory=list)
-    failed_steps: list[StepOutcome] = field(default_factory=list)
+    executed_steps: list[StepOutcome] = field(default_factory=list)
 
     def finished(self) -> bool:
         """Check if there are actions waiting to be executed."""
@@ -165,18 +164,14 @@ class ExecutionPlan:
         """String representation of the execution plan."""
         lines = [f"ExecutionPlan: {self.goal}"]
 
-        # Show all completed steps
-        for i, outcome in enumerate(self.completed_steps, 1):
+        # Show all executed steps (both completed and failed)
+        for i, outcome in enumerate(self.executed_steps, 1):
             tool_name = outcome.action.tool or "N/A"
-            lines.append(f"  {i}. ✓ [{tool_name}] {outcome.action.intent}")
-
-        # Show all failed steps
-        for i, outcome in enumerate(self.failed_steps, len(self.completed_steps) + 1):
-            tool_name = outcome.action.tool or "N/A"
-            lines.append(f"  {i}. ✗ [{tool_name}] {outcome.action.intent}")
+            status_symbol = "✓" if outcome.status == StepStatus.SUCCESS else "✗"
+            lines.append(f"  {i}. {status_symbol} [{tool_name}] {outcome.action.intent}")
 
         # Show all pending steps
-        start_num = len(self.completed_steps) + len(self.failed_steps) + 1
+        start_num = len(self.executed_steps) + 1
         for i, step in enumerate(self.pending_steps, start_num):
             tool_name = step.tool or "N/A"
             status = "▶" if i == start_num else "○"
