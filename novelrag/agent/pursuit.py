@@ -8,7 +8,7 @@ from .context import PursuitContext
 from .execution import ExecutionPlan
 from .planning import PursuitPlanner
 from .steps import ExecutableStep, StepStatus, StepOutcome
-from .tool import ContextualTool, LLMToolMixin
+from .tool import ContextualTool, LLMToolMixin, LLMLogicalOperationTool
 from ..llm import ChatLLM
 from ..template import TemplateEnvironment
 
@@ -66,11 +66,11 @@ class GoalPursuit:
         steps = await planner.create_initial_plan(goal, believes, tools)
         return cls.new(goal, believes, steps, context)
 
-    async def execute_next_step(self, tools: dict[str, ContextualTool], channel: AgentChannel, planner: 'PursuitPlanner') -> 'GoalPursuitResult | None':
+    async def execute_next_step(self, tools: dict[str, ContextualTool], channel: AgentChannel, planner: 'PursuitPlanner', fallback_tool: LLMLogicalOperationTool | None = None) -> 'GoalPursuitResult | None':
         """Execute the goal pursuit."""
         plan = self.plan
         if not plan.finished():
-            outcome = await self.plan.execute_current_step(tools, believes=self.initial_believes, channel=channel, context=self.context)
+            outcome = await self.plan.execute_current_step(tools, believes=self.initial_believes, channel=channel, context=self.context, fallback_tool=fallback_tool)
             if not outcome:
                 await channel.error(f"The plan is not ready to execute the next step.")
                 return None
@@ -115,10 +115,10 @@ class GoalPursuit:
             )
         return None
 
-    async def run_to_completion(self, tools: dict[str, ContextualTool], channel: AgentChannel, planner: 'PursuitPlanner') -> GoalPursuitResult:
+    async def run_to_completion(self, tools: dict[str, ContextualTool], channel: AgentChannel, planner: 'PursuitPlanner', fallback_tool: LLMLogicalOperationTool | None = None) -> GoalPursuitResult:
         """Run the goal pursuit until completion."""
         while True:
-            result = await self.execute_next_step(tools, channel, planner)
+            result = await self.execute_next_step(tools, channel, planner, fallback_tool)
             if result is not None:
                 return result
 
