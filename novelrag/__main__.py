@@ -11,13 +11,16 @@ logger = logging.getLogger(__name__)
 
 
 async def run(config_path: str, verbosity: int):
+    azure_logger = logging.getLogger('azure')
     if verbosity == 0:
         level = logging.WARNING
     elif verbosity == 1:
         level = logging.INFO
+        azure_logger.setLevel(logging.WARNING)
     else:
         level = logging.DEBUG
     logging.basicConfig(level=level)
+
 
     with open(config_path, 'r', encoding='utf-8') as f:
         config = parse_config_with_env(data=f, tag=None)
