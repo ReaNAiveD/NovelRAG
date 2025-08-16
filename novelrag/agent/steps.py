@@ -17,8 +17,8 @@ class StepStatus(Enum):
 @dataclass(frozen=True)
 class StepDefinition:
     """Represents the core definition of a step - immutable tool and intent description."""
-    tool: str | None
     intent: str  # What the agent intends to achieve with this action
+    tool: str | None = None
     step_id: str = field(default_factory=lambda: uuid.uuid4().hex)
     progress: dict[str, list[str]] = field(default_factory=dict)  # Progress for recovery and tracking
 

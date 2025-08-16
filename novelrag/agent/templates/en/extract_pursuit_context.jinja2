@@ -7,63 +7,64 @@ You are tasked with extracting pursuit context by:
 - **Result Analysis**: Analyzing the step execution results to identify valuable knowledge
 - **Facet Organization**: Categorizing knowledge into different facets or dimensions of understanding
 - **Knowledge Extraction**: Extracting actionable insights, facts, and learnings from the results
+- **Content Preservation**: Maintaining original content as much as possible during extraction
 - **Future-Aware Context**: Considering upcoming steps to determine appropriate facet granularity
 - **Facet Generation**: Creating descriptive 5-10 word phrases as facet names
 
-## Knowledge Facet Guidelines
+## Knowledge Extraction Principles
 
-Knowledge facets should be descriptive phrases (5-10 words) that can range from:
+### Content Preservation Guidelines
+- **Maintain Original Wording**: Keep the original phrasing and terminology from results whenever possible
+- **Preserve Specificity**: Retain detailed information, numbers, names, and specific details
+- **Avoid Paraphrasing**: Only rephrase when necessary for clarity or facet organization
+- **Keep Context Intact**: Ensure extracted knowledge maintains its original meaning and context
 
-### Generic Concepts (Broad Categories)
-- "main plot outline development and structure"
-- "character relationship dynamics and interactions"
-- "world building elements and environmental details"
-- "narrative pacing and story rhythm patterns"
+### Handling Structured/Hierarchical Content
+When results contain hierarchical or structured information (e.g., "A. Overview", "A.1 Details", "A.2 Examples"):
 
-### Specific Items (Focused on Particular Elements)
-- "character Sarah Chen detective background and skills"
-- "Victorian London crime patterns and social structure"
-- "father murder case details and investigation clues"
-- "forensic analysis techniques and procedural knowledge"
+- **Preserve Hierarchy**: Maintain the structural relationships between items
+- **Include Parent Context**: When splitting hierarchical items, both parts should reference the parent structure
+- **Example**: If splitting "A. Character Development: A.1 Background, A.2 Personality"
+  - Split as: "A. Character Development, A.1 Background details" and "A. Character Development, A.2 Personality traits"
+  - Both retain the "A. Character Development" parent context
 
-### Detailed Aspects (Highly Specific Information)
-- "Sarah Chen forensic expertise and language abilities"
-- "Victorian gas lighting technology and atmospheric effects"
-- "Chinatown community ties and cultural background elements"
-- "police procedural requirements for evidence handling"
-
-## Future Steps Consideration
-
-When organizing knowledge, consider upcoming steps to determine:
-
-1. **Granularity Level**: More detailed facets for specific future needs, broader facets for general use
-2. **Relevance Filtering**: Emphasize knowledge that will support planned future steps
-3. **Dependency Mapping**: Organize knowledge that builds toward future step requirements
-4. **Cross-Step Utility**: Create facets that will be useful across multiple future steps
+### Cross-Facet Knowledge Policy
+- **Repetition Allowed**: The same knowledge can appear in multiple facets when relevant
+- **Repetition Not Recommended**: Avoid unnecessary duplication unless it serves different analytical purposes
+- **Contextual Relevance**: Ensure repeated knowledge serves the specific purpose of each facet
 
 ## Knowledge Extraction Strategy
 
 ### From Successful Results
-- Extract key facts, insights, and discoveries
-- Identify patterns, relationships, and connections
-- Capture actionable information for future use
-- Note successful approaches and techniques
+- Extract key facts, insights, and discoveries while preserving original language
+- Identify patterns, relationships, and connections using source terminology
+- Capture actionable information for future use in its original form
+- Note successful approaches and techniques with exact wording when possible
 
 ### From Failed Results
-- Document what was attempted and why it failed
-- Extract lessons learned and constraints discovered
-- Identify alternative approaches to consider
-- Preserve error context for debugging
+- Document what was attempted and why it failed using original error messages
+- Extract lessons learned and constraints discovered with precise language
+- Identify alternative approaches to consider while maintaining source context
+- Preserve error context for debugging with exact error details
 
 ### From Decomposed Results
-- Understand the breakdown rationale and sub-tasks
-- Extract planning insights and task dependencies
-- Document the decomposition strategy for similar future cases
+- Understand the breakdown rationale and sub-tasks preserving structural information
+- Extract planning insights and task dependencies with original categorization
+- Document the decomposition strategy for similar future cases using source structure
+- Maintain hierarchical relationships and numbering systems from original results
+
+### From Structured/Hierarchical Results
+- **Preserve Numbering**: Keep original numbering systems (1., 1.1, 1.2, etc.)
+- **Maintain Relationships**: Show parent-child relationships in extracted knowledge
+- **Split Appropriately**: When dividing structured content, include parent context in each part
+- **Example Processing**:
+  - Original: "1. Plot Structure: 1.1 Three-act format, 1.2 Character arcs"
+  - Split into: "1. Plot Structure, 1.1 Three-act narrative format" and "1. Plot Structure, 1.2 Character development arcs"
 
 ### Progress Information
-- Track incremental achievements and milestones
-- Note workflow states and intermediate results
-- Capture process improvements and optimizations
+- Track incremental achievements and milestones using exact progress terminology
+- Note workflow states and intermediate results with original status language
+- Capture process improvements and optimizations preserving measurement units and values
 
 ## Facet Selection Strategy
 
@@ -117,34 +118,70 @@ Your response must be a valid JSON object where:
 ```json
 {
   "character Sarah Chen core identity and background": [
-    "Sarah Chen: 28-year-old detective protagonist from San Francisco",
-    "Sarah grew up in San Francisco's Chinatown community",
-    "Sarah's father was a police officer, mother runs restaurant business"
+    "Created character: Sarah Chen, 28-year-old detective from San Francisco",
+    "Background: Grew up in Chinatown, father was a police officer, mother ran a restaurant"
   ],
   "Sarah Chen professional skills and expertise": [
-    "Sarah is expert in forensic analysis and crime scene investigation",
-    "Sarah speaks fluent Mandarin and Cantonese languages",
-    "Sarah combines detective work with technical forensic capabilities"
+    "Skills: Expert in forensic analysis, speaks Mandarin and Cantonese"
   ],
-  "Sarah Chen family relationships and dynamics": [
-    "Sarah has close ties to Chinatown community through family",
-    "Father-daughter relationship central to Sarah's motivation and identity",
-    "Mother operates restaurant business, representing family stability"
-  ],
-  "father murder case motivation and plot driver": [
-    "Sarah's primary motivation is seeking justice for father's unsolved murder",
-    "Father's murder case provides personal stakes for detective work",
-    "Unsolved case creates emotional depth and story tension"
+  "Sarah Chen family relationships and personal motivation": [
+    "Background: Grew up in Chinatown, father was a police officer, mother ran a restaurant",
+    "Motivation: Seeks justice for her father's unsolved murder case"
   ],
   "character personality traits for dialogue development": [
-    "Sarah is determined and empathetic in her approach",
-    "Sarah struggles with work-life balance, creating internal conflict",
-    "Personality combines professional competence with personal vulnerability"
+    "Personality: Determined, empathetic, struggles with work-life balance"
   ]
 }
 ```
 
-### Example 2: Research Tool with Future Scene Planning
+### Example 2: Research Tool with Structured Results
+**Step Info**:
+```json
+{
+  "tool": "outline_generator",
+  "intent": "Create detailed story outline with hierarchical structure",
+  "status": "success",
+  "results": [
+    "A. Act I - Setup: A.1 Character introduction, A.2 Inciting incident",
+    "B. Act II - Confrontation: B.1 Rising action, B.2 Midpoint twist, B.3 Crisis escalation",
+    "C. Act III - Resolution: C.1 Climax preparation, C.2 Final confrontation, C.3 Denouement",
+    "Character count: 3 main characters, 5 supporting characters established"
+  ],
+  "progress": {"outline_depth": ["detailed"], "act_structure": ["three_act"]}
+}
+```
+
+**Future Steps**: [
+  {"tool": "scene_planner", "intent": "Plan specific scenes for Act I setup"},
+  {"tool": "character_developer", "intent": "Expand on supporting character details"}
+]
+
+**Current Facets**: ["character development and personality traits"]
+
+**Response**:
+```json
+{
+  "three act story structure and outline framework": [
+    "A. Act I - Setup: A.1 Character introduction, A.2 Inciting incident",
+    "B. Act II - Confrontation: B.1 Rising action, B.2 Midpoint twist, B.3 Crisis escalation",
+    "C. Act III - Resolution: C.1 Climax preparation, C.2 Final confrontation, C.3 Denouement"
+  ],
+  "Act I setup components and scene planning": [
+    "A. Act I - Setup, A.1 Character introduction requirements",
+    "A. Act I - Setup, A.2 Inciting incident development"
+  ],
+  "Act II confrontation structure and pacing": [
+    "B. Act II - Confrontation, B.1 Rising action development",
+    "B. Act II - Confrontation, B.2 Midpoint twist placement",
+    "B. Act II - Confrontation, B.3 Crisis escalation techniques"
+  ],
+  "character distribution and supporting cast development": [
+    "Character count: 3 main characters, 5 supporting characters established"
+  ]
+}
+```
+
+### Example 3: Research Tool with Future Scene Planning
 **Step Info**:
 ```json
 {
@@ -172,35 +209,25 @@ Your response must be a valid JSON object where:
 **Response**:
 ```json
 {
-  "Victorian London demographic and population context": [
-    "Victorian London population explosion from 2 million to 6.7 million (1837-1901)",
-    "Massive urban growth created overcrowding and social challenges",
-    "Population density provided anonymity for criminal activities"
+  "Victorian London demographic and population growth": [
+    "Victorian London (1837-1901): Population grew from 2M to 6.7M"
   ],
-  "Victorian environmental atmosphere and sensory details": [
-    "Industrial pollution created characteristic thick smog throughout city",
-    "Gas lighting was primary illumination method for streets and buildings",
-    "Heavy industrial atmosphere affected daily life and visibility"
+  "Victorian environmental atmosphere and lighting systems": [
+    "Industrial pollution created thick smog, gas lighting was common"
   ],
   "Victorian social class structure and geographical divisions": [
-    "Sharp class divide between wealthy West End and poor East End",
-    "Social geography determined crime patterns and police response",
-    "Class divisions created distinct atmospheric zones within city"
+    "Class divide: Wealthy in West End, poor in East End slums"
   ],
   "Victorian transportation systems and urban mobility": [
-    "Horse-drawn carriages served wealthy areas and main thoroughfares",
-    "Omnibuses provided public transportation for middle classes",
-    "Early underground railway began transforming urban connectivity"
+    "Transportation: Horse-drawn carriages, omnibuses, early underground railway"
   ],
-  "Victorian crime patterns and criminal organization": [
-    "High pickpocketing rates throughout London's busy areas",
-    "Organized criminal gangs operated in Whitechapel and East End",
-    "Crime reflected and exploited the city's social and economic divisions"
+  "Victorian crime patterns for scene development": [
+    "Crime: High pickpocketing rates, organized criminal gangs in Whitechapel"
   ]
 }
 ```
 
-### Example 3: Failed Step with Learning for Future Attempts
+### Example 4: Failed Step with Learning for Future Attempts
 **Step Info**:
 ```json
 {

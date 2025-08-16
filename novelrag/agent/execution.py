@@ -161,6 +161,29 @@ class ExecutionPlan:
         """Check if there are actions waiting to be executed."""
         return len(self.pending_steps) == 0
 
+    def __str__(self) -> str:
+        """String representation of the execution plan."""
+        lines = [f"ExecutionPlan: {self.goal}"]
+
+        # Show all completed steps
+        for i, outcome in enumerate(self.completed_steps, 1):
+            tool_name = outcome.action.tool or "N/A"
+            lines.append(f"  {i}. ✓ [{tool_name}] {outcome.action.intent}")
+
+        # Show all failed steps
+        for i, outcome in enumerate(self.failed_steps, len(self.completed_steps) + 1):
+            tool_name = outcome.action.tool or "N/A"
+            lines.append(f"  {i}. ✗ [{tool_name}] {outcome.action.intent}")
+
+        # Show all pending steps
+        start_num = len(self.completed_steps) + len(self.failed_steps) + 1
+        for i, step in enumerate(self.pending_steps, start_num):
+            tool_name = step.tool or "N/A"
+            status = "▶" if i == start_num else "○"
+            lines.append(f"  {i}. {status} [{tool_name}] {step.intent}")
+
+        return "\n".join(lines)
+
     async def execute_current_step(self, tools: dict[str, ContextualTool], believes: list[str],
                                    channel: AgentChannel, context: PursuitContext,
                                    fallback_tool: LLMLogicalOperationTool | None = None) -> 'StepOutcome | None':
