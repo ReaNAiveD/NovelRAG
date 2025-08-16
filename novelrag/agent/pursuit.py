@@ -7,7 +7,7 @@ from .channel import AgentChannel
 from .context import PursuitContext
 from .execution import ExecutionPlan
 from .planning import PursuitPlanner
-from .steps import ExecutableStep, StepStatus, StepOutcome
+from .steps import StepDefinition, StepStatus, StepOutcome
 from .tool import ContextualTool, LLMToolMixin, LLMLogicalOperationTool
 from ..llm import ChatLLM
 from ..template import TemplateEnvironment
@@ -40,7 +40,7 @@ class GoalPursuit:
     started_at: datetime = field(default_factory=datetime.now)
 
     @classmethod
-    def new(cls, goal: str, believes: list[str], steps: list[ExecutableStep], context: 'PursuitContext') -> 'GoalPursuit':
+    def new(cls, goal: str, believes: list[str], steps: list[StepDefinition], context: 'PursuitContext') -> 'GoalPursuit':
         """Create a new goal pursuit instance."""
         plan = ExecutionPlan(
             goal=goal,
@@ -82,19 +82,9 @@ class GoalPursuit:
                 original_plan=self.plan
             )
             await channel.info(f"Rescheduled steps: {[step.intent for step in new_steps]}")
-            # Handle dependencies of deleted steps
+
+            # Update the plan with new steps
             executed_steps = self.plan.executed_steps + [outcome]
-            all_steps = [step.action for step in executed_steps] + new_steps
-
-            # Update contribute_to references for completed steps if their dependencies were deleted
-            for step in executed_steps:
-                if step.action.contribute_to and step.action.contribute_to not in all_steps:
-                    # Traverse the contribute_to chain until we find a step that exists in the current plan
-                    current_target = step.action.contribute_to
-                    while current_target and current_target not in all_steps:
-                        current_target = current_target.contribute_to
-                    step.action.contribute_to = current_target
-
             new_plan = ExecutionPlan(
                 goal=self.goal,
                 pending_steps=new_steps,
