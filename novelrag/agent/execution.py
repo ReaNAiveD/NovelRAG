@@ -5,7 +5,7 @@ from typing import Any
 
 from .channel import AgentChannel
 from .context import PursuitContext
-from .steps import StepDefinition, ExecutableStep, StepOutcome, StepStatus
+from .steps import StepDefinition, StepOutcome, StepStatus
 from .tool import ContextualTool, ToolRuntime, LLMLogicalOperationTool
 from .types import ToolResult, ToolDecomposition, ToolError
 
@@ -65,8 +65,8 @@ class ExecutionToolRuntime(ToolRuntime):
             self._backlog.append(content)
 
 
-# Add the execute method to ExecutableStep via monkey patching to avoid circular imports
-async def _execute_step(step: ExecutableStep, tools: dict[str, ContextualTool], believes: list[str] | None = None,
+# Execute step function - works directly with StepDefinition
+async def _execute_step(step: StepDefinition, tools: dict[str, ContextualTool], believes: list[str] | None = None,
                         context: list[str] | None = None, channel: AgentChannel | None = None,
                         fallback_tool: LLMLogicalOperationTool | None = None) -> StepOutcome:
     """Execute the action and return its outcome."""
@@ -117,17 +117,15 @@ async def _execute_step(step: ExecutableStep, tools: dict[str, ContextualTool], 
             # Handle tool decomposition into sub-actions
             outcome.status = StepStatus.DECOMPOSED
             outcome.progress = result.progress
-            for step in result.steps:
-                sub_action = ExecutableStep(
-                    definition=StepDefinition(
-                        tool=step['tool'],
-                        intent=step['description'],
-                        progress=result.progress
-                    ),
-                    spawned_by=outcome,
-                    contribute_to=step,
+            for sub_step in result.steps:
+                sub_action = StepDefinition(
+                    tool=sub_step['tool'],
+                    intent=sub_step['description'],
+                    progress=result.progress,
+                    reason="decomposed",
+                    reason_details=f"Decomposed from: {step.intent}"
                 )
-                outcome.spawned_actions.append(sub_action)
+                outcome.decomposed_actions.append(sub_action)
         elif isinstance(result, ToolResult):
             # Handle tool result
             outcome.status = StepStatus.SUCCESS
@@ -153,7 +151,7 @@ class ExecutionPlan:
     adapts dynamically as new information emerges.
     """
     goal: str
-    pending_steps: list[ExecutableStep] = field(default_factory=list)
+    pending_steps: list[StepDefinition] = field(default_factory=list)
     executed_steps: list[StepOutcome] = field(default_factory=list)
 
     def finished(self) -> bool:
@@ -190,13 +188,13 @@ class ExecutionPlan:
         await channel.info(f"[{next_action.tool}]: {next_action.intent}")
 
         # Retrieve context for this specific step using PursuitContext
-        step_context = await context.retrieve_context(next_action.definition)
-        await channel.info(f"Retrieved context for step {next_action.definition.step_id}: {step_context}")
+        step_context = await context.retrieve_context(next_action)
+        await channel.info(f"Retrieved context for step {next_action.step_id}: {step_context}")
         # Execute the step with the retrieved context
         outcome = await _execute_step(next_action, tools, believes, step_context, channel, fallback_tool)
 
         # Store the outcome in context for future steps
         if outcome.status == StepStatus.SUCCESS:
-            await context.store_context(outcome, [step.definition for step in self.pending_steps[1:]])
+            await context.store_context(outcome, self.pending_steps[1:])
 
         return outcome

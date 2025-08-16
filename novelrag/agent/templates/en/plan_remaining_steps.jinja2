@@ -60,21 +60,10 @@ When adding new steps, ensure they:
 
 ### Step Structure Requirements
 Each step must include:
-- **tool**: The name of the tool to use (must be from available tools)
+- **tool**: The name of the tool to use (must be from available tools), or null for logical operations
 - **intent**: Clear description of what to accomplish with that tool
-
-### Important Condition: Goal Already Achieved
-If analysis shows that:
-- the executed steps have already completed the goal, OR
-- the executed steps plus the fixed planned steps will complete the goal with no further work,
-
-then do NOT propose any additional steps. In this case, the response MUST be:
-
-```json
-{ "new_steps": [] }
-```
-
-Optionally, you may include an explanatory field like "reason" (ignored by the system), but "new_steps" MUST be present and be an empty array.
+- **reason**: Always set to "additional" for steps created by this template
+- **reason_details**: Explanation of why this step was added based on execution analysis and remaining work
 
 ## Response Format
 
@@ -82,19 +71,38 @@ Your response must be valid JSON with the following structure:
 
 ```json
 {
-  "new_steps": [
+  "remaining_steps": [
     {
       "tool": "tool_name",
-      "intent": "Specific description of what to accomplish"
+      "intent": "Specific description of what to accomplish",
+      "reason": "additional",
+      "reason_details": "Added based on execution analysis and identified gaps"
+    }
+  ],
+  "additional_steps": [
+    {
+      "tool": "tool_name",
+      "intent": "Specific description of what to accomplish",
+      "reason": "additional",
+      "reason_details": "Additional work needed beyond current plan"
     }
   ]
 }
 ```
 
-When no additional steps are needed, return an empty array for new_steps:
+Each step in both remaining_steps and additional_steps must include:
+- **tool**: The specific tool to use (or null for logical operations)
+- **intent**: Clear description of what this step should accomplish
+- **reason**: Always set to "additional" for steps created by this template
+- **reason_details**: Explanation of why this step was added based on the execution analysis, referencing specific executed steps or identified gaps
+
+When no additional steps are needed, return empty arrays:
 
 ```json
-{ "new_steps": [] }
+{
+  "remaining_steps": [],
+  "additional_steps": []
+}
 ```
 
 ## Examples
@@ -123,20 +131,27 @@ When no additional steps are needed, return an empty array for new_steps:
 **Expected Response**:
 ```json
 {
-  "new_steps": [
+  "remaining_steps": [
     {
       "tool": "scene_designer",
-      "intent": "Design the opening crime scene where the whistleblower was murdered, including forensic details and atmospheric elements that will be revealed through Sarah's investigation"
+      "intent": "Design the opening crime scene where the whistleblower was murdered, including forensic details and atmospheric elements that will be revealed through Sarah's investigation",
+      "reason": "additional",
+      "reason_details": "Added to create a vivid and engaging setting for the novel's opening"
     },
     {
       "tool": "conflict_analyzer",
-      "intent": "Analyze the central conflict between Sarah's investigation and corporate cover-up to identify key tension points and escalation moments"
+      "intent": "Analyze the central conflict between Sarah's investigation and corporate cover-up to identify key tension points and escalation moments",
+      "reason": "additional",
+      "reason_details": "Included to deepen the story's central conflict and enhance narrative tension"
     },
     {
       "tool": "chapter_writer",
-      "intent": "Write the first chapter introducing Sarah Chen at the crime scene, establishing her character and the initial mystery hook"
+      "intent": "Write the first chapter introducing Sarah Chen at the crime scene, establishing her character and the initial mystery hook",
+      "reason": "additional",
+      "reason_details": "Necessary to kick off the novel with a compelling opening that draws readers in"
     }
-  ]
+  ],
+  "additional_steps": []
 }
 ```
 
@@ -164,24 +179,33 @@ When no additional steps are needed, return an empty array for new_steps:
 **Expected Response**:
 ```json
 {
-  "new_steps": [
+  "remaining_steps": [
     {
       "tool": "pattern_analyzer",
-      "intent": "Analyze the engineered behavioral features to identify significant correlations and trends in customer purchase patterns across different time periods and product categories"
+      "intent": "Analyze the engineered behavioral features to identify significant correlations and trends in customer purchase patterns across different time periods and product categories",
+      "reason": "additional",
+      "reason_details": "Needed to uncover deep insights into customer behavior for targeted marketing strategies"
     },
     {
       "tool": "segment_creator",
-      "intent": "Create distinct customer segments based on the identified patterns, focusing on high-value, at-risk, and growth-potential customer groups"
+      "intent": "Create distinct customer segments based on the identified patterns, focusing on high-value, at-risk, and growth-potential customer groups",
+      "reason": "additional",
+      "reason_details": "Essential for tailoring marketing efforts and improving customer retention strategies"
     },
     {
       "tool": "insight_generator",
-      "intent": "Generate specific business insights and actionable recommendations for each customer segment, including retention strategies and upselling opportunities"
+      "intent": "Generate specific business insights and actionable recommendations for each customer segment, including retention strategies and upselling opportunities",
+      "reason": "additional",
+      "reason_details": "To provide the marketing team with clear, data-driven actions to enhance customer engagement"
     },
     {
       "tool": "report_builder",
-      "intent": "Create comprehensive executive report with visualizations showing customer segments, key insights, and prioritized business recommendations with expected impact metrics"
+      "intent": "Create comprehensive executive report with visualizations showing customer segments, key insights, and prioritized business recommendations with expected impact metrics",
+      "reason": "additional",
+      "reason_details": "To summarize the analysis findings and recommendations for stakeholders in an accessible format"
     }
-  ]
+  ],
+  "additional_steps": []
 }
 ```
 
@@ -202,7 +226,10 @@ When no additional steps are needed, return an empty array for new_steps:
 
 **Expected Response**:
 ```json
-{ "new_steps": [] }
+{
+  "remaining_steps": [],
+  "additional_steps": []
+}
 ```
 
 ## Analysis Framework

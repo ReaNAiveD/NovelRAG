@@ -26,7 +26,7 @@ from datetime import datetime
 
 from novelrag.agent.agent import Agent, AgentMind
 from novelrag.agent.channel import AgentChannel
-from novelrag.agent.execution import ExecutableStep, StepDefinition, ExecutionPlan, StepOutcome, StepStatus
+from novelrag.agent.execution import StepDefinition, ExecutionPlan, StepOutcome, StepStatus
 from novelrag.agent.planning import PursuitPlanner
 from novelrag.agent.pursuit import GoalPursuitResult, PursuitStatus, PursuitSummarizer
 from novelrag.agent.tool import BaseTool, ContextualTool
@@ -119,7 +119,7 @@ class TestAgent(unittest.IsolatedAsyncioTestCase):
 
         # Set up mock planner to return initial steps
         mock_steps = [
-            ExecutableStep(definition=StepDefinition(tool="test_tool", intent="Execute test operation"))
+            StepDefinition(tool="test_tool", intent="Execute test operation")
         ]
         self.mock_planner.create_initial_plan.return_value = mock_steps
 

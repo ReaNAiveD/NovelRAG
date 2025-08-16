@@ -69,19 +69,28 @@ Your response must be a valid JSON object with the following structure:
   "steps": [
     {
       "tool": "tool_name",
-      "intent": "Clear intent description for what this step should accomplish, including any conditional logic in natural language"
+      "intent": "Clear intent description for what this step should accomplish, including any conditional logic in natural language",
+      "reason": "initial_plan",
+      "reason_details": "Part of the initial goal decomposition plan"
     },
     {
-      "intent": "For logical operations, reasoning, or analysis tasks, you can omit the tool field entirely and the system will handle it with logical reasoning capabilities"
+      "intent": "For logical operations, reasoning, or analysis tasks, you can omit the tool field entirely and the system will handle it with logical reasoning capabilities",
+      "reason": "initial_plan",
+      "reason_details": "Logical analysis step from initial planning"
     }
   ]
 }
 ```
 
+Each step in the steps array must include:
+- **tool**: The specific tool to use (or omit for logical operations)
+- **intent**: Clear description of what this step should accomplish
+- **reason**: Always set to "initial_plan" for steps created by this template
+- **reason_details**: Brief explanation that this step is part of the initial goal decomposition
+
 **Tool Field Guidelines:**
 - **Include "tool"**: When you need a specific tool's capabilities from the available tools list
 - **Omit "tool"**: For pure logical operations like analysis, reasoning, planning, summarization, decision-making, or cognitive tasks that don't require specialized tools
-- **Tool field can be**: A string with the tool name, or omitted entirely for logical operations
 
 ## Examples
 
@@ -92,170 +101,220 @@ Your response must be a valid JSON object with the following structure:
 - The protagonist is a young mage learning to control their powers
 - Magic is feared by common people
 
-**Steps**:
+**Available Tools**: story_reader, character_creator, world_builder, conflict_analyzer
+
+**Response**:
 ```json
 {
   "steps": [
     {
       "tool": "story_reader",
-      "intent": "Read existing story context to understand the protagonist's background, motivations, and character arc"
+      "intent": "Read existing story context to understand the protagonist's background, motivations, and character arc",
+      "reason": "initial_plan",
+      "reason_details": "Foundation step to gather context for antagonist creation"
     },
     {
-      "tool": "story_reader",
-      "intent": "Read world-building details about the medieval fantasy setting and how magic is perceived by society"
+      "tool": "world_builder",
+      "intent": "Research the medieval fantasy world's political structure, magic system, and social tensions around magic users",
+      "reason": "initial_plan",
+      "reason_details": "World context needed to create believable antagonist motivations"
     },
     {
-      "tool": "character_query",
-      "intent": "Search for existing antagonist characters or opposing figures with keywords like 'antagonist', 'villain', 'enemy', or 'opposition'"
+      "intent": "Analyze the protagonist's weaknesses and fears to identify what type of antagonist would create the most compelling conflict",
+      "reason": "initial_plan",
+      "reason_details": "Logical analysis step to determine antagonist characteristics"
     },
     {
       "tool": "character_creator",
-      "intent": "Create a new antagonist character profile only if no suitable existing antagonist was found in the previous search, with motivations that directly oppose the protagonist's goals and leverage the magic-fear theme"
+      "intent": "Create the antagonist character with motivations that directly oppose the protagonist's goals, incorporating the world's anti-magic sentiment",
+      "reason": "initial_plan",
+      "reason_details": "Main creation step based on gathered context and analysis"
     },
     {
-      "tool": "character_editor",
-      "intent": "If an existing antagonist was found in the search, modify their profile to better align with the protagonist's arc and strengthen the magic-fear theme"
-    },
-    {
-      "tool": "relationship_editor",
-      "intent": "Establish or update the relationship dynamics and shared history between the protagonist and the antagonist (whether newly created or modified)"
+      "tool": "conflict_analyzer",
+      "intent": "Analyze and refine the conflict dynamic between protagonist and antagonist to ensure compelling story tension",
+      "reason": "initial_plan",
+      "reason_details": "Final step to optimize the antagonist's role in the story"
     }
   ]
 }
 ```
 
-### Example 2: Plot Development Goal with Existence Checking
-**Goal**: Develop the climax scene for a mystery novel
+### Example 2: Data Analysis Goal with Conditional Branching
+**Goal**: Analyze customer behavior patterns and generate actionable business insights
 **Beliefs**:
-- All major clues have been planted in previous chapters
-- The detective has identified the primary suspect
-- The final confrontation should happen in the suspect's workplace
+- Customer data exists in multiple databases
+- Previous analysis showed seasonal purchasing trends
+- Marketing team needs segmentation recommendations
 
-**Steps**:
+**Available Tools**: data_collector, data_validator, pattern_analyzer, report_generator
+
+**Response**:
 ```json
 {
   "steps": [
     {
-      "tool": "clue_reader",
-      "intent": "Read and analyze all planted clues from previous chapters to ensure logical consistency"
+      "tool": "data_collector",
+      "intent": "Collect customer transaction data from all available databases, prioritizing the most recent 12 months",
+      "reason": "initial_plan",
+      "reason_details": "Foundation step to gather raw data for analysis"
     },
     {
-      "tool": "character_reader", 
-      "intent": "Read character motivations and background for both the detective and the suspect"
+      "tool": "data_validator",
+      "intent": "Validate data quality, identify missing records, and check for inconsistencies across database sources",
+      "reason": "initial_plan",
+      "reason_details": "Data quality assurance before analysis begins"
     },
     {
-      "tool": "scene_query",
-      "intent": "Search for existing scenes with keywords like 'climax', 'confrontation', 'final', or 'resolution' to check if a climax scene already exists"
+      "intent": "If data validation reveals significant quality issues, determine data cleaning strategy; otherwise proceed with pattern analysis",
+      "reason": "initial_plan",
+      "reason_details": "Conditional logic step to handle data quality variations"
     },
     {
-      "tool": "location_reader",
-      "intent": "Read detailed information about the suspect's workplace to understand the setting for the confrontation"
+      "tool": "pattern_analyzer",
+      "intent": "Analyze customer purchasing patterns, focusing on seasonal trends, frequency patterns, and product category preferences",
+      "reason": "initial_plan",
+      "reason_details": "Core analysis step to identify customer behavior insights"
     },
     {
-      "tool": "scene_creator",
-      "intent": "Create the climax scene only if no existing climax scene was found in the search, incorporating clue revelations, character confrontation, and workplace setting"
+      "intent": "Segment customers based on discovered patterns and create distinct behavioral profiles for marketing targeting",
+      "reason": "initial_plan",
+      "reason_details": "Logical analysis step to create actionable customer segments"
     },
     {
-      "tool": "scene_editor",
-      "intent": "If an existing climax scene was found, modify it to incorporate the workplace setting and ensure all clues are properly revealed; otherwise refine the newly created scene's pacing and dialogue"
+      "tool": "report_generator",
+      "intent": "Generate comprehensive report with customer segments, key insights, and specific marketing recommendations for each segment",
+      "reason": "initial_plan",
+      "reason_details": "Final deliverable step to present actionable business insights"
     }
   ]
 }
 ```
 
-### Example 3: World-Building Goal with Resource Validation
-**Goal**: Establish a magic system for the fantasy world
+### Example 3: Content Creation Goal with Query-Based Branching
+**Goal**: Create a comprehensive guide on sustainable gardening practices
 **Beliefs**:
-- Magic should have clear rules and limitations
-- Different types of magic users exist
-- Magic has both positive and negative consequences
+- Target audience includes both beginners and experienced gardeners
+- Focus should be on eco-friendly and cost-effective methods
+- Content should be practical and actionable
 
-**Steps**:
+**Available Tools**: research_tool, content_creator, editor, formatter
+
+**Response**:
 ```json
 {
   "steps": [
     {
-      "tool": "world_reader",
-      "intent": "Read existing world-building information to understand the current state of magic in the world"
+      "tool": "research_tool",
+      "intent": "Research existing sustainable gardening guides to identify content gaps and opportunities for unique value",
+      "reason": "initial_plan",
+      "reason_details": "Market research step to ensure comprehensive coverage"
     },
     {
-      "tool": "system_query",
-      "intent": "Search for existing magic system documentation using keywords like 'magic system', 'spell rules', 'magical laws', or 'arcane principles'"
+      "tool": "research_tool",
+      "intent": "Gather scientific information on sustainable gardening practices, including composting, natural pest control, and water conservation techniques",
+      "reason": "initial_plan",
+      "reason_details": "Technical research for credible content foundation"
     },
     {
-      "tool": "character_query",
-      "intent": "Query for existing magic user characters with keywords like 'mage', 'wizard', 'sorcerer', 'magical abilities' to understand what powers are already established"
+      "intent": "Organize research findings into a logical content structure that progresses from beginner to advanced techniques",
+      "reason": "initial_plan",
+      "reason_details": "Content planning step to create user-friendly progression"
     },
     {
-      "tool": "system_creator",
-      "intent": "Create a comprehensive magic system with rules and limitations only if no existing system was found that adequately covers the requirements"
+      "tool": "content_creator",
+      "intent": "Create comprehensive guide sections covering soil health, composting, organic pest control, and water-wise gardening practices",
+      "reason": "initial_plan",
+      "reason_details": "Main content creation step based on research and structure"
     },
     {
-      "tool": "system_editor",
-      "intent": "If an existing magic system was found, expand or modify it to include clearer rules, limitations, and consequences while maintaining consistency with existing magic users"
+      "tool": "content_creator",
+      "intent": "Develop practical examples, seasonal checklists, and beginner-friendly quick-start guides for each major topic",
+      "reason": "initial_plan",
+      "reason_details": "Actionable content creation for practical implementation"
     },
     {
-      "tool": "character_editor",
-      "intent": "Update existing magic user characters to align with the finalized magic system rules, ensuring their abilities fit within the established limitations"
+      "tool": "editor",
+      "intent": "Review and refine content for clarity, accuracy, and accessibility to both beginner and experienced audiences",
+      "reason": "initial_plan",
+      "reason_details": "Quality assurance step to ensure content meets audience needs"
+    },
+    {
+      "tool": "formatter",
+      "intent": "Format the guide with clear headings, bullet points, and visual hierarchy to enhance readability and usability",
+      "reason": "initial_plan",
+      "reason_details": "Final presentation step to optimize user experience"
     }
   ]
 }
 ```
 
-## Important Notes
+### Example 4: Simple Goal with Logical Operations
+**Goal**: Analyze the main themes in a short story
+**Beliefs**:
+- The story explores themes of identity and belonging
+- Literary analysis should identify both explicit and implicit themes
+- Analysis should support interpretations with textual evidence
 
-- **One tool per step**: Each step must use exactly one tool from the available tools list, or omit the tool for logical operations
-- **Tools can be reused**: The same tool can be used in multiple steps for different purposes (e.g., multiple reader calls for different information)
-- **Conditional execution**: Steps can include natural language conditions that determine when they should be executed
-- **Query-first pattern**: When creating new resources, first query for existing similar resources using relevant keywords to avoid duplication
-- **Clear progression**: Steps should follow a logical sequence where each builds on previous results
-- **Goal alignment**: Every step should clearly contribute to achieving the stated goal
-- **Tool appropriateness**: Select tools that are specifically designed for the type of work needed in each step
-- **Belief integration**: Leverage the agent's current beliefs to inform step planning and tool selection
-- **Actionable intents**: Each step's intent should be specific enough for the tool or logical operation to understand and execute
-- **Query specificity**: When using reader/query tools multiple times, make each call target specific information needed
-- **Branching logic**: Use natural language to express when steps should execute based on the results of previous steps
-- **Keyword specification**: For query tools, include specific keywords or search terms to help locate relevant existing resources
+**Available Tools**: text_analyzer, citation_finder
 
-## Current Task
-
-Now you will be provided with the specific goal, agent beliefs, and available tools for this decomposition task.
-
-### Goal to Decompose
-
-**Goal**: {{ goal }}
-
-### Agent's Current Beliefs
-
-The agent currently believes or knows the following:
-{% if believes %}
-{% for belief in believes %}
-- {{ belief }}
-{% endfor %}
-{% else %}
-- No specific beliefs provided
-{% endif %}
-
-### Available Tools
-
-When selecting tools for each step, consider their specific capabilities:
-
-{% for tool_name, tool_description in tools.items() %}
-- **{{ tool_name }}**: {{ tool_description }}
-{% endfor %}
+**Response**:
+```json
+{
+  "steps": [
+    {
+      "tool": "text_analyzer",
+      "intent": "Analyze the short story text to identify recurring motifs, symbols, and thematic elements",
+      "reason": "initial_plan",
+      "reason_details": "Textual analysis step to identify thematic components"
+    },
+    {
+      "intent": "Examine character development and dialogue to identify themes related to identity and belonging",
+      "reason": "initial_plan",
+      "reason_details": "Logical analysis step focusing on character-driven themes"
+    },
+    {
+      "tool": "citation_finder",
+      "intent": "Find specific textual evidence that supports the identified themes of identity and belonging",
+      "reason": "initial_plan",
+      "reason_details": "Evidence gathering step to support thematic analysis"
+    },
+    {
+      "intent": "Synthesize findings into a comprehensive thematic analysis, connecting explicit and implicit theme expressions",
+      "reason": "initial_plan",
+      "reason_details": "Final synthesis step to complete the literary analysis"
+    }
+  ]
+}
+```
 
 ## Your Task
 
-Analyze the provided goal, beliefs, and available tools to create an optimal sequence of steps that will achieve the goal effectively. Remember to:
+Decompose the provided goal into a strategic sequence of executable steps.
 
-1. **Start with foundation steps** that gather context or setup required state using reader tools
-2. **Progress logically** with each step building on previous results
-3. **Use exactly one tool per step** but the same tool can be used multiple times for different purposes
-4. **Write clear, actionable intents** that specify what the tool should accomplish
-5. **Leverage agent beliefs** to inform your planning decisions
-6. **Ensure completeness** so all aspects of the goal are addressed
-7. **Use multiple reader calls** when different pieces of information are needed from the same source type
-8. **Apply conditional logic** using natural language to describe when steps should execute based on previous results
-9. **Follow the query-first pattern** when creating new resources to avoid duplication
+**Goal:**
+```
+{{ goal }}
+```
 
-Provide your response as a valid JSON object following the specified format.
+**Agent Beliefs:**
+{% for belief in believes %}
+- {{ belief }}
+{% endfor %}
+
+**Available Tools:**
+{% for tool_name, tool_desc in tools.items() %}
+- **{{ tool_name }}**: {{ tool_desc }}
+{% endfor %}
+
+## Instructions
+
+1. **Analyze the Goal**: Understand what the goal requires and what success looks like
+2. **Consider Agent Beliefs**: Integrate the agent's current knowledge and context into your planning
+3. **Select Appropriate Tools**: Choose tools that best match each step's requirements, or use logical operations when appropriate
+4. **Plan Step Sequence**: Create a logical progression from current state to goal achievement
+5. **Include Conditional Logic**: Add decision points and conditional steps where outcomes might vary
+6. **Ensure Completeness**: Cover all aspects needed to fully achieve the goal
+7. **Format as JSON**: Return the steps array with proper tool, intent, reason, and reason_details fields
+
+Generate the goal decomposition as a JSON object:
