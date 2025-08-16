@@ -127,7 +127,7 @@ class TestAgent(unittest.IsolatedAsyncioTestCase):
         execution_plan = ExecutionPlan(
             goal=goal,
             pending_steps=[],
-            completed_steps=[
+            executed_steps=[
                 StepOutcome(
                     action=mock_steps[0],
                     status=StepStatus.SUCCESS,
@@ -188,7 +188,7 @@ class TestAgent(unittest.IsolatedAsyncioTestCase):
         execution_plan = ExecutionPlan(
             goal=goal,
             pending_steps=[],
-            completed_steps=[]
+            executed_steps=[]
         )
         
         pursuit_result = GoalPursuitResult(

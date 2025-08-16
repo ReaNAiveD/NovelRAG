@@ -82,7 +82,7 @@ class PursuitPlanner(LLMToolMixin):
             A list of updated ExecutableStep instances representing the new schedule,
             with proper dependency relationships established between steps.
         """
-        executed_steps = original_plan.completed_steps + [last_step]
+        executed_steps = original_plan.executed_steps + [last_step]
         planned_steps = [step.definition for step in last_step.triggered_actions]
         remaining_steps_from_scratch = await self._plan_remaining_steps(
             executed_steps=executed_steps,
@@ -118,7 +118,7 @@ class PursuitPlanner(LLMToolMixin):
             A list of updated ExecutableStep instances representing the new schedule,
             with proper dependency relationships established between steps.
         """
-        executed_steps = original_plan.completed_steps + [last_step]
+        executed_steps = original_plan.executed_steps + [last_step]
         planned_steps = []
         remaining_steps_from_scratch = await self._plan_remaining_steps(
             executed_steps=executed_steps,
@@ -152,7 +152,7 @@ class PursuitPlanner(LLMToolMixin):
             A list of updated ExecutableStep instances representing the new schedule,
             with proper dependency relationships established between steps.
         """
-        executed_steps = original_plan.completed_steps + [last_step]
+        executed_steps = original_plan.executed_steps + [last_step]
         planned_steps = [step.definition for step in last_step.spawned_actions] + [last_step.action.definition]
         remaining_steps_from_scratch = await self._plan_remaining_steps(
             executed_steps=executed_steps,
@@ -241,7 +241,7 @@ class PursuitPlanner(LLMToolMixin):
             This method differs from the status-based adapt_plan method by using a unified
             revision approach that can handle any step outcome type through template logic.
         """
-        prev_steps = original_plan.completed_steps
+        prev_steps = original_plan.executed_steps
         target_steps = original_plan.pending_steps[1:]
         goal = original_plan.goal
         prev_step_dicts = [{

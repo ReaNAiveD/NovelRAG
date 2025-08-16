@@ -121,7 +121,7 @@ class Agent(LLMToolMixin):
         )
         await self.channel.info(f"Initial plan for goal '{goal}': {pursuit.plan}")
         result = await pursuit.run_to_completion(self.contextual_tools, self.channel, self.planner, self.fallback_tool)
-        records = result.records.completed_steps
+        records = result.records.executed_steps
         if not records:
             await self.channel.error(f'No steps completed for goal "{goal}".')
             return

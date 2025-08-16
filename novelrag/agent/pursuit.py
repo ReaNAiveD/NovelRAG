@@ -83,12 +83,11 @@ class GoalPursuit:
             )
             await channel.info(f"Rescheduled steps: {[step.intent for step in new_steps]}")
             # Handle dependencies of deleted steps
-            completed_steps = self.plan.completed_steps + [
-                outcome] if outcome.status == StepStatus.SUCCESS else self.plan.completed_steps
-            all_steps = [step.action for step in completed_steps] + new_steps
+            executed_steps = self.plan.executed_steps + [outcome]
+            all_steps = [step.action for step in executed_steps] + new_steps
 
             # Update contribute_to references for completed steps if their dependencies were deleted
-            for step in completed_steps:
+            for step in executed_steps:
                 if step.action.contribute_to and step.action.contribute_to not in all_steps:
                     # Traverse the contribute_to chain until we find a step that exists in the current plan
                     current_target = step.action.contribute_to
@@ -99,9 +98,7 @@ class GoalPursuit:
             new_plan = ExecutionPlan(
                 goal=self.goal,
                 pending_steps=new_steps,
-                completed_steps=completed_steps,
-                failed_steps=self.plan.failed_steps + [
-                    outcome] if outcome.status != StepStatus.SUCCESS else self.plan.failed_steps
+                executed_steps=executed_steps
             )
             self.plan = new_plan
 
@@ -137,7 +134,7 @@ class PursuitSummarizer(LLMToolMixin):
 
     async def _identify_key_steps(self, pursuit: GoalPursuitResult, threshold: int = 3) -> list[StepOutcome]:
         """Identify key steps in the pursuit based on their impact or significance."""
-        steps = [{"tool": step.action.tool, "intent": step.action.intent, "status": step.status.value} for step in pursuit.records.completed_steps]
+        steps = [{"tool": step.action.tool, "intent": step.action.intent, "status": step.status.value} for step in pursuit.records.executed_steps]
         response = await self.call_template(
             "identify_key_steps.jinja2",
             json_format=True,
@@ -147,12 +144,12 @@ class PursuitSummarizer(LLMToolMixin):
             threshold=threshold
         )
         key_step_indices = json.loads(response)['indices']
-        key_steps = [pursuit.records.completed_steps[i] for i in key_step_indices if i < len(pursuit.records.completed_steps)]
+        key_steps = [pursuit.records.executed_steps[i] for i in key_step_indices if i < len(pursuit.records.executed_steps)]
         return key_steps
 
     async def _generate_summary(self, pursuit: GoalPursuitResult, key_steps: list[StepOutcome]) -> str:
         """Generate a detailed summary of the pursuit including key steps."""
-        steps = [{"tool": step.action.tool, "intent": step.action.intent, "status": step.status.value} for step in pursuit.records.completed_steps]
+        steps = [{"tool": step.action.tool, "intent": step.action.intent, "status": step.status.value} for step in pursuit.records.executed_steps]
         key_step_results = [{"tool": step.action.tool, "intent": step.action.intent, "results": step.results} for step in key_steps]
         response = await self.call_template(
             "generate_pursuit_summary.jinja2",
