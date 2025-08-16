@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 import json
 from typing import Dict, List
 
-from novelrag.agent.execution import StepOutcome, StepDefinition
+from novelrag.agent.steps import StepOutcome, StepDefinition
 from novelrag.agent.tool import LLMToolMixin
 from novelrag.llm.types import ChatLLM
 from novelrag.template import TemplateEnvironment
@@ -25,12 +25,12 @@ class PursuitContext(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    async def retrieve_context(self, step: StepDefinition, max_facets: int = 3) -> list[str]:
+    async def retrieve_context(self, step: StepDefinition, threshold: int = 50) -> list[str]:
         """
         Retrieve the context for a given step definition.
 
         :param step: The step definition to retrieve context for.
-        :param max_facets: The maximum number of context facets to retrieve.
+        :param threshold: The maximum number of context items to retrieve.
         :return: A list of context strings.
         """
         raise NotImplementedError("Context retrieval not implemented yet.")
@@ -130,21 +130,21 @@ class LLMPursuitContext(LLMToolMixin, PursuitContext):
                 self.knowledge_facets[generic_facet] = []
             self.knowledge_facets[generic_facet].extend(step.results)
 
-    async def retrieve_context(self, step: StepDefinition, max_facets: int = 3) -> list[str]:
+    async def retrieve_context(self, step: StepDefinition, threshold: int = 50) -> list[str]:
         """
         Retrieve relevant context for a given step definition.
 
-        Uses LLM to select the most relevant knowledge facets based on the step's
-        tool and intent, then returns knowledge from those facets.
+        Uses LLM to sort all knowledge facets by relevance based on the step's
+        tool and intent, then returns knowledge from those facets up to the threshold.
 
         :param step: The step definition to retrieve context for.
-        :param max_facets: The maximum number of context facets to retrieve.
+        :param threshold: The maximum number of context items to retrieve.
         :return: A list of relevant context strings.
         """
         if not self.knowledge_facets:
             return []
 
-        # Prepare step information for facet selection
+        # Prepare step information for facet sorting
         step_info = {
             "tool": step.tool,
             "intent": step.intent
@@ -154,32 +154,35 @@ class LLMPursuitContext(LLMToolMixin, PursuitContext):
         available_facets = list(self.knowledge_facets.keys())
 
         try:
-            # Use LLM to select relevant facets, limited by max_facets
-            selected_facets_response = await self.call_template(
-                "select_relevant_facets.jinja2",
+            # Use LLM to sort facets by relevance
+            sorted_facets_response = await self.call_template(
+                "sort_facets_by_relevance.jinja2",
                 step_info=step_info,
                 available_facets=available_facets,
-                max_facets=min(max_facets, len(available_facets)),  # Use max_facets as max facets
                 json_format=True
             )
 
-            # Parse the selected facets
-            selected_data = json.loads(selected_facets_response)
-            selected_facets = selected_data.get("facets", [])
+            # Parse the sorted facets
+            sorted_data = json.loads(sorted_facets_response)
+            sorted_facets = sorted_data.get("facets", [])
 
         except (json.JSONDecodeError, KeyError, Exception):
-            # Fallback: use available facets limited by max_facets
-            selected_facets = available_facets[:max_facets]
+            # Fallback: use all available facets in original order
+            sorted_facets = available_facets
 
-        # Collect all knowledge from the selected facets (limited by max_facets)
+        # Collect knowledge from the sorted facets, limited by threshold
         collected_context = []
-        for facet in selected_facets[:max_facets]:  # Ensure we don't exceed max_facets
+        for facet in sorted_facets:
             if facet in self.knowledge_facets:
-                # Add all knowledge from this facet to the merged list
                 facet_knowledge = self.knowledge_facets[facet]
                 collected_context.extend(facet_knowledge)
 
-        return collected_context
+                # Stop if we've reached the threshold
+                if len(collected_context) >= threshold:
+                    break
+
+        # Trim to exact threshold if we exceeded it
+        return collected_context[:threshold]
 
     def get_all_facets(self) -> Dict[str, List[str]]:
         """
@@ -199,6 +202,6 @@ class LLMPursuitContext(LLMToolMixin, PursuitContext):
         """
         Get a summary of knowledge facets and their information counts.
 
-        :return: Dictionary mapping facets to their knowledge counts.
+        :return: Dictionary mapping facets to their knowledge item counts.
         """
-        return {facet: len(knowledge) for facet, knowledge in self.knowledge_facets.items()}
+        return {facet: len(knowledge_list) for facet, knowledge_list in self.knowledge_facets.items()}

@@ -1,7 +1,8 @@
 import json
 import logging
 
-from .execution import ExecutableStep, StepDefinition, StepOutcome, StepStatus, ExecutionPlan
+from .execution import ExecutionPlan
+from .steps import ExecutableStep, StepDefinition, StepOutcome, StepStatus
 from .tool import ContextualTool, LLMToolMixin
 from novelrag.llm.types import ChatLLM
 from novelrag.template import TemplateEnvironment

@@ -11,6 +11,7 @@ from .tool import BaseTool, ContextualTool, LLMToolMixin, SchematicTool
 from .planning import PursuitPlanner
 from .pursuit import GoalPursuit, PursuitSummarizer
 from .proposals import TargetProposer
+from .context import LLMPursuitContext
 
 logger = logging.getLogger(__name__)
 
@@ -104,11 +105,15 @@ class Agent(LLMToolMixin):
         pass
 
     async def pursue_goal(self, goal: str):
+        # Create a new PursuitContext for this specific goal pursuit
+        pursuit_context = LLMPursuitContext(self.template_env, self.chat_llm)
+
         pursuit = await GoalPursuit.initialize_pursuit(
             goal=goal,
             believes=self.believes,
             tools=self.contextual_tools,
-            planner=self.planner
+            planner=self.planner,
+            context=pursuit_context
         )
         await self.channel.info(f"Initial plan for goal '{goal}': {pursuit.plan.pending_steps}")
         result = await pursuit.run_to_completion(self.contextual_tools, self.channel, self.planner)

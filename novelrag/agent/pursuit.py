@@ -4,8 +4,10 @@ from datetime import datetime
 from enum import Enum
 
 from .channel import AgentChannel
-from .execution import ExecutionPlan, ExecutableStep, StepStatus, StepOutcome
+from .context import PursuitContext
+from .execution import ExecutionPlan
 from .planning import PursuitPlanner
+from .steps import ExecutableStep, StepStatus, StepOutcome
 from .tool import ContextualTool, LLMToolMixin
 from ..llm import ChatLLM
 from ..template import TemplateEnvironment
@@ -34,10 +36,11 @@ class GoalPursuit:
     goal: str
     initial_believes: list[str]
     plan: ExecutionPlan
+    context: PursuitContext
     started_at: datetime = field(default_factory=datetime.now)
 
     @classmethod
-    def new(cls, goal: str, believes: list[str], steps: list[ExecutableStep]) -> 'GoalPursuit':
+    def new(cls, goal: str, believes: list[str], steps: list[ExecutableStep], context: 'PursuitContext') -> 'GoalPursuit':
         """Create a new goal pursuit instance."""
         plan = ExecutionPlan(
             goal=goal,
@@ -46,7 +49,8 @@ class GoalPursuit:
         return GoalPursuit(
             goal=goal,
             initial_believes=believes,
-            plan=plan
+            plan=plan,
+            context=context
         )
 
     @classmethod
@@ -56,16 +60,17 @@ class GoalPursuit:
             believes: list[str],
             planner: PursuitPlanner,
             tools: dict[str, ContextualTool],
+            context: 'PursuitContext',
     ):
         """Initialize a goal pursuit with a plan based on the goal and beliefs."""
         steps = await planner.create_initial_plan(goal, believes, tools)
-        return cls.new(goal, believes, steps)
+        return cls.new(goal, believes, steps, context)
 
     async def execute_next_step(self, tools: dict[str, ContextualTool], channel: AgentChannel, planner: 'PursuitPlanner') -> 'GoalPursuitResult | None':
         """Execute the goal pursuit."""
         plan = self.plan
         if not plan.finished():
-            outcome = await self.plan.execute_current_step(tools, believes=self.initial_believes, channel=channel)
+            outcome = await self.plan.execute_current_step(tools, believes=self.initial_believes, channel=channel, context=self.context)
             if not outcome:
                 await channel.error(f"The plan is not ready to execute the next step.")
                 return None
@@ -99,7 +104,6 @@ class GoalPursuit:
                     outcome] if outcome.status != StepStatus.SUCCESS else self.plan.failed_steps
             )
             self.plan = new_plan
-            await channel.info(f"Updated plan: {self.plan.pending_steps}")
 
         if plan.finished():
             return GoalPursuitResult(

@@ -2,7 +2,7 @@
 
 from abc import ABC, abstractmethod
 import json
-from typing import Any, AsyncGenerator
+from typing import Any
 
 from novelrag.llm.types import ChatLLM
 from novelrag.template import TemplateEnvironment
@@ -312,3 +312,76 @@ class SchematicToolAdapter(LLMToolMixin, ContextualTool):
             return json.loads(arguments_json)
         except json.JSONDecodeError:
             return None
+
+
+class LLMLogicalOperationTool(LLMToolMixin, ContextualTool):
+    """Simple tool for LLM-based logical operations and inference tasks.
+
+    This tool handles tasks that require reasoning, planning, summarization,
+    or other logical operations using direct LLM processing without decomposition.
+    """
+
+    def __init__(self, template_env: TemplateEnvironment, chat_llm: ChatLLM):
+        super().__init__(template_env=template_env, chat_llm=chat_llm)
+
+    @property
+    def name(self) -> str:
+        return self.__class__.__name__
+
+    @property
+    def description(self) -> str | None:
+        return "This tool performs logical operations and inference tasks using LLM capabilities. " \
+               "It can handle planning, summarization, analysis, reasoning, and other cognitive tasks " \
+               "that require understanding context and making logical connections. " \
+               "Use this tool when you need to perform operations that involve reasoning, " \
+               "pattern recognition, or complex analysis that other specialized tools cannot handle."
+
+    @property
+    def output_description(self) -> str | None:
+        return "Returns the result of the logical operation or inference task based on the step description and context."
+
+    async def call(self, runtime: ToolRuntime, believes: list[str] | None = None, step_description: str | None = None, context: list[str] | None = None, tools: dict[str, str] | None = None) -> ToolOutput:
+        """Execute logical operation based on the step description and context."""
+        if not step_description:
+            await runtime.error("No step description provided. Please provide a description of the logical operation to perform.")
+            return self.error("No step description provided. Please provide a description of the logical operation to perform.")
+
+        if believes is None:
+            believes = []
+        if context is None:
+            context = []
+
+        await runtime.debug(f"Performing logical operation: {step_description}")
+
+        # Perform the logical operation directly using LLM
+        response_json = await self._perform_logical_operation(step_description, context, believes)
+
+        # Parse the JSON response
+        try:
+            response_data = json.loads(response_json)
+        except json.JSONDecodeError as e:
+            return self.error(f"Failed to parse JSON response from logical operation: {str(e)}")
+
+        # Check if the operation encountered an error
+        if "error_message" in response_data and response_data["error_message"]:
+            return self.error(response_data["error_message"])
+
+        # Extract result and rationale
+        result = response_data.get("result", "")
+        rationale = response_data.get("rationale", "")
+
+        if rationale:
+            await runtime.message(f"Logical operation rationale: {rationale}")
+
+        await runtime.message("Completed logical operation successfully")
+        return self.result(result)
+
+    async def _perform_logical_operation(self, step_description: str, context: list[str], believes: list[str]) -> str:
+        """Perform the logical operation and return the JSON response."""
+        return await self.call_template(
+            'perform_logical_operation.jinja2',
+            json_format=True,
+            step_description=step_description,
+            context=context,
+            believes=believes
+        )
