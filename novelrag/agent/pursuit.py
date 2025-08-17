@@ -89,8 +89,6 @@ class GoalPursuit:
                 tools=tools,
                 context=self.context
             )
-            await channel.info(f"New steps: {[step.intent for step in new_steps]}")
-
             # Update the plan with new steps
             executed_steps = self.plan.executed_steps + [outcome]
             new_plan = ExecutionPlan(
@@ -99,6 +97,7 @@ class GoalPursuit:
                 executed_steps=executed_steps
             )
             self.plan = new_plan
+            await channel.info(f"New plan for goal '{self.goal}': {new_plan}")
 
         if plan.finished():
             return GoalPursuitResult(
