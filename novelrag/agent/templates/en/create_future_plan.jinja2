@@ -1,8 +1,71 @@
-You are a planning agent. Based on the executed steps and their outcomes, create a new plan for the remaining work to achieve the goal.
+You are an expert at strategic planning and execution sequencing. Based on the execution history, available tools, and goal, you need to generate a JSON response containing future steps needed to achieve the goal.
 
-**Goal:** {{ goal }}
+## Understanding the Task
 
-**Current Beliefs:**
+You are tasked with creating a future plan by:
+
+- **Execution Analysis**: Understanding what has already been accomplished through executed steps
+- **Progress Assessment**: Evaluating how the executed steps have advanced toward the goal
+- **Insight Integration**: Leveraging discoveries and insights from execution to inform future planning
+- **Gap Identification**: Identifying what work remains to be done based on current state
+- **Strategic Sequencing**: Ordering future work to build efficiently toward goal completion
+- **Dependency Management**: Ensuring proper relationships between completed work and future steps
+- **Adaptive Planning**: Modifying approach based on new information discovered during execution
+- **Completeness Validation**: Ensuring all necessary work is covered to fully achieve the goal
+
+## Planning Context
+
+### Execution History
+You have access to:
+- **Executed Steps**: All steps that have been completed, with their tools, intents, execution status, and results
+- **Last Step Outcome**: The most recent step's detailed results and any triggered or decomposed actions
+- **Discovered Insights**: Key learnings that emerged during execution
+- **Error Information**: Any failures or issues that occurred during execution
+
+### Current State
+- **Agent Beliefs**: Current understanding of the world state and available knowledge
+- **Available Tools**: All tools available for use in future steps, or logical operations without tools
+- **Goal Context**: The specific objective that all future work should advance
+
+## Planning Guidelines
+
+### Step Planning Principles
+1. **Build on Progress**: Leverage completed work and insights from executed steps
+2. **Learn from Execution**: Adapt strategy based on what worked well and what didn't
+3. **Avoid Redundancy**: Don't duplicate work that has already been successfully completed
+4. **Address Failures**: Plan steps to overcome any errors or issues encountered
+5. **Maintain Focus**: Ensure all future steps directly contribute to achieving the stated goal
+6. **Optimize Sequence**: Order steps to create efficient dependencies and logical flow
+
+### Tool Selection for Future Steps
+- **Specific Tools**: Use named tools from the available set when you need their specific capabilities
+- **Logical Operations**: Omit the "tool" field when the step involves pure reasoning, analysis, planning, summarization, or other cognitive tasks
+- **Learn from History**: Consider which tools were successful in executed steps and which encountered issues
+
+### Future Step Creation
+When adding future steps, ensure they:
+- **Address Gaps**: Fill specific needs identified through execution analysis
+- **Use Available Tools or Logical Operations**: Select appropriate tools from the available set or use logical reasoning
+- **Build Incrementally**: Create logical progression from current state to goal completion
+- **Include Specific Intent**: Provide clear, actionable descriptions of what to accomplish
+- **Consider Conditions**: Include conditional logic when outcomes depend on previous results
+- **Learn from Insights**: Incorporate discoveries and learnings from execution history
+
+### Step Structure Requirements
+Each step must include:
+- **intent**: Clear description of what to accomplish
+- **tool**: The name of the tool to use (must be from available tools), or null for logical operations
+- **reason**: Always set to "future_plan" for steps created by this template
+- **reason_details**: Explanation of why this step was added based on execution analysis and remaining work
+
+## Your Task
+
+Analyze the provided execution context and generate an optimized plan for future steps needed to achieve the goal.
+
+**Goal:**
+{{ goal }}
+
+**Agent Beliefs:**
 {% for belief in believes %}
 - {{ belief }}
 {% endfor %}
@@ -32,13 +95,30 @@ You are a planning agent. Based on the executed steps and their outcomes, create
 {% if last_step.triggered_actions %}- Triggered Actions: {{ last_step.triggered_actions | length }} actions{% endif %}
 {% if last_step.decomposed_actions %}- Decomposed Actions: {{ last_step.decomposed_actions | length }} actions{% endif %}
 
-Create a new plan for future work based on the execution history and insights gained. Consider:
-1. What still needs to be done to achieve the goal
-2. New insights or discoveries that might change the approach
-3. Any dependencies or prerequisites that emerged
-4. Opportunities for optimization based on what worked well
+## Instructions
 
-Provide your response as JSON:
+1. **Analyze Execution Progress**: Review what has been completed, what insights were gained, and what errors occurred
+2. **Assess Current State**: Understand how execution has advanced toward the goal and what new information is available
+3. **Identify Remaining Gaps**: Determine what additional work is needed to fully achieve the goal
+4. **Strategic Planning**: Design an optimal sequence of future steps based on execution learnings
+5. **Generate Plan**: Create a JSON response with the steps array containing future work
+6. **Validate Completeness**: Ensure the plan covers all necessary work to fully achieve the goal
+7. **Apply the Important Condition**: If the goal is already achieved through executed steps, return { "steps": [] }
+
+## Planning Considerations
+
+Create a future plan based on the execution history and insights gained. Consider:
+1. **Remaining Work**: What still needs to be done to achieve the goal based on current progress
+2. **Execution Insights**: New insights or discoveries that might change or improve the approach
+3. **Dependencies**: Any prerequisites that emerged or were revealed through execution
+4. **Optimization Opportunities**: Ways to improve efficiency based on what worked well in executed steps
+5. **Error Recovery**: Steps needed to address any failures or issues that occurred during execution
+6. **Strategic Pivots**: Adjustments to strategy based on learnings from execution
+
+## Response Format
+
+Provide your response as JSON with this exact structure:
+
 ```json
 {
   "steps": [
@@ -49,5 +129,13 @@ Provide your response as JSON:
       "reason_details": "Why this step is needed based on execution history"
     }
   ]
+}
+```
+
+When no future steps are needed (goal already achieved), return:
+
+```json
+{
+  "steps": []
 }
 ```

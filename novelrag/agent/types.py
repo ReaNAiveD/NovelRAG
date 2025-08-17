@@ -35,6 +35,7 @@ class ToolDecomposition(ToolOutputBase):
     type: Literal[ToolOutputType.DECOMPOSITION] = ToolOutputType.DECOMPOSITION # type: ignore
     steps: Annotated[list[dict[str, str]], Field(description="List of decomposed steps")]
     rationale: Annotated[str | None, Field(default=None, description="Reasoning for decomposition")]
+    rerun: Annotated[bool, Field(default=False, description="Whether to add the original step as a rerun after decomposed steps")]
 
 
 # Union type for all possible outputs
