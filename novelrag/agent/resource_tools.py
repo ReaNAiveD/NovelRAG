@@ -272,9 +272,9 @@ class ResourceWriteTool(LLMToolMixin, ContextualTool):
             write_steps = []
             for request in write_request:
                 if ":" in request:
-                    tool, description = request.split(":", 1)
+                    aspect, description = request.split(":", 1)
                     write_steps.append({
-                        'tool': tool.strip(),
+                        'tool': aspect.strip(),
                         'description': description.strip()
                     })
 
@@ -313,9 +313,9 @@ class ResourceWriteTool(LLMToolMixin, ContextualTool):
             chain_steps = []
             for update in updates:
                 if ":" in update:
-                    tool, description = update.split(":", 1)
+                    aspect, description = update.split(":", 1)
                     chain_steps.append({
-                        'tool': tool.strip(),
+                        'tool': aspect.strip(),
                         'description': description.strip()
                     })
             if chain_steps:
