@@ -53,6 +53,7 @@ class LLMContentProposer(LLMToolMixin, ContentProposer):
                 perspective, believes, step_description, context
             )
             if content_proposal:
+                logger.debug(f"Generate Proposal from perspective {perspective['id']}: {content_proposal.content}")
                 proposals.append(content_proposal)
 
         # Ensure we have at least one proposal
