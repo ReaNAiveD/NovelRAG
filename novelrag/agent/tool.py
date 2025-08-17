@@ -6,6 +6,7 @@ from typing import Any
 
 from novelrag.llm.types import ChatLLM
 from novelrag.template import TemplateEnvironment
+from .steps import StepDefinition
 
 from .types import ToolOutput, ToolDecomposition, ToolResult, ToolError
 
@@ -186,7 +187,7 @@ class SchematicTool(BaseTool):
 
 class ContextualTool(BaseTool):
     @abstractmethod
-    async def call(self, runtime: ToolRuntime, believes: list[str] | None = None, step_description: str | None = None, context: list[str] | None = None, tools: dict[str, str] | None = None) -> ToolOutput:
+    async def call(self, runtime: ToolRuntime, believes: list[str], step: StepDefinition, context: list[str], tools: dict[str, str] | None = None) -> ToolOutput:
         """Execute the tool with contextual information and yield outputs asynchronously"""
         raise NotImplementedError("ContextualTool subclasses must implement the call method")
 
@@ -213,10 +214,10 @@ class SchematicToolAdapter(LLMToolMixin, ContextualTool):
         """Output description of the tool, delegated to the inner tool"""
         return self.inner.output_description
 
-    async def call(self, runtime: ToolRuntime, believes: list[str] | None = None, step_description: str | None = None, context: list[str] | None = None, tools: dict[str, str] | None = None) -> ToolOutput:
+    async def call(self, runtime: ToolRuntime, believes: list[str], step: StepDefinition, context: list[str], tools: dict[str, str] | None = None) -> ToolOutput:
         """Execute the tool with contextual information and return a final ToolOutput"""
         # Check if we need to gather additional context for missing inputs
-        missing_fields = await self._identify_missing_inputs(believes, step_description, context)
+        missing_fields = await self._identify_missing_inputs(believes, step.intent, context)
         
         if missing_fields and self.inner.requires_prerequisite_steps:
             # Tool can decompose into steps to gather missing data
@@ -236,7 +237,7 @@ class SchematicToolAdapter(LLMToolMixin, ContextualTool):
         max_retries = 3
         for attempt in range(max_retries):
             try:
-                tool_args = await self._build_tool_arguments(believes, step_description, context)
+                tool_args = await self._build_tool_arguments(believes, step.intent, context)
             except Exception as e:
                 await runtime.warning(f"Error building tool arguments: {str(e)}")
                 tool_args = None
@@ -340,21 +341,17 @@ class LLMLogicalOperationTool(LLMToolMixin, ContextualTool):
     def output_description(self) -> str | None:
         return "Returns the result of the logical operation or inference task based on the step description and context."
 
-    async def call(self, runtime: ToolRuntime, believes: list[str] | None = None, step_description: str | None = None, context: list[str] | None = None, tools: dict[str, str] | None = None) -> ToolOutput:
+    async def call(self, runtime: ToolRuntime, believes: list[str], step: StepDefinition, context: list[str], tools: dict[str, str] | None = None) -> ToolOutput:
         """Execute logical operation based on the step description and context."""
-        if not step_description:
-            await runtime.error("No step description provided. Please provide a description of the logical operation to perform.")
-            return self.error("No step description provided. Please provide a description of the logical operation to perform.")
-
         if believes is None:
             believes = []
         if context is None:
             context = []
 
-        await runtime.debug(f"Performing logical operation: {step_description}")
+        await runtime.debug(f"Performing logical operation: {step.intent}")
 
         # Perform the logical operation directly using LLM
-        response_json = await self._perform_logical_operation(step_description, context, believes)
+        response_json = await self._perform_logical_operation(step.intent, context, believes)
 
         # Parse the JSON response
         try:

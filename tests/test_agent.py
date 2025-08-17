@@ -55,13 +55,13 @@ class MockContextualTool(ContextualTool):
     def description(self) -> str:
         return self._description
     
-    async def call(self, runtime, believes: list[str] | None = None, step_description: str | None = None,
-                   context: list[str] | None = None, tools: dict[str, str] | None = None):
+    async def call(self, runtime, believes: list[str], step: StepDefinition,
+                   context: list[str], tools: dict[str, str] | None = None):
         """Mock call method that returns a predefined ToolResult."""
         self.call_count += 1
         self.last_call_args = {
             'believes': believes,
-            'step_description': step_description,
+            'step_description': step.intent,
             'context': context,
             'tools': tools
         }

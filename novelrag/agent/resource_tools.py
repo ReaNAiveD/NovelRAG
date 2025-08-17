@@ -12,6 +12,7 @@ from novelrag.resource.repository import ResourceRepository
 from novelrag.template import TemplateEnvironment
 from novelrag.resource.operation import validate_op_json
 from .llm_content_proposer import LLMContentProposer
+from .steps import StepDefinition
 
 from .tool import SchematicTool, ContextualTool, LLMToolMixin, ToolRuntime
 from .types import ToolOutput
@@ -236,18 +237,18 @@ class ResourceWriteTool(LLMToolMixin, ContextualTool):
         "you should follow the guidelines and limitations according to the aspect, " \
         "usually this is through the ResourceFetchTool or ResourceSearchTool."
 
-    async def call(self, runtime: ToolRuntime, believes: list[str] | None = None, step_description: str | None = None, context: list[str] | None = None, tools: dict[str, str] | None = None) -> ToolOutput:
+    async def call(self, runtime: ToolRuntime, believes: list[str], step: StepDefinition, context: list[str], tools: dict[str, str] | None = None) -> ToolOutput:
         """Edit existing content and return the updated content."""
         if believes is None:
             believes = []
-        if step_description is None or not step_description:
+        if step.intent is None or not step.intent:
             await runtime.error("No step description provided. Please provide a description of the current step.")
             return self.error("No step description provided. Please provide a description of the current step.")
         if context is None:
             context = []
-        
-        related_context = await self.context_filter(step_description, context)
-        proposal_sets = [await proposer.propose(believes, step_description, related_context) for proposer in self.content_proposers]
+
+        related_context = await self.context_filter(step.intent, context)
+        proposal_sets = [await proposer.propose(believes, step.intent, related_context) for proposer in self.content_proposers]
         proposals = [item for sublist in proposal_sets for item in sublist]
         if not proposals:
             await runtime.error("No generated proposals available.")
@@ -266,7 +267,7 @@ class ResourceWriteTool(LLMToolMixin, ContextualTool):
         await runtime.message(f"Selected proposal: {selected_proposal}")
         await runtime.progress("proposal_selection", selected_proposal, "Selected proposal for editing.")
 
-        write_request = await self.discover_write_request(step_description, selected_proposal, context)
+        write_request = await self.discover_write_request(step.intent, selected_proposal, context)
         if write_request:
             # Build new steps for write requests using step decomposition
             write_steps = []
@@ -286,7 +287,7 @@ class ResourceWriteTool(LLMToolMixin, ContextualTool):
                 )
 
         await runtime.debug("No new write request generated from the selected proposal.")
-        operation = await self.build_operation(selected_proposal, step_description, context)
+        operation = await self.build_operation(selected_proposal, step.intent, context)
         if not operation:
             await runtime.error("Failed to build operation from the selected proposal.")
             return self.error("Failed to build operation from the selected proposal.")
@@ -306,7 +307,7 @@ class ResourceWriteTool(LLMToolMixin, ContextualTool):
         await runtime.message(f"Applied operation. Undo operation created: {undo}")
         # TODO: Push the undo operation to the undo queue
         
-        updates = await self.discover_chain_updates(step_description, operation)
+        updates = await self.discover_chain_updates(step.intent, operation)
         if updates:
             await runtime.message(f"Discovered {len(updates)} chain updates.")
             # Use step decomposition to create chain update steps
@@ -323,8 +324,8 @@ class ResourceWriteTool(LLMToolMixin, ContextualTool):
                     steps=chain_steps,
                     rationale=f"Chain updates discovered from operation: {operation[:100]}..."
                 )
-        
-        backlog = await self.discover_backlog(step_description, operation)
+
+        backlog = await self.discover_backlog(step.intent, operation)
         if backlog:
             await runtime.message(f"Discovered {len(backlog)} backlog items.")
             for item in backlog:
