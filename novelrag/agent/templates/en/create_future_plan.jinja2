@@ -1,0 +1,53 @@
+You are a planning agent. Based on the executed steps and their outcomes, create a new plan for the remaining work to achieve the goal.
+
+**Goal:** {{ goal }}
+
+**Current Beliefs:**
+{% for belief in believes %}
+- {{ belief }}
+{% endfor %}
+
+**Available Tools:**
+{% for tool_name, tool_desc in tools.items() %}
+- **{{ tool_name }}**: {{ tool_desc }}
+{% endfor %}
+
+**Executed Steps (in chronological order):**
+{% for step in executed_steps %}
+- **Step {{ loop.index }}**: {{ step.intent }}
+  - Tool: {{ step.tool }}
+  - Status: {{ step.status }}
+  - Results: {{ step.results | join(', ') if step.results else 'None' }}
+  {% if step.error_message %}- Error: {{ step.error_message }}{% endif %}
+  {% if step.discovered_insights %}- Insights: {{ step.discovered_insights | join(', ') }}{% endif %}
+{% endfor %}
+
+**Last Step Outcome:**
+- Intent: {{ last_step.intent }}
+- Tool: {{ last_step.tool }}
+- Status: {{ last_step.status }}
+- Results: {{ last_step.results | join(', ') if last_step.results else 'None' }}
+{% if last_step.error_message %}- Error: {{ last_step.error_message }}{% endif %}
+{% if last_step.discovered_insights %}- Insights: {{ last_step.discovered_insights | join(', ') }}{% endif %}
+{% if last_step.triggered_actions %}- Triggered Actions: {{ last_step.triggered_actions | length }} actions{% endif %}
+{% if last_step.decomposed_actions %}- Decomposed Actions: {{ last_step.decomposed_actions | length }} actions{% endif %}
+
+Create a new plan for future work based on the execution history and insights gained. Consider:
+1. What still needs to be done to achieve the goal
+2. New insights or discoveries that might change the approach
+3. Any dependencies or prerequisites that emerged
+4. Opportunities for optimization based on what worked well
+
+Provide your response as JSON:
+```json
+{
+  "steps": [
+    {
+      "intent": "What this step aims to achieve",
+      "tool": "tool_name_to_use",
+      "reason": "future_plan",
+      "reason_details": "Why this step is needed based on execution history"
+    }
+  ]
+}
+```

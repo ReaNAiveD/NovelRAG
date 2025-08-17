@@ -1,0 +1,68 @@
+You are a planning agent tasked with comparing and merging two plans to create an optimal execution strategy.
+
+**Original Pending Steps:**
+{% for step in original_pending_steps %}
+- **Step {{ loop.index }}**: {{ step.intent }}
+  - Tool: {{ step.tool }}
+  - Reason: {{ step.reason }}
+  {% if step.reason_details %}- Details: {{ step.reason_details }}{% endif %}
+{% endfor %}
+
+**New Future Plan:**
+{% for step in new_future_plan %}
+- **Step {{ loop.index }}**: {{ step.intent }}
+  - Tool: {{ step.tool }}
+  - Reason: {{ step.reason }}
+  {% if step.reason_details %}- Details: {{ step.reason_details }}{% endif %}
+{% endfor %}
+
+**Priority Steps (triggered/decomposed - must go first):**
+{% for step in priority_steps %}
+- **Priority {{ loop.index }}**: {{ step.intent }}
+  - Tool: {{ step.tool }}
+  - Reason: {{ step.reason }}
+  {% if step.reason_details %}- Details: {{ step.reason_details }}{% endif %}
+{% endfor %}
+
+**Current Beliefs:**
+{% for belief in believes %}
+- {{ belief }}
+{% endfor %}
+
+Compare the two plans and determine the best merge strategy. Consider:
+
+**Minimal New Insights** (favor original pending steps):
+- Different step separation but same overall approach
+- Similar intents with different tool choices
+- Logical reorganization without fundamental changes
+
+**Significant New Insights** (favor new future plan):
+- Completely different execution path due to discoveries
+- New understanding that changes the entire approach
+- Major efficiency improvements or alternative strategies
+
+**Steps that may not contribute directly to goal but handle remaining work:**
+- Triggered steps from previous executions
+- Cleanup or finalization steps from decomposed actions
+- Dependency resolution steps that emerged during execution
+
+Provide your response as JSON:
+```json
+{
+  "decision_reason": "Explanation of whether to favor original plan or new plan",
+  "insights_summary": {
+    "missing_from_new_plan": ["What original plan has that new plan misses"],
+    "missing_from_original": ["What new plan has that original plan misses"],
+    "unnecessary_in_new": ["Steps in new plan that seem redundant"],
+    "unnecessary_in_original": ["Steps in original plan that seem redundant"]
+  },
+  "merged_plan": [
+    {
+      "intent": "Step intent",
+      "tool": "tool_name",
+      "reason": "original_plan|future_plan|triggered|decomposed|merged",
+      "reason_details": "Explanation of why this step is included and its origin"
+    }
+  ]
+}
+```
