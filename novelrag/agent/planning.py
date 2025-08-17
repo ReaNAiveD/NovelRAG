@@ -151,25 +151,16 @@ class PursuitPlanner(LLMToolMixin):
                                            believes: list[str], tools: dict[str, ContextualTool]) -> list[StepDefinition]:
         """
         Adapt plan after step decomposition.
-        1. Add decomposed steps + original step rerun as priority
+        1. Add decomposed steps as priority
         2. Create new future plan based on all executed steps
         3. Compare and merge with original pending steps
         """
-        # Build priority steps (decomposed + rerun)
+        # Build priority steps (only decomposed steps)
         priority_steps = []
 
         # Add decomposed steps
         if last_step.decomposed_actions:
             priority_steps.extend(last_step.decomposed_actions)
-
-        # Add rerun of original step
-        priority_steps.append(StepDefinition(
-            intent=last_step.action.intent,
-            tool=last_step.action.tool,
-            progress=last_step.action.progress,
-            reason="rerun",
-            reason_details=f"Rerun after decomposition into {len(last_step.decomposed_actions)} sub-steps"
-        ))
 
         # Create new future plan
         new_future_plan = await self._create_future_plan(

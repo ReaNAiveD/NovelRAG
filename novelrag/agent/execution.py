@@ -126,6 +126,14 @@ async def _execute_step(step: StepDefinition, tools: dict[str, ContextualTool], 
                     reason_details=f"Decomposed from: {step.intent}"
                 )
                 outcome.decomposed_actions.append(sub_action)
+            if result.rerun:
+                outcome.decomposed_actions.append(StepDefinition(
+                    tool=step.tool,
+                    intent=step.intent,
+                    progress=result.progress,
+                    reason="rerun from decomposition",
+                    reason_details=f"Rerun after decomposition of: {step.intent}. Decomposed steps: {(', '.join([s['description'] for s in result.steps]) if result.steps else 'None')}"
+                ))
         elif isinstance(result, ToolResult):
             # Handle tool result
             outcome.status = StepStatus.SUCCESS

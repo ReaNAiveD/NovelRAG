@@ -276,10 +276,12 @@ class ResourceWriteTool(LLMToolMixin, ContextualTool):
                         'tool': tool.strip(),
                         'description': description.strip()
                     })
+            
             if write_steps:
                 return self.decomposition(
                     steps=write_steps,
-                    rationale=f"Write requests discovered for proposal: {selected_proposal[:100]}..."
+                    rationale=f"Write requests discovered for proposal: {selected_proposal[:100]}... Original resource operation will be rerun after dependencies.",
+                    rerun=True
                 )
 
         await runtime.debug("No new write request generated from the selected proposal.")

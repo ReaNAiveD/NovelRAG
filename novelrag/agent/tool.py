@@ -157,9 +157,9 @@ class BaseTool(ABC):
         return ToolError(error_message=error_message)
 
     @staticmethod
-    def decomposition(steps: list[dict[str, str]], rationale: str | None = None) -> ToolDecomposition:
+    def decomposition(steps: list[dict[str, str]], rationale: str | None = None, rerun: bool = False) -> ToolDecomposition:
         """Create a ToolDecomposition output with the given steps and rationale"""
-        return ToolDecomposition(steps=steps, rationale=rationale)
+        return ToolDecomposition(steps=steps, rationale=rationale, rerun=rerun)
 
 
 class SchematicTool(BaseTool):
