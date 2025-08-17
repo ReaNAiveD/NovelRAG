@@ -108,7 +108,7 @@ async def _execute_step(step: StepDefinition, tools: dict[str, ContextualTool], 
         result = await tool.call(
             runtime=runtime,
             believes=believes,
-            step_description=step.intent,
+            step=step,
             context=context,
             tools={name: t.description or '' for name, t in tools.items()}
         )
