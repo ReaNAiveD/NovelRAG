@@ -35,6 +35,23 @@ class PursuitContext(ABC):
         """
         raise NotImplementedError("Context retrieval not implemented yet.")
 
+    @abstractmethod
+    async def retrieve_planning_context(self, goal: str, last_step: StepOutcome,
+                                      completed_steps: list[StepOutcome],
+                                      pending_steps: list[StepDefinition],
+                                      threshold: int = 50) -> list[str]:
+        """
+        Retrieve relevant context for planning decisions based on goal, last step, and plan state.
+
+        :param goal: The original goal being pursued.
+        :param last_step: The last executed step outcome.
+        :param completed_steps: List of all completed step outcomes.
+        :param pending_steps: List of remaining step definitions.
+        :param threshold: The maximum number of context items to retrieve.
+        :return: A list of relevant context strings for planning.
+        """
+        raise NotImplementedError()
+
 
 class LLMPursuitContext(LLMToolMixin, PursuitContext):
     """
@@ -158,6 +175,83 @@ class LLMPursuitContext(LLMToolMixin, PursuitContext):
             sorted_facets_response = await self.call_template(
                 "sort_facets_by_relevance.jinja2",
                 step_info=step_info,
+                available_facets=available_facets,
+                json_format=True
+            )
+
+            # Parse the sorted facets
+            sorted_data = json.loads(sorted_facets_response)
+            sorted_facets = sorted_data.get("facets", [])
+
+        except (json.JSONDecodeError, KeyError, Exception):
+            # Fallback: use all available facets in original order
+            sorted_facets = available_facets
+
+        # Collect knowledge from the sorted facets, limited by threshold
+        collected_context = []
+        for facet in sorted_facets:
+            if facet in self.knowledge_facets:
+                facet_knowledge = self.knowledge_facets[facet]
+                collected_context.extend(facet_knowledge)
+
+                # Stop if we've reached the threshold
+                if len(collected_context) >= threshold:
+                    break
+
+        # Trim to exact threshold if we exceeded it
+        return collected_context[:threshold]
+
+    async def retrieve_planning_context(self, goal: str, last_step: StepOutcome,
+                                      completed_steps: list[StepOutcome],
+                                      pending_steps: list[StepDefinition],
+                                      threshold: int = 50) -> list[str]:
+        """
+        Retrieve relevant context for planning decisions based on goal, last step, and plan state.
+
+        Uses LLM to sort all knowledge facets by combined relevance from:
+        - The original goal being pursued
+        - The last step outcome and its results
+        - The context of the original plan (executed and pending steps)
+
+        :param goal: The original goal being pursued.
+        :param last_step: The last executed step outcome.
+        :param completed_steps: List of all completed step outcomes.
+        :param pending_steps: List of remaining step definitions.
+        :param threshold: The maximum number of context items to retrieve.
+        :return: A list of relevant context strings for planning.
+        """
+        if not self.knowledge_facets:
+            return []
+
+        # Prepare planning information for facet sorting
+        planning_info = {
+            "goal": goal,
+            "last_step": {
+                "tool": last_step.action.tool,
+                "intent": last_step.action.intent,
+                "status": last_step.status.value,
+                "results": last_step.results,
+                "discovered_insights": last_step.discovered_insights
+            },
+            "executed_steps": [{
+                "tool": step.action.tool,
+                "intent": step.action.intent,
+                "status": step.status.value
+            } for step in completed_steps],
+            "pending_steps": [{
+                "tool": step.tool,
+                "intent": step.intent
+            } for step in pending_steps]
+        }
+
+        # Get available facets
+        available_facets = list(self.knowledge_facets.keys())
+
+        try:
+            # Use LLM to sort facets by relevance for planning
+            sorted_facets_response = await self.call_template(
+                "sort_facets_for_planning.jinja2",
+                planning_info=planning_info,
                 available_facets=available_facets,
                 json_format=True
             )

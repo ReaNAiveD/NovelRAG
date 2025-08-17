@@ -303,8 +303,8 @@ Decompose the provided goal into a strategic sequence of executable steps.
 {% endfor %}
 
 **Available Tools:**
-{% for tool_name, tool_desc in tools.items() %}
-- **{{ tool_name }}**: {{ tool_desc }}
+{% for tool_name, tool_info in tools.items() %}
+- **{{ tool_name }}**: {{ tool_info }}
 {% endfor %}
 
 ## Instructions

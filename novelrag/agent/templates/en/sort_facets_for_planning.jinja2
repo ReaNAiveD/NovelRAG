@@ -1,0 +1,49 @@
+You are analyzing knowledge facets to determine which are most relevant for planning decisions.
+
+## Planning Context
+**Goal:** {{ planning_info.goal }}
+
+**Last Step:**
+- Tool: {{ planning_info.last_step.tool }}
+- Intent: {{ planning_info.last_step.intent }}
+- Status: {{ planning_info.last_step.status }}
+{% if planning_info.last_step.results %}
+- Results: {{ planning_info.last_step.results | join(', ') }}
+{% endif %}
+{% if planning_info.last_step.discovered_insights %}
+- Insights: {{ planning_info.last_step.discovered_insights | join(', ') }}
+{% endif %}
+
+**Executed Steps History:**
+{% for step in planning_info.executed_steps %}
+- {{ step.tool }}: {{ step.intent }} ({{ step.status }})
+{% endfor %}
+
+**Pending Steps:**
+{% for step in planning_info.pending_steps %}
+- {{ step.tool }}: {{ step.intent }}
+{% endfor %}
+
+## Available Knowledge Facets
+{% for facet in available_facets %}
+- {{ facet }}
+{% endfor %}
+
+## Task
+Sort the available knowledge facets by relevance for planning future steps. Consider:
+
+1. **Goal Alignment**: How well does the facet relate to achieving the main goal?
+2. **Last Step Context**: How relevant is the facet to understanding or building upon the last step's results?
+3. **Future Planning**: How useful is the facet for planning the remaining steps?
+4. **Historical Insights**: How valuable is the facet for understanding past execution patterns?
+
+Return the facets sorted from most relevant to least relevant for planning decisions.
+
+## Response Format
+Return a JSON object with a "facets" array containing the sorted facet names:
+
+```json
+{
+  "facets": ["most_relevant_facet", "second_facet", ...]
+}
+```

@@ -2,6 +2,7 @@ import json
 import logging
 
 from .execution import ExecutionPlan
+from .context import PursuitContext
 from .steps import StepDefinition, StepOutcome, StepStatus
 from .tool import ContextualTool, LLMToolMixin
 from novelrag.llm.types import ChatLLM
@@ -26,12 +27,23 @@ class PursuitPlanner(LLMToolMixin):
         Returns:
             A list of StepDefinition instances representing the decomposed steps.
         """
+        # Build tool info including input schemas for SchematicTools
+        tool_info = {}
+        for name, tool in tools.items():
+            info = {"description": tool.description}
+            # Check if tool has input_schema (for SchematicToolAdapter or SchematicTool)
+            if hasattr(tool, 'inner') and hasattr(tool.inner, 'input_schema'):
+                info["input_schema"] = tool.inner.input_schema
+            elif hasattr(tool, 'input_schema'):
+                info["input_schema"] = tool.input_schema
+            tool_info[name] = info
+
         response = await self.call_template(
             "decompose_goal.jinja2",
             json_format=True,
             goal=goal,
             believes=believes,
-            tools={name: tool.description for name, tool in tools.items()}
+            tools=tool_info
         )
         steps = json.loads(response)["steps"]
         steps = [StepDefinition(**step) for step in steps]
@@ -39,32 +51,42 @@ class PursuitPlanner(LLMToolMixin):
 
     async def adapt_plan(
             self, last_step: StepOutcome, original_plan: ExecutionPlan, believes: list[str],
-            tools: dict[str, ContextualTool]) -> list[StepDefinition]:
+            tools: dict[str, ContextualTool], context: PursuitContext) -> list[StepDefinition]:
         """
         Adapt the execution plan based on the last completed step and current context.
 
         The new replan logic:
-        1. Creates a new plan for future work based on ALL executed steps and insights
-        2. Compares the new plan with original pending steps to identify insights and gaps
-        3. Merges plans intelligently based on whether there are significant new insights
-        4. Handles different step statuses with appropriate priority steps (triggered/decomposed)
+        1. Retrieves relevant context for planning decisions based on goal, last step, and original plan
+        2. Creates a new plan for future work based on ALL executed steps and insights
+        3. Compares the new plan with original pending steps to identify insights and gaps
+        4. Merges plans intelligently based on whether there are significant new insights
+        5. Handles different step statuses with appropriate priority steps (triggered/decomposed)
 
         Args:
             last_step: The outcome of the most recently completed step
             original_plan: The original execution plan with executed and pending steps
             believes: The agent's current beliefs about the world state
             tools: Dictionary mapping tool names to ContextualTool instances
+            context: PursuitContext for retrieving relevant historical information
 
         Returns:
             A list of updated StepDefinition instances representing the new schedule
         """
         try:
+            # Retrieve relevant context for planning decisions
+            planning_context = await context.retrieve_planning_context(
+                goal=original_plan.goal,
+                last_step=last_step,
+                completed_steps=original_plan.executed_steps,
+                pending_steps=original_plan.pending_steps
+            )
+
             if last_step.status == StepStatus.SUCCESS:
-                return await self._adapt_plan_from_success(last_step, original_plan, believes, tools)
+                return await self._adapt_plan_from_success(last_step, original_plan, believes, tools, planning_context)
             elif last_step.status == StepStatus.FAILED:
-                return await self._adapt_plan_from_failure(last_step, original_plan, believes, tools)
+                return await self._adapt_plan_from_failure(last_step, original_plan, believes, tools, planning_context)
             elif last_step.status == StepStatus.DECOMPOSED:
-                return await self._adapt_plan_from_decomposition(last_step, original_plan, believes, tools)
+                return await self._adapt_plan_from_decomposition(last_step, original_plan, believes, tools, planning_context)
             else:
                 logging.warning(f"Unhandled step status: {last_step.status}. Using simple fallback.")
                 return self._simple_fallback(last_step, original_plan)
@@ -73,7 +95,8 @@ class PursuitPlanner(LLMToolMixin):
             return self._simple_fallback(last_step, original_plan)
 
     async def _adapt_plan_from_success(self, last_step: StepOutcome, original_plan: ExecutionPlan,
-                                     believes: list[str], tools: dict[str, ContextualTool]) -> list[StepDefinition]:
+                                     believes: list[str], tools: dict[str, ContextualTool],
+                                     planning_context: list[str]) -> list[StepDefinition]:
         """
         Adapt plan after successful step execution.
         1. Add triggered steps as priority
@@ -94,18 +117,19 @@ class PursuitPlanner(LLMToolMixin):
 
         # Create new future plan
         new_future_plan = await self._create_future_plan(
-            original_plan.executed_steps + [last_step], original_plan.goal, believes, tools
+            original_plan.executed_steps + [last_step], original_plan.goal, believes, tools, planning_context
         )
 
         # Compare and merge plans
         merged_plan = await self._compare_and_merge_plans(
-            new_future_plan, original_plan.pending_steps[1:], priority_steps, believes
+            new_future_plan, original_plan.pending_steps[1:], priority_steps, believes, planning_context
         )
 
         return priority_steps + merged_plan
 
     async def _adapt_plan_from_failure(self, last_step: StepOutcome, original_plan: ExecutionPlan,
-                                     believes: list[str], tools: dict[str, ContextualTool]) -> list[StepDefinition]:
+                                     believes: list[str], tools: dict[str, ContextualTool],
+                                     planning_context: list[str]) -> list[StepDefinition]:
         """
         Adapt plan after failed step execution.
         1. Analyze failure with full execution history
@@ -115,7 +139,7 @@ class PursuitPlanner(LLMToolMixin):
         """
         # Analyze failure with full execution history
         failure_analysis = await self._analyze_failure(
-            last_step, original_plan.executed_steps, original_plan.goal, believes, tools
+            last_step, original_plan.executed_steps, original_plan.goal, believes, tools, planning_context
         )
 
         # Build priority steps (recovery + optional rerun)
@@ -137,18 +161,19 @@ class PursuitPlanner(LLMToolMixin):
 
         # Create new future plan with recovery context
         new_future_plan = await self._create_future_plan(
-            original_plan.executed_steps + [last_step], original_plan.goal, believes, tools
+            original_plan.executed_steps + [last_step], original_plan.goal, believes, tools, planning_context
         )
 
         # Compare and merge plans
         merged_plan = await self._compare_and_merge_plans(
-            new_future_plan, original_plan.pending_steps[1:], priority_steps, believes
+            new_future_plan, original_plan.pending_steps[1:], priority_steps, believes, planning_context
         )
 
         return priority_steps + merged_plan
 
     async def _adapt_plan_from_decomposition(self, last_step: StepOutcome, original_plan: ExecutionPlan,
-                                           believes: list[str], tools: dict[str, ContextualTool]) -> list[StepDefinition]:
+                                           believes: list[str], tools: dict[str, ContextualTool],
+                                           planning_context: list[str]) -> list[StepDefinition]:
         """
         Adapt plan after step decomposition.
         1. Add decomposed steps as priority
@@ -164,18 +189,19 @@ class PursuitPlanner(LLMToolMixin):
 
         # Create new future plan
         new_future_plan = await self._create_future_plan(
-            original_plan.executed_steps + [last_step], original_plan.goal, believes, tools
+            original_plan.executed_steps + [last_step], original_plan.goal, believes, tools, planning_context
         )
 
         # Compare and merge plans
         merged_plan = await self._compare_and_merge_plans(
-            new_future_plan, original_plan.pending_steps[1:], priority_steps, believes
+            new_future_plan, original_plan.pending_steps[1:], priority_steps, believes, planning_context
         )
 
         return priority_steps + merged_plan
 
     async def _create_future_plan(self, executed_steps: list[StepOutcome], goal: str,
-                                believes: list[str], tools: dict[str, ContextualTool]) -> list[StepDefinition]:
+                                believes: list[str], tools: dict[str, ContextualTool],
+                                planning_context: list[str]) -> list[StepDefinition]:
         """
         Create a new plan for future work based on ALL executed steps and their outcomes.
 
@@ -184,6 +210,7 @@ class PursuitPlanner(LLMToolMixin):
             goal: The original goal being pursued
             believes: Current beliefs of the agent
             tools: Available tools
+            planning_context: Relevant historical context for planning decisions
 
         Returns:
             List of StepDefinition instances representing the new future plan
@@ -193,12 +220,24 @@ class PursuitPlanner(LLMToolMixin):
 
         last_step = executed_steps[-1]
 
+        # Build tool info including input schemas for SchematicTools
+        tool_info = {}
+        for name, tool in tools.items():
+            info = {"description": tool.description}
+            # Check if tool has input_schema (for SchematicToolAdapter or SchematicTool)
+            if hasattr(tool, 'inner') and hasattr(tool.inner, 'input_schema'):
+                info["input_schema"] = tool.inner.input_schema
+            elif hasattr(tool, 'input_schema'):
+                info["input_schema"] = tool.input_schema
+            tool_info[name] = info
+
         response = await self.call_template(
             "create_future_plan.jinja2",
             json_format=True,
             goal=goal,
             believes=believes,
-            tools={name: tool.description for name, tool in tools.items()},
+            tools=tool_info,
+            planning_context=planning_context,
             executed_steps=[{
                 "intent": outcome.action.intent,
                 "tool": outcome.action.tool,
@@ -226,7 +265,7 @@ class PursuitPlanner(LLMToolMixin):
     async def _compare_and_merge_plans(self, new_future_plan: list[StepDefinition],
                                      original_pending_steps: list[StepDefinition],
                                      priority_steps: list[StepDefinition],
-                                     believes: list[str]) -> list[StepDefinition]:
+                                     believes: list[str], planning_context: list[str]) -> list[StepDefinition]:
         """
         Compare the new future plan with original pending steps and create an optimal merge.
 
@@ -235,6 +274,7 @@ class PursuitPlanner(LLMToolMixin):
             original_pending_steps: Original remaining steps from the plan
             priority_steps: Steps that must go first (triggered/decomposed)
             believes: Current beliefs of the agent
+            planning_context: Relevant historical context for planning decisions
 
         Returns:
             List of StepDefinition instances representing the merged plan (excluding priority steps)
@@ -263,7 +303,8 @@ class PursuitPlanner(LLMToolMixin):
                 "reason": step.reason,
                 "reason_details": step.reason_details
             } for step in priority_steps],
-            believes=believes
+            believes=believes,
+            planning_context=planning_context
         )
 
         result = json.loads(response)
@@ -275,7 +316,8 @@ class PursuitPlanner(LLMToolMixin):
         return merged_steps
 
     async def _analyze_failure(self, failed_step: StepOutcome, executed_steps: list[StepOutcome],
-                             goal: str, believes: list[str], tools: dict[str, ContextualTool]) -> dict:
+                             goal: str, believes: list[str], tools: dict[str, ContextualTool],
+                             planning_context: list[str]) -> dict:
         """
         Analyze a failed step with full execution history to determine recovery strategy.
 
@@ -285,16 +327,29 @@ class PursuitPlanner(LLMToolMixin):
             goal: The original goal
             believes: Current beliefs
             tools: Available tools
+            planning_context: Relevant historical context for planning decisions
 
         Returns:
             Dictionary containing analysis, recommendations, recovery steps, and rerun decision
         """
+        # Build tool info including input schemas for SchematicTools
+        tool_info = {}
+        for name, tool in tools.items():
+            info = {"description": tool.description}
+            # Check if tool has input_schema (for SchematicToolAdapter or SchematicTool)
+            if hasattr(tool, 'inner') and hasattr(tool.inner, 'input_schema'):
+                info["input_schema"] = tool.inner.input_schema
+            elif hasattr(tool, 'input_schema'):
+                info["input_schema"] = tool.input_schema
+            tool_info[name] = info
+
         response = await self.call_template(
             "analyze_failure.jinja2",
             json_format=True,
             goal=goal,
             believes=believes,
-            tools={name: tool.description for name, tool in tools.items()},
+            tools=tool_info,
+            planning_context=planning_context,
             executed_steps=[{
                 "intent": outcome.action.intent,
                 "tool": outcome.action.tool,
