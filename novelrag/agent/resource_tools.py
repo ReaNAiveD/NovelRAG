@@ -247,8 +247,8 @@ class ResourceWriteTool(LLMToolMixin, ContextualTool):
             context = []
         
         related_context = await self.context_filter(step_description, context)
-        proposals = [await proposer.propose(believes, step_description, related_context) for proposer in self.content_proposers]
-        proposals = [item for sublist in proposals for item in sublist]
+        proposal_sets = [await proposer.propose(believes, step_description, related_context) for proposer in self.content_proposers]
+        proposals = [item for sublist in proposal_sets for item in sublist]
         if not proposals:
             await runtime.error("No generated proposals available.")
             return self.error("No generated proposals available.")
@@ -277,7 +277,7 @@ class ResourceWriteTool(LLMToolMixin, ContextualTool):
                         'tool': tool.strip(),
                         'description': description.strip()
                     })
-            
+
             if write_steps:
                 return self.decomposition(
                     steps=write_steps,
@@ -299,7 +299,9 @@ class ResourceWriteTool(LLMToolMixin, ContextualTool):
             return self.error("Operation validation failed: " + str(e))
 
         await runtime.message("Operation validated successfully. Preparing to apply.")
-        # TODO: Request the user to confirm the operation
+        if not await runtime.confirmation(f"Do you want to apply the operation?\n{json.dumps(op, indent=2)}"):
+            await runtime.message("Operation application cancelled by user.")
+            return self.result("Operation application cancelled by user.")
         undo = await self.repo.apply(op)
         await runtime.message(f"Applied operation. Undo operation created: {undo}")
         # TODO: Push the undo operation to the undo queue
@@ -329,7 +331,7 @@ class ResourceWriteTool(LLMToolMixin, ContextualTool):
                 await runtime.backlog(content=item, priority="normal")
 
         # Return the operation JSON that was applied as the result
-        return self.result(operation)
+        return self.result(json.dumps(operation))
 
     async def context_filter(self, step_description: str, context: list[str]) -> list[str]:
         return (await self.call_template(
@@ -339,11 +341,31 @@ class ResourceWriteTool(LLMToolMixin, ContextualTool):
         )).splitlines()
     
     async def sort_proposals(self, proposals: list[str]) -> list[str]:
-        return (await self.call_template(
+        response = await self.call_template(
             'sort_edit_proposals.jinja2',
             proposals=proposals,
-        )).splitlines()
-    
+            json_format=True,
+        )
+
+        try:
+            # Parse the JSON response
+            result = json.loads(response)
+            sorted_proposals = result.get('sorted_proposals', [])
+
+            # Extract proposals in rank order and map back to original content
+            ordered_proposals = []
+            for item in sorted(sorted_proposals, key=lambda x: x.get('rank', float('inf'))):
+                proposal_number = item.get('proposal_number')
+                if proposal_number is not None and 1 <= proposal_number <= len(proposals):
+                    # proposal_number is 1-based, convert to 0-based index
+                    ordered_proposals.append(proposals[proposal_number - 1])
+
+            return ordered_proposals
+
+        except (json.JSONDecodeError, KeyError, IndexError) as e:
+            # Fallback to original behavior if JSON parsing fails
+            return proposals
+
     async def select_proposal(self, proposals: list[str]) -> str:
         """Select a proposal using weighted random selection.
 
@@ -363,12 +385,13 @@ class ResourceWriteTool(LLMToolMixin, ContextualTool):
         return selected_proposal
 
     async def discover_write_request(self, step_description: str, proposal: str, context: list[str]) -> list[str]:
-        return (await self.call_template(
+        return json.loads(await self.call_template(
             'discover_write_request.jinja2',
             step_description=step_description,
             proposal=proposal,
             context=context,
-        )).splitlines()
+            json_format=True,
+        ))["write_requests"]
     
     async def ensure_not_in_context(self, proposal: str, dependency: str, context: list[str]) -> bool:
         return (await self.call_template(

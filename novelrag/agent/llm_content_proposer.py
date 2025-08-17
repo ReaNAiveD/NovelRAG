@@ -106,17 +106,15 @@ class LLMContentProposer(LLMToolMixin, ContentProposer):
             step_description=step_description,
             context=context,
             believes=believes,
-            json_format=True
+            json_format=False
         )
 
-        # Parse the JSON response
-        result = json.loads(response)
-        content = str(result.get("content", ""))
-        execution_notes = str(result.get("execution_notes", ""))
+        # Response is now plain text content
+        content = response.strip()
 
         if content and len(content) > 10:  # Basic content validation
-            # Create comprehensive reason from perspective info and execution notes
-            reason = f"Perspective: {perspective['description']}. {execution_notes}"
+            # Use only the perspective description for the reason
+            reason = perspective['description']
             return ContentProposal(content=content, reason=reason)
 
         return None
