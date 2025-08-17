@@ -74,14 +74,20 @@ class GoalPursuit:
             if not outcome:
                 await channel.error(f"The plan is not ready to execute the next step.")
                 return None
-            await channel.info(f"Executed step: {outcome.action.intent} with status {outcome.status.value}")
-            await channel.info(f"Step results: {outcome.results}")
+            await channel.info(f"Executed step [{outcome.status.value}]: {outcome.action.intent}")
+            if outcome.status == StepStatus.FAILED:
+                await channel.error(f"Step[{outcome.action.tool}] failed: {outcome.error_message}")
+            elif outcome.status == StepStatus.SUCCESS:
+                await channel.info(f"Step results: {outcome.results}")
+            elif outcome.status == StepStatus.DECOMPOSED:
+                await channel.info(f"Step decomposed into sub-actions: {[step.intent for step in outcome.decomposed_actions]}")
 
             new_steps = await planner.adapt_plan(
+                last_step=outcome,
+                original_plan=self.plan,
                 believes=self.initial_believes,
                 tools=tools,
-                last_step=outcome,
-                original_plan=self.plan
+                context=self.context
             )
             await channel.info(f"New steps: {[step.intent for step in new_steps]}")
 

@@ -1,6 +1,7 @@
 """LLM-based content proposer using Sequential Diverse Prompting."""
 
 import json
+import logging
 from typing import Any
 
 from novelrag.llm.types import ChatLLM
@@ -8,6 +9,8 @@ from novelrag.template import TemplateEnvironment
 
 from .proposals import ContentProposal, ContentProposer
 from .tool import LLMToolMixin
+
+logger = logging.getLogger(__name__)
 
 
 class LLMContentProposer(LLMToolMixin, ContentProposer):
@@ -37,6 +40,7 @@ class LLMContentProposer(LLMToolMixin, ContentProposer):
         """
         # Stage 1: Generate diverse, detailed, non-conflicting perspectives
         perspectives = await self._generate_perspectives(believes, step_description, context)
+        logger.info(f"Generated {len(perspectives)} perspectives: {perspectives}")
 
         if not perspectives:
             # Fallback: Generate default proposal if perspective generation fails
@@ -107,8 +111,8 @@ class LLMContentProposer(LLMToolMixin, ContentProposer):
 
         # Parse the JSON response
         result = json.loads(response)
-        content = result.get("content", "").strip()
-        execution_notes = result.get("execution_notes", "")
+        content = str(result.get("content", ""))
+        execution_notes = str(result.get("execution_notes", ""))
 
         if content and len(content) > 10:  # Basic content validation
             # Create comprehensive reason from perspective info and execution notes

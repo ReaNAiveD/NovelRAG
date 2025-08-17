@@ -71,8 +71,8 @@ Analyze the provided execution context and generate an optimized plan for future
 {% endfor %}
 
 **Available Tools:**
-{% for tool_name, tool_desc in tools.items() %}
-- **{{ tool_name }}**: {{ tool_desc }}
+{% for tool_name, tool_info in tools.items() %}
+- **{{ tool_name }}**: {{ tool_info }}
 {% endfor %}
 
 **Executed Steps (in chronological order):**

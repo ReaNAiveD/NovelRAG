@@ -116,12 +116,11 @@ async def _execute_step(step: StepDefinition, tools: dict[str, ContextualTool], 
         if isinstance(result, ToolDecomposition):
             # Handle tool decomposition into sub-actions
             outcome.status = StepStatus.DECOMPOSED
-            outcome.progress = result.progress
             for sub_step in result.steps:
                 sub_action = StepDefinition(
                     tool=sub_step['tool'],
                     intent=sub_step['description'],
-                    progress=result.progress,
+                    progress=outcome.progress,
                     reason="decomposed",
                     reason_details=f"Decomposed from: {step.intent}"
                 )
@@ -130,7 +129,7 @@ async def _execute_step(step: StepDefinition, tools: dict[str, ContextualTool], 
                 outcome.decomposed_actions.append(StepDefinition(
                     tool=step.tool,
                     intent=step.intent,
-                    progress=result.progress,
+                    progress=outcome.progress,
                     reason="rerun from decomposition",
                     reason_details=f"Rerun after decomposition of: {step.intent}. Decomposed steps: {(', '.join([s['description'] for s in result.steps]) if result.steps else 'None')}"
                 ))
@@ -146,6 +145,7 @@ async def _execute_step(step: StepDefinition, tools: dict[str, ContextualTool], 
     except Exception as e:
         outcome.status = StepStatus.FAILED
         outcome.error_message = str(e)
+        logging.warning(f"Error executing step [{step.intent}] with tool [{step.tool}]: {e}", exc_info=True)
 
     outcome.completed_at = datetime.now()
     return outcome

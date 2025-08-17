@@ -254,6 +254,7 @@ class ResourceWriteTool(LLMToolMixin, ContextualTool):
             return self.error("No generated proposals available.")
 
         await runtime.message(f"Generated {len(proposals)} proposals based on current beliefs and context.")
+        await runtime.debug(f"Proposals: {proposals}")
         sorted_proposals = await self.sort_proposals([p.content for p in proposals])
         await runtime.message("Finished sorting proposals.")
 
