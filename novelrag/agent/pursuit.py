@@ -74,6 +74,8 @@ class GoalPursuit:
             if not outcome:
                 await channel.error(f"The plan is not ready to execute the next step.")
                 return None
+            await channel.info(f"Executed step: {outcome.action.intent} with status {outcome.status.value}")
+            await channel.info(f"Step results: {outcome.results}")
 
             new_steps = await planner.adapt_plan(
                 believes=self.initial_believes,
@@ -81,7 +83,7 @@ class GoalPursuit:
                 last_step=outcome,
                 original_plan=self.plan
             )
-            await channel.info(f"Rescheduled steps: {[step.intent for step in new_steps]}")
+            await channel.info(f"New steps: {[step.intent for step in new_steps]}")
 
             # Update the plan with new steps
             executed_steps = self.plan.executed_steps + [outcome]

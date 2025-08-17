@@ -189,7 +189,8 @@ class ExecutionPlan:
 
         # Retrieve context for this specific step using PursuitContext
         step_context = await context.retrieve_context(next_action)
-        await channel.info(f"Retrieved context for step {next_action.step_id}: {step_context}")
+        await channel.info(f"Retrieve {len(step_context)} context for step [{next_action.intent}]")
+        await channel.debug(f"Retrieved context for step [{next_action.intent}]: {step_context}")
         # Execute the step with the retrieved context
         outcome = await _execute_step(next_action, tools, believes, step_context, channel, fallback_tool)
 
