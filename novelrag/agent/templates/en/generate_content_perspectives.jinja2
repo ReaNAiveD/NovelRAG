@@ -8,35 +8,38 @@ You need to create {{ num_perspectives }} diverse perspectives that:
 - **Are Contextually Aware**: Consider the provided context and current story beliefs
 - **Avoid Overlap**: Each perspective should offer a genuinely different approach
 - **Provide Clear Direction**: Give specific, actionable guidance (10-20 words each)
-- **Maintain Feasibility**: Ensure each perspective can realistically be executed
+- **Maximize Creativity**: Explore unconventional angles, fresh approaches, and innovative storytelling methods
+- **Pack Information**: Use concise phrases that convey maximum creative direction
 - **Respect Constraints**: Stay within the boundaries of the story context
 
 ## Perspective Quality Guidelines
 
-### Specificity Requirements
-- **Detailed Instructions**: Move beyond generic labels to specific creative directions
-- **Actionable Guidance**: Each perspective should clearly indicate what to focus on
-- **Context Integration**: Incorporate relevant story elements, characters, or situations
-- **Creative Differentiation**: Each perspective should suggest a different creative approach
+### Creative Innovation Requirements
+- **Break Conventions**: Challenge typical storytelling approaches with fresh perspectives
+- **Unique Angles**: Find unexpected entry points into the scene or character development
+- **Creative Techniques**: Suggest innovative narrative methods, unusual viewpoints, or artistic approaches
+- **Fresh Elements**: Introduce new story dimensions mentioned in context but unexplored
 
-### Examples of Good vs. Poor Perspectives
+### Information Density Guidelines
+- **Keyword-Rich**: Pack multiple creative elements into concise phrases (not complete sentences)
+- **Multi-Layered**: Include technique + focus + emotional tone + specific detail when possible
+- **Actionable Specifics**: Combine what to do with how to do it creatively
 
-**Poor (too generic):**
-- "Character-driven approach"
-- "Focus on dialogue"
-- "Add tension"
+### Examples of Enhanced Creative Perspectives
 
-**Good (specific and actionable):**
-- "Build romantic tension through meaningful glances and hesitant touches between protagonists"
-- "Reveal character backstory through defensive reactions to seemingly innocent questions"
-- "Create suspense by having characters notice small details that hint at hidden dangers"
+- "Unreliable narrator misremembers key details, revealing character psychology through memory gaps"
+- "Sensory overload: taste/texture descriptions mirror protagonist's emotional overwhelm during confrontation"
+- "Parallel timeline structure: past trauma echoes present choices through fragmented flashbacks"
+- "Silent communication: meaningful glances, micro-expressions, body language replace direct dialogue"
+- "Environmental storytelling: room details, weather, objects reflect internal character states"
 
-### Diversity Strategies
-- **Emotional Angles**: Different emotional tones (tension, humor, melancholy, hope)
-- **Character Focus**: Spotlight different characters or relationships
-- **Narrative Techniques**: Vary pacing, perspective, or storytelling methods
-- **Story Elements**: Emphasize different aspects (dialogue, action, description, internal thoughts)
-- **Thematic Approaches**: Explore different themes or story meanings
+### Creative Diversity Strategies
+- **Narrative Innovation**: Stream-of-consciousness, fragmented time, multiple POVs, unreliable narration
+- **Sensory Focus**: Synesthesia, sensory memory triggers, unusual sensory combinations
+- **Structural Experiments**: Non-linear progression, parallel scenes, symbolic frameworks
+- **Character Psychology**: Subconscious motivations, defense mechanisms, hidden desires revealed through actions
+- **Atmospheric Techniques**: Mood through setting, symbolic weather, meaningful objects
+- **Dialogue Innovation**: Subtext-heavy conversations, cultural language patterns, generational speech differences
 
 ## Context Analysis
 
@@ -63,13 +66,16 @@ You need to create {{ num_perspectives }} diverse perspectives that:
 4. **Validate Feasibility**: Confirm each perspective can be reasonably executed
 5. **Check Relevance**: Ensure all perspectives address the step requirements
 
-## Response Format
+## Response Format Requirements
 
-Generate exactly {{ num_perspectives }} perspectives. Each perspective should be:
-- **Concise**: 10-20 words that provide clear creative direction
-- **Specific**: Detailed enough to guide distinct content creation
-- **Relevant**: Directly applicable to the current step and context
-- **Feasible**: Realistic given the story constraints
+Generate exactly {{ num_perspectives }} perspectives. Each perspective must be:
+- **Ultra-Concise**: 10-20 words maximum, phrase-style (not complete sentences)
+- **Creative-Forward**: Prioritize innovative, unexpected approaches over conventional ones
+- **Information-Dense**: Pack multiple creative elements (technique + focus + detail)
+- **Distinctly Different**: Each perspective should explore completely different creative territory
+- **Context-Integrated**: Weave in specific story elements, characters, or situations from provided context
+
+**Creativity Priority**: Generate the most innovative, unexpected perspectives possible while staying relevant to the step. Avoid predictable or conventional approaches.
 
 Return your response as a JSON object with this exact structure:
 
@@ -78,13 +84,13 @@ Return your response as a JSON object with this exact structure:
   "perspectives": [
     {
       "id": "perspective_1",
-      "description": "Specific 10-20 word instruction for this creative approach",
-      "rationale": "Brief explanation of why this perspective is valuable for the current step"
+      "description": "Creative technique + specific focus + unique angle (10-20 words, phrase-style)",
+      "rationale": "Why this creative approach uniquely serves the current step"
     },
     {
       "id": "perspective_2",
-      "description": "Different specific 10-20 word instruction for this creative approach",
-      "rationale": "Brief explanation of why this perspective is valuable for the current step"
+      "description": "Different innovative approach + story element + creative method (10-20 words)",
+      "rationale": "How this perspective offers fresh creative value"
     }
   ]
 }
@@ -92,12 +98,11 @@ Return your response as a JSON object with this exact structure:
 
 ## Quality Checklist
 
-Before finalizing your perspectives, verify:
-- [ ] Each perspective is 10-20 words and provides specific direction
-- [ ] No two perspectives overlap significantly in their approach
-- [ ] All perspectives are relevant to the step description
-- [ ] Each perspective is feasible given the story context
-- [ ] The perspectives collectively offer diverse creative approaches
-- [ ] Each rationale clearly explains the perspective's value
-
-Generate the perspectives now.
+Before finalizing, verify each perspective:
+- [ ] Uses 10-20 words in concise phrase format (not complete sentences)
+- [ ] Suggests genuinely creative, unconventional approach
+- [ ] Packs maximum information density (technique + focus + specifics)
+- [ ] Explores completely different creative territory from other perspectives
+- [ ] Integrates story context elements creatively
+- [ ] Prioritizes innovation over conventional storytelling
+- [ ] Provides clear creative direction despite brevity
