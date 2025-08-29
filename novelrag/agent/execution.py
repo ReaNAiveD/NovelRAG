@@ -1,3 +1,4 @@
+import json
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -13,10 +14,11 @@ logger = logging.getLogger(__name__)
 
 
 class ExecutionToolRuntime(ToolRuntime):
-    def __init__(self, channel: AgentChannel | None = None, backlog: list[str] | None = None, progress: dict[str, list[str]] | None = None):
+    def __init__(self, channel: AgentChannel | None = None):
         self.channel = channel
-        self._backlog = backlog
-        self._progress = progress
+        self._backlog: list[str] = []
+        self._progress: dict[str, list[str]] = {}
+        self._triggered_actions: list[dict[str, str]] = []
 
     async def debug(self, content: str):
         if self.channel:
@@ -54,29 +56,24 @@ class ExecutionToolRuntime(ToolRuntime):
         else:
             raise RuntimeError("User input required but no channel provided")
 
-    async def progress(self, key: str, value: Any, description: str | None = None):
-        if self._progress is not None:
-            if key not in self._progress:
-                self._progress[key] = []
-            self._progress[key].append(value)
+    async def progress(self, key: str, value: str, description: str | None = None):
+        if key not in self._progress:
+            self._progress[key] = []
+        self._progress[key].append(value)
 
-    async def backlog(self, content: str, priority: str | None = None):
-        if self._backlog is not None:
-            self._backlog.append(content)
+    async def trigger_action(self, action: dict[str, str]):
+        self._triggered_actions.append(action)
+
+    async def backlog(self, content: dict, priority: str | None = None):
+        self._backlog.append(json.dumps(content))
 
 
 # Execute step function - works directly with StepDefinition
-async def _execute_step(step: StepDefinition, tools: dict[str, ContextualTool], believes: list[str] | None = None,
-                        context: list[str] | None = None, channel: AgentChannel | None = None,
+async def _execute_step(step: StepDefinition, tools: dict[str, ContextualTool], believes: list[str],
+                        context: list[str], channel: AgentChannel | None = None,
                         fallback_tool: LLMLogicalOperationTool | None = None) -> StepOutcome:
     """Execute the action and return its outcome."""
     start_time = datetime.now()
-    outcome = StepOutcome(
-        action=step,
-        status=StepStatus.SUCCESS,
-        started_at=start_time
-    )
-
     # Get the tool, use fallback if tool is None or not found
     tool = None
     if step.tool and step.tool in tools:
@@ -87,24 +84,26 @@ async def _execute_step(step: StepDefinition, tools: dict[str, ContextualTool], 
             if channel:
                 await channel.debug(f"Using LLMLogicalOperationTool for step with tool='{step.tool}' - performing logical operation: {step.intent}")
         else:
-            outcome.status = StepStatus.FAILED
-            outcome.error_message = f"Tool {step.tool} not found and no fallback tool available."
-            outcome.completed_at = datetime.now()
-            return outcome
+            return StepOutcome(
+                action=step,
+                status=StepStatus.FAILED,
+                started_at=start_time,
+                error_message=f"Tool {step.tool} not found and no fallback tool available.",
+                completed_at=datetime.now()
+            )
 
     if not tool:
-        outcome.status = StepStatus.FAILED
-        outcome.error_message = f"Tool {step.tool} not found."
-        outcome.completed_at = datetime.now()
-        return outcome
+        return StepOutcome(
+            action=step,
+            status=StepStatus.FAILED,
+            started_at=start_time,
+            error_message=f"Tool {step.tool} not found.",
+            completed_at=datetime.now()
+        )
 
     try:
         # Initialize tool call
-        runtime = ExecutionToolRuntime(
-            channel=channel,
-            backlog=outcome.backlog_items,
-            progress=outcome.progress
-        )
+        runtime = ExecutionToolRuntime(channel=channel)
         result = await tool.call(
             runtime=runtime,
             believes=believes,
@@ -115,40 +114,67 @@ async def _execute_step(step: StepDefinition, tools: dict[str, ContextualTool], 
 
         if isinstance(result, ToolDecomposition):
             # Handle tool decomposition into sub-actions
-            outcome.status = StepStatus.DECOMPOSED
-            for sub_step in result.steps:
-                sub_action = StepDefinition(
-                    tool=sub_step['tool'],
-                    intent=sub_step['description'],
-                    progress=outcome.progress,
-                    reason="decomposed",
-                    reason_details=f"Decomposed from: {step.intent}"
-                )
-                outcome.decomposed_actions.append(sub_action)
-            if result.rerun:
-                outcome.decomposed_actions.append(StepDefinition(
-                    tool=step.tool,
-                    intent=step.intent,
-                    progress=outcome.progress,
-                    reason="rerun from decomposition",
-                    reason_details=f"Rerun after decomposition of: {step.intent}. Decomposed steps: {(', '.join([s['description'] for s in result.steps]) if result.steps else 'None')}"
-                ))
+            # decomposed_actions = []
+            # for sub_step in result.steps:
+            #     sub_action = StepDefinition(
+            #         tool=sub_step['tool'],
+            #         intent=sub_step['description'],
+            #         reason="decomposed",
+            #         reason_details=f"Decomposed from: {step.intent}"
+            #     )
+            #     decomposed_actions.append(sub_action)
+            # if result.rerun:
+            #     decomposed_actions.append(StepDefinition(
+            #         tool=step.tool,
+            #         intent=step.intent,
+            #         progress=runtime._progress,
+            #         reason="rerun from decomposition",
+            #         reason_details=f"Rerun after decomposition of: {step.intent}. Decomposed steps: {(', '.join([s['description'] for s in result.steps]) if result.steps else 'None')}"
+            #     ))
+            return StepOutcome(
+                action=step,
+                status=StepStatus.DECOMPOSED,
+                started_at=start_time,
+                completed_at=datetime.now(),
+                decomposed_actions=result.steps,
+                rerun=result.rerun,
+                triggered_actions=runtime._triggered_actions,
+                backlog_items=runtime._backlog,
+                progress=runtime._progress,
+            )
         elif isinstance(result, ToolResult):
-            # Handle tool result
-            outcome.status = StepStatus.SUCCESS
-            outcome.results.append(result.result)
+            return StepOutcome(
+                action=step,
+                status=StepStatus.SUCCESS,
+                results=[result.result],
+                started_at=start_time,
+                completed_at=datetime.now(),
+                triggered_actions=runtime._triggered_actions,
+                backlog_items=runtime._backlog,
+                progress=runtime._progress,
+            )
         elif isinstance(result, ToolError):
-            outcome.status = StepStatus.FAILED
-            outcome.error_message = result.error_message
+            return StepOutcome(
+                action=step,
+                status=StepStatus.FAILED,
+                error_message=result.error_message,
+                started_at=start_time,
+                completed_at=datetime.now(),
+                triggered_actions=runtime._triggered_actions,
+                backlog_items=runtime._backlog,
+                progress=runtime._progress,
+            )
         else:
             raise ValueError(f"Unexpected tool output type: {type(result)}")
     except Exception as e:
-        outcome.status = StepStatus.FAILED
-        outcome.error_message = str(e)
         logging.warning(f"Error executing step [{step.intent}] with tool [{step.tool}]: {e}", exc_info=True)
-
-    outcome.completed_at = datetime.now()
-    return outcome
+        return StepOutcome(
+            action=step,
+            status=StepStatus.FAILED,
+            error_message=str(e),
+            started_at=start_time,
+            completed_at=datetime.now(),
+        )
 
 
 @dataclass(frozen=True)

@@ -4,7 +4,7 @@ import logging
 from .execution import ExecutionPlan
 from .context import PursuitContext
 from .steps import StepDefinition, StepOutcome, StepStatus
-from .tool import ContextualTool, LLMToolMixin
+from .tool import ContextualTool, LLMToolMixin, SchematicToolAdapter
 from novelrag.llm.types import ChatLLM
 from novelrag.template import TemplateEnvironment
 
@@ -30,12 +30,9 @@ class PursuitPlanner(LLMToolMixin):
         # Build tool info including input schemas for SchematicTools
         tool_info = {}
         for name, tool in tools.items():
-            info = {"description": tool.description}
-            # Check if tool has input_schema (for SchematicToolAdapter or SchematicTool)
-            if hasattr(tool, 'inner') and hasattr(tool.inner, 'input_schema'):
+            info: dict[str, str | dict | None] = {"description": tool.description}
+            if isinstance(tool, SchematicToolAdapter):
                 info["input_schema"] = tool.inner.input_schema
-            elif hasattr(tool, 'input_schema'):
-                info["input_schema"] = tool.input_schema
             tool_info[name] = info
 
         response = await self.call_template(
@@ -89,10 +86,10 @@ class PursuitPlanner(LLMToolMixin):
                 return await self._adapt_plan_from_decomposition(last_step, original_plan, believes, tools, planning_context)
             else:
                 logging.warning(f"Unhandled step status: {last_step.status}. Using simple fallback.")
-                return self._simple_fallback(last_step, original_plan)
+                return original_plan.pending_steps[1:]
         except Exception as e:
-            logging.error(f"Error in adapt_plan: {e}. Using simple fallback.")
-            return self._simple_fallback(last_step, original_plan)
+            logging.error(f"Error in adapt_plan: {e}. Using fallback.")
+            return original_plan.pending_steps[1:]
 
     async def _adapt_plan_from_success(self, last_step: StepOutcome, original_plan: ExecutionPlan,
                                      believes: list[str], tools: dict[str, ContextualTool],
@@ -106,14 +103,9 @@ class PursuitPlanner(LLMToolMixin):
         # Get triggered steps to go first
         priority_steps = []
         if last_step.triggered_actions:
-            for step in last_step.triggered_actions:
-                priority_steps.append(StepDefinition(
-                    intent=step.intent,
-                    tool=step.tool,
-                    progress=step.progress,
-                    reason="triggered",
-                    reason_details=f"Triggered by successful completion of: {last_step.action.intent}"
-                ))
+            priority_steps = await self._convert_triggered_actions_to_steps(
+                last_step, tools, believes, planning_context
+            )
 
         # Create new future plan
         new_future_plan = await self._create_future_plan(
@@ -126,6 +118,112 @@ class PursuitPlanner(LLMToolMixin):
         )
 
         return priority_steps + merged_plan
+
+    async def _convert_triggered_actions_to_steps(
+        self,
+        last_step: StepOutcome,
+        tools: dict[str, ContextualTool],
+        believes: list[str],
+        planning_context: list[str]
+    ) -> list[StepDefinition]:
+        """
+        Convert triggered actions from dict format to StepDefinition objects.
+        
+        Args:
+            last_step: The step outcome containing triggered actions
+            tools: Available tools for mapping
+            believes: Current beliefs of the agent
+            planning_context: Relevant historical context
+            
+        Returns:
+            List of StepDefinition objects converted from triggered actions
+        """
+        if not last_step.triggered_actions:
+            return []
+
+        # Build tool info including input schemas for SchematicTools
+        tool_info = {}
+        for name, tool in tools.items():
+            info: dict[str, str | dict | None] = {"description": tool.description}
+            if isinstance(tool, SchematicToolAdapter):
+                info["input_schema"] = tool.inner.input_schema
+            tool_info[name] = info
+
+        response = await self.call_template(
+            "convert_triggered_actions.jinja2",
+            json_format=True,
+            triggered_actions=last_step.triggered_actions,
+            triggering_step_intent=last_step.action.intent,
+            tools=tool_info,
+            believes=believes,
+            planning_context=planning_context
+        )
+
+        result = json.loads(response)
+        triggered_steps = []
+        
+        for step_data in result.get("steps", []):
+            triggered_steps.append(StepDefinition(
+                intent=step_data["intent"],
+                tool=step_data["tool"],
+                reason="triggered",
+                reason_details=f"Triggered by successful completion of: {last_step.action.intent}"
+            ))
+
+        return triggered_steps
+
+    async def _convert_decomposed_actions_to_steps(
+        self,
+        last_step: StepOutcome,
+        tools: dict[str, ContextualTool],
+        believes: list[str],
+        planning_context: list[str]
+    ) -> list[StepDefinition]:
+        """
+        Convert decomposed actions from dict format to StepDefinition objects.
+        
+        Args:
+            last_step: The step outcome containing decomposed actions
+            tools: Available tools for mapping
+            believes: Current beliefs of the agent
+            planning_context: Relevant historical context
+            
+        Returns:
+            List of StepDefinition objects converted from decomposed actions
+        """
+        if not last_step.decomposed_actions:
+            return []
+
+        # Build tool info including input schemas for SchematicTools
+        tool_info = {}
+        for name, tool in tools.items():
+            info: dict[str, str | dict | None] = {"description": tool.description}
+            if isinstance(tool, SchematicToolAdapter):
+                info["input_schema"] = tool.inner.input_schema
+            tool_info[name] = info
+
+        response = await self.call_template(
+            "convert_decomposed_actions.jinja2",
+            json_format=True,
+            decomposed_actions=last_step.decomposed_actions,
+            original_step_intent=last_step.action.intent,
+            tools=tool_info,
+            believes=believes,
+            planning_context=planning_context
+        )
+
+        result = json.loads(response)
+        decomposed_steps = []
+        
+        for step_data in result.get("steps", []):
+            decomposed_steps.append(StepDefinition(
+                intent=step_data["intent"],
+                tool=step_data["tool"],
+                reason="decomposed",
+                reason_details=f"Decomposed from: {last_step.action.intent}"
+            ))
+
+        return decomposed_steps
 
     async def _adapt_plan_from_failure(self, last_step: StepOutcome, original_plan: ExecutionPlan,
                                      believes: list[str], tools: dict[str, ContextualTool],
@@ -181,11 +279,13 @@ class PursuitPlanner(LLMToolMixin):
         3. Compare and merge with original pending steps
         """
         # Build priority steps (only decomposed steps)
-        priority_steps = []
+        priority_steps: list[StepDefinition] = []
 
         # Add decomposed steps
         if last_step.decomposed_actions:
-            priority_steps.extend(last_step.decomposed_actions)
+            priority_steps = await self._convert_decomposed_actions_to_steps(
+                last_step, tools, believes, planning_context
+            )
 
         # Create new future plan
         new_future_plan = await self._create_future_plan(
@@ -223,12 +323,9 @@ class PursuitPlanner(LLMToolMixin):
         # Build tool info including input schemas for SchematicTools
         tool_info = {}
         for name, tool in tools.items():
-            info = {"description": tool.description}
-            # Check if tool has input_schema (for SchematicToolAdapter or SchematicTool)
-            if hasattr(tool, 'inner') and hasattr(tool.inner, 'input_schema'):
+            info: dict[str, str | dict | None] = {"description": tool.description}
+            if isinstance(tool, SchematicToolAdapter):
                 info["input_schema"] = tool.inner.input_schema
-            elif hasattr(tool, 'input_schema'):
-                info["input_schema"] = tool.input_schema
             tool_info[name] = info
 
         response = await self.call_template(
@@ -335,12 +432,9 @@ class PursuitPlanner(LLMToolMixin):
         # Build tool info including input schemas for SchematicTools
         tool_info = {}
         for name, tool in tools.items():
-            info = {"description": tool.description}
-            # Check if tool has input_schema (for SchematicToolAdapter or SchematicTool)
-            if hasattr(tool, 'inner') and hasattr(tool.inner, 'input_schema'):
+            info: dict[str, str | dict | None] = {"description": tool.description}
+            if isinstance(tool, SchematicToolAdapter):
                 info["input_schema"] = tool.inner.input_schema
-            elif hasattr(tool, 'input_schema'):
-                info["input_schema"] = tool.input_schema
             tool_info[name] = info
 
         response = await self.call_template(
@@ -374,50 +468,3 @@ class PursuitPlanner(LLMToolMixin):
         logger.info(f"Recovery recommendation: {result.get('recommendation', 'No recommendation provided')}")
 
         return result
-
-    def _simple_fallback(self, last_step: StepOutcome, original_plan: ExecutionPlan) -> list[StepDefinition]:
-        """
-        Simple fallback logic when LLM-based planning fails.
-
-        Args:
-            last_step: The last executed step
-            original_plan: The original execution plan
-
-        Returns:
-            List of steps using simple logic based on step status
-        """
-        if last_step.status == StepStatus.SUCCESS:
-            # Add triggered steps if any, then remaining steps
-            triggered_steps = []
-            if last_step.triggered_actions:
-                for step in last_step.triggered_actions:
-                    triggered_steps.append(StepDefinition(
-                        intent=step.intent,
-                        tool=step.tool,
-                        progress=step.progress,
-                        reason="triggered",
-                        reason_details=f"Triggered by: {last_step.action.intent}"
-                    ))
-            return triggered_steps + original_plan.pending_steps[1:]
-
-        elif last_step.status == StepStatus.DECOMPOSED:
-            # Add decomposed steps then remaining steps
-            if last_step.decomposed_actions:
-                return last_step.decomposed_actions + original_plan.pending_steps[1:]
-            else:
-                return original_plan.pending_steps[1:]
-
-        elif last_step.status == StepStatus.FAILED:
-            # Simple rerun then remaining steps
-            rerun_step = StepDefinition(
-                intent=last_step.action.intent,
-                tool=last_step.action.tool,
-                progress=last_step.action.progress,
-                reason="rerun",
-                reason_details="Simple rerun after failure"
-            )
-            return [rerun_step] + original_plan.pending_steps[1:]
-
-        else:
-            # Unknown status, just return remaining steps
-            return original_plan.pending_steps[1:]

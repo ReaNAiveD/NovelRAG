@@ -147,6 +147,7 @@ class ResourceFetchTool(SchematicTool):
             return self.result(json.dumps(resource.context_dict, ensure_ascii=False))
         elif isinstance(resource, list):
             return self.result(json.dumps([item.aspect_dict for item in resource], ensure_ascii=False))
+        return self.error(f"Unexpected resource type for URI {uri}. Please check the URI and try again.")
 
 
 class ResourceSearchTool(SchematicTool):
@@ -218,9 +219,11 @@ class ResourceSearchTool(SchematicTool):
 class ResourceWriteTool(LLMToolMixin, ContextualTool):
     """Tool for editing existing content in the resource repository."""
     
-    def __init__(self, repo: ResourceRepository, template_env: TemplateEnvironment, chat_llm: ChatLLM):
+    def __init__(self, repo: ResourceRepository, template_env: TemplateEnvironment, chat_llm: ChatLLM,
+                 compatibility_threshold: float = 0.7):
         self.content_proposers: list[ContentProposer] = [LLMContentProposer(template_env=template_env, chat_llm=chat_llm)]
         self.repo = repo
+        self.compatibility_threshold = compatibility_threshold
         super().__init__(template_env=template_env, chat_llm=chat_llm)
 
     @property
@@ -239,64 +242,53 @@ class ResourceWriteTool(LLMToolMixin, ContextualTool):
 
     async def call(self, runtime: ToolRuntime, believes: list[str], step: StepDefinition, context: list[str], tools: dict[str, str] | None = None) -> ToolOutput:
         """Edit existing content and return the updated content."""
-        if believes is None:
-            believes = []
         if step.intent is None or not step.intent:
-            await runtime.error("No step description provided. Please provide a description of the current step.")
             return self.error("No step description provided. Please provide a description of the current step.")
-        if context is None:
-            context = []
 
-        related_context = await self.context_filter(step.intent, context)
-        proposal_sets = [await proposer.propose(believes, step.intent, related_context) for proposer in self.content_proposers]
+        if cached_aspect := step.progress.get("aspect"):
+            await runtime.message(f"resuming from cached proposal selection: {cached_aspect}")
+            aspect = cached_aspect[0]
+        else:
+            aspect = await self._determine_target_aspect(step, context)
+        if not aspect:
+            return self.error("Could not determine target aspect for editing. Please provide a valid aspect name in the step definition.")
+        await runtime.progress("aspect", aspect, f"Determined target aspect for editing: {aspect}")
+        if self.repo.get_aspect(aspect) is None:
+            await runtime.warning("The determined aspect does not exist in the repository. Decompose the step to create it first.")
+            return self.decomposition(
+                steps=[{
+                    'description': f"Create the missing aspect '{aspect}' required for this editing operation.",
+                    'context': f"The step '{step.intent}' requires aspect '{aspect}' which does not exist in the repository."
+                }],
+                rerun=True
+            )
+
+        proposal_sets = [await proposer.propose(believes, step.intent, context) for proposer in self.content_proposers]
         proposals = [item for sublist in proposal_sets for item in sublist]
         if not proposals:
-            await runtime.error("No generated proposals available.")
             return self.error("No generated proposals available.")
 
-        await runtime.message(f"Generated {len(proposals)} proposals based on current beliefs and context.")
+        await runtime.message(f"Generated {len(proposals)} proposals based on current believes and context.")
         await runtime.debug(f"Proposals: {proposals}")
-        sorted_proposals = await self.sort_proposals([p.content for p in proposals])
+        sorted_proposals = await self._rank_proposals([p.content for p in proposals])
         await runtime.message("Finished sorting proposals.")
 
         if not sorted_proposals:
-            await runtime.error("No valid proposals after sort to edit.")
             return self.error("No valid proposals after sort to edit.")
 
         selected_proposal = await self.select_proposal(sorted_proposals)
         await runtime.message(f"Selected proposal: {selected_proposal}")
         await runtime.progress("proposal_selection", selected_proposal, "Selected proposal for editing.")
 
-        write_request = await self.discover_write_request(step.intent, selected_proposal, context)
-        if write_request:
-            # Build new steps for write requests using step decomposition
-            write_steps = []
-            for request in write_request:
-                if ":" in request:
-                    aspect, description = request.split(":", 1)
-                    write_steps.append({
-                        'tool': aspect.strip(),
-                        'description': description.strip()
-                    })
-
-            if write_steps:
-                return self.decomposition(
-                    steps=write_steps,
-                    rationale=f"Write requests discovered for proposal: {selected_proposal[:100]}... Original resource operation will be rerun after dependencies.",
-                    rerun=True
-                )
-
         await runtime.debug("No new write request generated from the selected proposal.")
         operation = await self.build_operation(selected_proposal, step.intent, context)
         if not operation:
-            await runtime.error("Failed to build operation from the selected proposal.")
             return self.error("Failed to build operation from the selected proposal.")
 
         await runtime.debug("Built operation successfully. Start Validation.")
         try:
             op = validate_op_json(operation)
         except pydantic.ValidationError as e:
-            await runtime.error("Operation validation failed: " + str(e))
             return self.error("Operation validation failed: " + str(e))
 
         await runtime.message("Operation validated successfully. Preparing to apply.")
@@ -306,42 +298,57 @@ class ResourceWriteTool(LLMToolMixin, ContextualTool):
         undo = await self.repo.apply(op)
         await runtime.message(f"Applied operation. Undo operation created: {undo}")
         # TODO: Push the undo operation to the undo queue
-        
-        updates = await self.discover_chain_updates(step.intent, operation)
-        if updates:
-            await runtime.message(f"Discovered {len(updates)} chain updates.")
-            # Use step decomposition to create chain update steps
-            chain_steps = []
-            for update in updates:
-                if ":" in update:
-                    aspect, description = update.split(":", 1)
-                    chain_steps.append({
-                        'tool': aspect.strip(),
-                        'description': description.strip()
-                    })
-            if chain_steps:
-                return self.decomposition(
-                    steps=chain_steps,
-                    rationale=f"Chain updates discovered from operation: {operation[:100]}..."
-                )
 
-        backlog = await self.discover_backlog(step.intent, operation)
+        # Discover required updates that need to be applied as triggered actions
+        required_updates = await self._discover_required_updates(step.intent, operation, json.dumps(undo), context)
+
+        # Process perspective updates first (higher priority)
+        if required_updates.get("perspective_updates"):
+            await runtime.message(f"Discovered {len(required_updates['perspective_updates'])} perspective updates.")
+            for update in required_updates["perspective_updates"]:
+                await runtime.trigger_action(update)
+                await runtime.debug(f"Perspective update: {update['reason']} - {update['content']}")
+
+        # Process relation updates second
+        if required_updates.get("relation_updates"):
+            await runtime.message(f"Discovered {len(required_updates['relation_updates'])} relation updates.")
+            for update in required_updates["relation_updates"]:
+                await runtime.trigger_action(update)
+                await runtime.debug(f"Relation update: {update['reason']} - {update['content']}")
+
+        # Discover future work items for the backlog
+        backlog = await self._discover_backlog(step.intent, operation, json.dumps(undo), context)
         if backlog:
             await runtime.message(f"Discovered {len(backlog)} backlog items.")
             for item in backlog:
-                await runtime.backlog(content=item, priority="normal")
+                priority = item.get("priority", "normal")
+                await runtime.backlog(content=item, priority=priority)
 
         # Return the operation JSON that was applied as the result
         return self.result(json.dumps(operation))
 
-    async def context_filter(self, step_description: str, context: list[str]) -> list[str]:
+    async def _context_filter(self, step_description: str, context: list[str]) -> list[str]:
         return (await self.call_template(
             'context_filter.jinja2',
             step_description=step_description,
             context=context,
         )).splitlines()
-    
-    async def sort_proposals(self, proposals: list[str]) -> list[str]:
+
+    async def _determine_target_aspect(self, step: StepDefinition, context: list[str]) -> str:
+        aspects = await self.repo.all_aspects()
+
+        response = await self.call_template(
+            'determine_suitable_aspect.jinja2',
+            json_format=True,
+            step_intent=step.intent,
+            context=context,
+            aspects=[aspect.context_dict for aspect in aspects]
+        )
+
+        result = json.loads(response)
+        return result.get('selected_aspect')
+
+    async def _rank_proposals(self, proposals: list[str]) -> list[str]:
         response = await self.call_template(
             'sort_edit_proposals.jinja2',
             proposals=proposals,
@@ -385,32 +392,6 @@ class ResourceWriteTool(LLMToolMixin, ContextualTool):
         selected_proposal = random.choices(proposals, weights=weights, k=1)[0]
         return selected_proposal
 
-    async def discover_write_request(self, step_description: str, proposal: str, context: list[str]) -> list[str]:
-        return json.loads(await self.call_template(
-            'discover_write_request.jinja2',
-            step_description=step_description,
-            proposal=proposal,
-            context=context,
-            json_format=True,
-        ))["write_requests"]
-    
-    async def ensure_not_in_context(self, proposal: str, dependency: str, context: list[str]) -> bool:
-        return (await self.call_template(
-            'ensure_not_in_context.jinja2',
-            proposal=proposal,
-            dependency=dependency,
-            context=context,
-        )).lower() in ['yes', 'true', '1']
-    
-    async def build_new_steps(self, step_description: str, proposal: str, context: list[str], dependencies: list[str]) -> list[str]:
-        return (await self.call_template(
-            'build_new_steps.jinja2',
-            step_description=step_description,
-            proposal=proposal,
-            context=context,
-            dependencies=dependencies,
-        )).splitlines()
-    
     async def build_operation(self, proposal: str, step_description: str, context: list[str]) -> str:
         return await self.call_template(
             'build_operation.jinja2',
@@ -418,7 +399,7 @@ class ResourceWriteTool(LLMToolMixin, ContextualTool):
             step_description=step_description,
             json_format=True
         )
-    
+
     async def rebuild_operation(self, proposal: str, step_description: str, incorrect_op: str) -> str:
         return await self.call_template(
             'rebuild_operation.jinja2',
@@ -427,20 +408,64 @@ class ResourceWriteTool(LLMToolMixin, ContextualTool):
             incorrect_op=incorrect_op,
             json_format=True
         )
-    
-    async def discover_chain_updates(self, step_description: str, operation: str) -> list[str]:
-        return (await self.call_template(
-            'discover_chain_updates.jinja2',
+
+    async def _discover_required_updates(self, step_description: str, operation: str, undo_operation: str, context: list[str]) -> dict[str, list[dict[str, str]]]:
+        """Discover cascade content updates and relation updates that need to be applied immediately."""
+        response = await self.call_template(
+            'discover_required_updates.jinja2',
             step_description=step_description,
             operation=operation,
-        )).splitlines()
+            undo_operation=undo_operation,
+            context=context,
+            json_format=True
+        )
+        return json.loads(response)
     
-    async def discover_backlog(self, step_description: str, operation: str) -> list[str]:
-        return (await self.call_template(
+    async def _discover_backlog(self, step_description: str, operation: str, undo_operation: str, context: list[str]) -> list[dict[str, Any]]:
+        """Discover backlog items including dependency items and other future work items."""
+        response = await self.call_template(
             'discover_backlog.jinja2',
             step_description=step_description,
             operation=operation,
-        )).splitlines()
+            undo_operation=undo_operation,
+            context=context,
+            json_format=True
+        )
+        return json.loads(response)
+
+    async def _find_aspect_creation_tool(self, aspect: str, step_intent: str, tools: dict[str, str]) -> dict[str, Any] | None:
+        """Find a suitable tool to create the missing aspect using LLM analysis."""
+        response = await self.call_template(
+            'find_aspect_creation_tool.jinja2',
+            json_format=True,
+            aspect=aspect,
+            step_intent=step_intent,
+            tools=tools
+        )
+
+        result = json.loads(response)
+        if result.get("found"):
+            return {
+                "tool_name": result.get("tool_name"),
+                "rationale": result.get("rationale", "Tool found for aspect creation")
+            }
+        return None
+
+    async def _parse_resource_dependencies(self, dependency: str, original_proposal: str) -> tuple[str, str]:
+        """Parse the dependency string to extract aspect and description."""
+        existing_aspects: list[ResourceAspect] = await self.repo.all_aspects()
+        aspects_dict = {aspect.name: aspect.context_dict for aspect in existing_aspects}
+
+        response = await self.call_template(
+            'parse_resource_dependencies.jinja2',
+            json_format=True,
+            dependency=dependency,
+            original_proposal=original_proposal,
+            aspects=aspects_dict
+        )
+
+        result = json.loads(response)
+        return result.get["aspect"], result.get("description", dependency)
 
 
 class ResourceRelationWriteTool(LLMToolMixin, SchematicTool):
@@ -451,13 +476,13 @@ class ResourceRelationWriteTool(LLMToolMixin, SchematicTool):
     @property
     def name(self) -> str:
         return self.__class__.__name__
-    
+
     @property
     def description(self) -> str:
         return 'This tool is used to write relations between resources in the repository. ' \
                 'It allows you to define relationships between resources, such as A do something with object B or A take part in event C. ' \
                 'The tool will generate a proposal for the relationship and apply it to the repository.'
-    
+
     @property
     def output_description(self) -> str | None:
         return 'Returns the updated resource with the new relationship applied.'
@@ -500,6 +525,9 @@ class ResourceRelationWriteTool(LLMToolMixin, SchematicTool):
         if isinstance(target_resource, list):
             await runtime.error(f"Target resource URI '{target_resource_uri}' points to multiple resources. Please specify a single resource.")
             return self.error(f"Target resource URI '{target_resource_uri}' points to multiple resources. Please specify a single resource.")
+        if not target_resource:
+            await runtime.error(f"Target resource URI '{target_resource_uri}' not found in the repository.")
+            return self.error(f"Target resource URI '{target_resource_uri}' not found in the repository.")
         if isinstance(source_resource, DirectiveElement):
             existing_relation = source_resource.relations.get(target_resource_uri)
             updated_relations = await self.get_updated_relations(

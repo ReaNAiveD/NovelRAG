@@ -83,7 +83,7 @@ class ToolRuntime(ABC):
         pass
 
     @abstractmethod
-    async def confirmation(self, prompt: str):
+    async def confirmation(self, prompt: str) -> bool:
         """Request an explicit yes/no confirmation from the user.
 
         Implementations should present the prompt and resolve to a truthy value to
@@ -93,7 +93,7 @@ class ToolRuntime(ABC):
         pass
 
     @abstractmethod
-    async def user_input(self, prompt: str):
+    async def user_input(self, prompt: str) -> str:
         """Prompt the user for free-form input and return it.
 
         Implementations should collect input via UI/CLI and return the entered
@@ -102,12 +102,12 @@ class ToolRuntime(ABC):
         pass
 
     @abstractmethod
-    async def progress(self, field: str, value: Any, description: str | None = None):
+    async def progress(self, key: str, value: str, description: str | None = None):
         """Record a progress update for the current step.
 
         Parameters:
-        - field: canonical progress key (e.g., 'downloaded_bytes')
-        - value: new value for this key (any JSON-serializable data is preferred)
+        - key: canonical progress key (e.g., 'downloaded_bytes')
+        - value: value for this key appended to the list
         - description: optional human-readable note
 
         Implementations should persist/emit the update and be non-blocking when
@@ -116,7 +116,19 @@ class ToolRuntime(ABC):
         pass
 
     @abstractmethod
-    async def backlog(self, content: Any, priority: str | None = None):
+    async def trigger_action(self, action: dict[str, str]):
+        """Trigger a new action to be executed after the current one.
+
+        Parameters:
+        - action: action definition dict
+
+        Implementations should enqueue the action for later execution in the same pursuit.
+        Async and should be awaited.
+        """
+        pass
+
+    @abstractmethod
+    async def backlog(self, content: dict, priority: str | None = None):
         """Add an item to the backlog for later processing.
 
         Parameters:
