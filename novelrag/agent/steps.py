@@ -35,8 +35,9 @@ class StepOutcome:
     error_message: str | None = None
 
     # Dynamic plan modifications
-    decomposed_actions: list[StepDefinition] = field(default_factory=list)  # From decomposition
-    triggered_actions: list[StepDefinition] = field(default_factory=list)  # From chain updates
+    decomposed_actions: list[dict[str, str]] = field(default_factory=list)  # From decomposition
+    rerun: bool = False  # Whether to rerun this action
+    triggered_actions: list[dict[str, str]] = field(default_factory=list)  # From chain updates
 
     # Discovered insights and future work
     discovered_insights: list[str] = field(default_factory=list)

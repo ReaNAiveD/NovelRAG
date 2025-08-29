@@ -1,254 +1,91 @@
-You are an expert at analyzing operations and identifying backlog tasks that need further development. Based on the provided operations and task description (as background context), you need to generate a JSON response containing a list of backlog items that require future attention.
+You are analyzing an operation that was just applied to a resource repository to identify backlog items for future processing.
 
-## Understanding Operations
-
-There are two types of operations you can receive:
-
-### 1. Property Operation
-Used to update properties of existing elements.
-- **target**: Must be "property"
-- **element_uri**: The URI of the element to update (format: /aspect/element_id, e.g., /role/role_a, /event/event_a/subevent_a)
-- **data**: A dictionary containing the property updates to apply to the element
-
-### 2. Element Operation
-Used to add, remove, or replace elements in lists (splice operations).
-- **target**: Must be "element"
-- **location**: Specifies where the operation occurs, can be:
-  - **Element Location**: 
-    - type: "element"
-    - element_uri: URI of the parent element (format: /aspect/element_id, e.g., /scene/scene_012)
-    - children_key: The key name of the children list in the parent element
-  - **Aspect Location**:
-    - type: "aspect"
-    - aspect: The aspect name where elements are stored
-- **start**: Start index for the splice operation (0-based)
-- **end**: End index for the splice operation (0-based, exclusive)
-- **data**: List of new elements to insert, or null to just remove elements
-
-## What are Backlog Tasks?
-
-Backlog tasks are items that were created or referenced in operations but contain minimal information and need further development. These typically arise when:
-
-- Elements are created as dependencies for other elements but only have basic placeholder information
-- Referenced characters, locations, or objects that need detailed development
-- Plot elements or scenes that are mentioned but not fully fleshed out
-- Relationships or connections that are established but need deeper exploration
-- Supporting elements that were created to serve immediate story needs but lack depth
-
-The goal is to identify these incomplete elements so they can be prioritized for future development sessions.
-
-## Response Format
-
-Your response must be a valid JSON object with the following structure:
-```json
-{
-  "backlog_tasks": ["task1","task2","task3"]
-}
-```
-
-**Important**: If all elements created or updated in the operations already contain sufficient detail and depth, you should return an empty list:
-```json
-{
-  "backlog_tasks": []
-}
-```
-
-For elements that need development, each item should contain one backlog task in the format:
-`[PRIORITY] resource_type: description - search_keywords`
-
-Where:
-- `PRIORITY` is HIGH, MEDIUM, or LOW
-- `resource_type` is the type of resource (character, location, scene, plot_element, etc.)
-- `description` is a brief description of what needs development
-- `search_keywords` are comma-separated keywords for finding the resource
-
-## Examples
-
-### Example 1: New characters created with minimal information
-
-**Operations**:
-```json
-[
-  {
-    "target": "element",
-    "location": {
-      "type": "element",
-      "element_uri": "/scene/scene_012",
-      "children_key": "characters"
-    },
-    "start": 2,
-    "end": 2,
-    "data": [
-      {
-        "id": "char_007",
-        "name": "Marcus",
-        "role": "bartender"
-      },
-      {
-        "id": "char_008",
-        "name": "Elena",
-        "role": "mysterious patron"
-      }
-    ]
-  },
-  {
-    "target": "property",
-    "element_uri": "/scene/scene_012",
-    "data": {
-      "title": "The Tavern Meeting",
-      "setting": "Old tavern - evening",
-      "description": "Detective meets informant while bartender and other patron observe"
-    }
-  }
-]
-```
-
-**Task Description**: Scene development - adding supporting characters to create atmosphere
-
-**Backlog Tasks Response**:
-```json
-{
-  "backlog_tasks": [
-    "[MEDIUM] character: Bartender Marcus needs full personality and background - Marcus, bartender, char_007, tavern",
-    "[HIGH] character: Mysterious patron Elena needs identity and plot connection - Elena, mysterious patron, char_008, tavern"
-  ]
-}
-```
-
-### Example 2: Location and plot elements need expansion
-
-**Operations**:
-```json
-[
-  {
-    "target": "property",
-    "element_uri": "/character/char_003",
-    "data": {
-      "current_location": "abandoned_warehouse_district",
-      "investigation_leads": [
-        "shipping_records_anomaly",
-        "witness_sighting_pier_7"
-      ]
-    }
-  },
-  {
-    "target": "element",
-    "location": {
-      "type": "aspect",
-      "aspect": "locations"
-    },
-    "start": 0,
-    "end": 0,
-    "data": [
-      {
-        "id": "abandoned_warehouse_district",
-        "name": "Warehouse District",
-        "type": "industrial_area"
-      },
-      {
-        "id": "pier_7",
-        "name": "Pier 7",
-        "type": "dock"
-      }
-    ]
-  }
-]
-```
-
-**Task Description**: Investigation progression - establishing new locations and leads for detective work
-
-**Backlog Tasks Response**:
-```json
-{
-  "backlog_tasks": [
-    "[HIGH] location: Warehouse district needs atmospheric and specific details - abandoned_warehouse_district, industrial_area, warehouse",
-    "[MEDIUM] location: Pier 7 dock needs development for future scenes - pier_7, dock, pier, waterfront",
-    "[HIGH] plot_element: Shipping records anomaly details are undefined - shipping_records_anomaly, investigation, records",
-    "[MEDIUM] plot_element: Witness sighting identity and details are undefined - witness_sighting_pier_7, witness, sighting"
- ]
-}
-```
-
-### Example 3: Well-developed elements require no backlog tasks
-
-**Operations**:
-```json
-[
-  {
-    "target": "property",
-    "element_uri": "/character/char_001",
-    "data": {
-      "current_emotional_state": "conflicted between duty and personal feelings",
-      "recent_discovery": "Found evidence that implicates her mentor in the conspiracy",
-      "internal_monologue": "How can I expose the truth without destroying everything I believed in?"
-    }
-  },
-  {
-    "target": "element",
-    "location": {
-      "type": "element",
-      "element_uri": "/scene/scene_008",
-      "children_key": "dialogue"
-    },
-    "start": 3,
-    "end": 3,
-    "data": [
-      {
-        "speaker": "Detective Sarah Chen",
-        "text": "I trusted you, Marcus. How could you let them use the precinct as a front?",
-        "emotion": "betrayed anger",
-        "subtext": "Desperately hoping he has an explanation"
-      }
-    ]
-  }
-]
-```
-
-**Task Description**: Character development - deepening protagonist's emotional conflict and adding confrontation dialogue
-
-**Backlog Tasks Response**:
-```json
-{
-  "backlog_tasks": []
-}
-```
+## Context
+You have access to the following information:
+- **Step Description**: {{ step_description }}
+- **Applied Operation**: {{ operation }}
+- **Undo Operation**: {{ undo_operation }}
+- **Context Information**: 
+{% for item in context %}
+  - {{ item }}
+{% endfor %}
 
 ## Your Task
+Analyze the **operation** and **undo operation** to identify backlog items - future work that should be completed in later pursuits. There are two main types of backlog items:
 
-Analyze the provided operations and task description to identify what backlog tasks are needed. Focus on:
+### 1. Dependency Items
+These are **new resources that don't have explicit URIs** in the current context but are needed to fully realize the implications of the operation. These resources either need to be found among existing resources or created as new ones.
 
-1. **Incomplete Elements**: Items created with minimal information that need fleshing out
-2. **Dependency Placeholders**: Elements created to support other elements but lacking depth
-3. **Referenced But Undefined**: Items mentioned or referenced but not fully developed
-4. **Supporting Cast**: Characters, locations, or objects that need more detail to be useful
-5. **Plot Threads**: Story elements or leads that are established but need expansion
+**Key Guidelines for Dependencies**:
+- Record general descriptions while preserving creative space
+- Include guidance for future agents to first search for existing compatible resources
+- Only suggest creating new resources if no suitable existing ones are found
+- Focus on resources that were mentioned, implied, or made necessary by the operation
 
-## Prioritization Guidelines
+**Examples**:
+- Operation creates a new character mention: "the mysterious stranger John met at the tavern" → Search for existing mysterious characters or strangers
+- Operation references a location not fully detailed: "the ancient library where the tome was found" → Search for existing ancient libraries
+- Operation implies relationships: "the weapon master who trained Sarah in sword fighting" → Search for existing weapon masters or trainers related to `/character/sarah`
+- Operation suggests background events: "the war that displaced the villagers" → Search for existing war events or conflicts
 
-- **High Priority**: Elements that directly impact main plot or key character development
-- **Medium Priority**: Supporting elements that enhance story depth and believability  
-- **Low Priority**: Background elements that add atmosphere but aren't immediately critical
+### 2. Other Backlog Items
+These are general future work items of various specific types that emerged from completing this operation. Use specific, detailed type categories.
 
-## Input Information
+**Common Backlog Types**:
+- **character_development**: Expanding character backstory, motivations, or growth arcs
+- **plot_thread**: Following up on story threads, mysteries, or unresolved elements  
+- **world_building**: Expanding locations, cultures, history, or systems
+- **relationship_development**: Exploring relationships between characters or factions
+- **consequence_exploration**: Following long-term effects of events
+- **research_task**: Gathering information or details about specific topics
+- **continuity_check**: Verifying consistency across related resources
+- **expansion_opportunity**: Opportunities to add depth or detail to existing content
 
-**Operations**:
+**Examples**:
+- After creating a battle scene: plot_thread for investigating the political consequences affecting `/faction/northern_kingdom`
+- After introducing a new location: world_building for expanding the history and culture of `/location/ancient_ruins`
+- After character interaction: relationship_development for exploring the growing friendship between `/character/alice` and `/character/bob`
+- After magical event: consequence_exploration for how magic affects `/location/enchanted_forest` environment
+
+## Important Guidelines
+1. **URI Format for Existing Resources**: When referencing existing resources, MUST use their exact URI from the context, operation, or undo operation. URIs follow Linux-style path format:
+   - Root: `/`
+   - Format: `/{aspect}/{resource_name}` (e.g., `/character/john_doe`)
+   - Hierarchical: `/{aspect}/{parent}/{resource_name}` (e.g., `/location/castle_main_hall/throne_room`)
+   - Multi-level: `/{aspect}/{grandparent}/{parent}/{resource_name}` for deeply nested resources
+   - NEVER use just names like "John" - always use complete URIs like `/character/john_doe`
+2. **New Resource URIs**: For dependency items that may result in new resources, do NOT construct specific URIs - let future pursuits determine appropriate URIs based on their analysis
+3. **Future Focus**: These are NOT immediate updates (those are handled by required_updates) - these are for future pursuits
+2. **Creative Preservation**: For dependencies, provide enough detail to guide search/creation but leave room for creative development
+3. **Search First**: Always instruct future agents to search for existing compatible resources before creating new ones
+4. **Priority Assignment**: Assign appropriate priority levels (high/normal/low) based on importance to the overall narrative
+5. **Specific Types**: Use detailed, specific type categories, not generic "other" types
+6. **Context Awareness**: Consider the broader narrative implications, not just immediate effects
+7. **Use Exact URIs**: When referencing existing resources in target_resources or descriptions, always use complete URIs like `/character/john_doe`, never just names
+
+## Response Format
+Return a JSON array containing all backlog items:
+
 ```json
-{{ operations }}
+[
+  {
+    "type": "dependency",
+    "priority": "high|normal",
+    "description": "General description of the needed resource",
+    "search_guidance": "Instructions for finding existing compatible resources",
+    "creation_guidance": "Instructions for creating if no existing resource fits",
+    "aspect_hint": "Suggested aspect type for the resource",
+    "context_reference": "Reference to the part of the operation that created this dependency"
+  },
+  {
+    "type": "character_development|plot_thread|world_building|relationship_development|consequence_exploration|research_task|continuity_check|expansion_opportunity",
+    "priority": "high|normal|low", 
+    "description": "Detailed description of the work to be done",
+    "rationale": "Why this backlog item is important",
+    "target_resources": "URIs or descriptions of resources this work would affect",
+    "context_reference": "Reference to the part of the operation that suggests this work"
+  }
+]
 ```
 
-**Task Description**:
-```
-{{ task_description }}
-```
-
-## Instructions
-
-1. Analyze each operation to identify newly created or referenced elements
-2. Assess which elements have insufficient detail for their intended story role
-3. **Only identify elements that truly lack depth** - well-developed elements should not generate backlog tasks
-4. Prioritize based on story importance and development urgency
-5. Format each task as: [PRIORITY] resource_type: description - keywords
-6. Use descriptive keywords to help locate these elements via vector search
-7. **Return empty string if no elements need further development**
-
-Generate your response as a valid JSON object with the "backlog_tasks" key containing either a multiline string of tasks or an empty string.
+Focus on identifying meaningful future work that would enhance the narrative, maintain consistency, or expand the world in valuable ways. Prioritize items that are most important for the overall story progression.

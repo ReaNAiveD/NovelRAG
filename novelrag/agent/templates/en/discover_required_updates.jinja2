@@ -1,0 +1,89 @@
+You are analyzing an operation that was just applied to a resource repository to identify required updates that must be applied immediately to maintain consistency.
+
+## Context
+You have access to the following information:
+- **Step Description**: {{ step_description }}
+- **Applied Operation**: {{ operation }}
+- **Undo Operation**: {{ undo_operation }}
+- **Context Information**: 
+{% for item in context %}
+  - {{ item }}
+{% endfor %}
+
+## Your Task
+Analyze the **operation** and **undo operation** to identify two types of required updates that must happen immediately to existing resources:
+
+**Important**: Focus only on **existing resources** that are directly affected by this specific operation. Do not consider:
+- New resources that need to be created (handled elsewhere)
+- Chain reactions or indirect effects (handled by backlog tasks) 
+- Multi-degree cascade effects (A affects B affects C - only consider A affects B)
+
+**Multi-Resource Operations**: An operation may affect multiple existing resources - identify cascade effects for each resource mentioned in the operation and undo operation.
+
+### 1. Perspective Updates
+These are **existing resources** that witnessed, were involved in, or were present during the operation event and need to **record the same operation event from their own perspective**.
+
+**Key Concept**: We are recording the **same operation event** from multiple perspectives, creating intentional duplication across resources. This allows each resource to maintain its own complete record of events it was involved in or witnessed.
+
+Examples:
+- Operation: "John kills Mary in the castle" 
+  - Castle: Record "John killed Mary here on [date]" → Update `/location/main_castle`
+  - Witnesses: Record "I saw John kill Mary in the castle" → Update `/character/witness_name`
+  - John's weapon: Record "was used by John to kill Mary" → Update `/item/johns_sword`
+- Operation: "Magical artifact is destroyed in the tower"
+  - Tower: Record "magical artifact was destroyed here, causing explosion" → Update `/location/wizard_tower`
+  - Nearby characters: Record "witnessed the artifact's destruction and explosion" → Update `/character/nearby_character`
+  - Mage who cast spell: Record "successfully destroyed the dangerous artifact" → Update `/character/archmage_aldric`
+
+**For Delete/Update Operations**: Use this to update or remove all duplicated descriptions of the same operation event across affected resources.
+
+### 2. Relation Updates  
+These are **existing resources** that need to **record the same operation event in their relationship records**. Like perspective updates, this creates intentional duplication of the same event, but focuses on recording it within the relationship/connection sections of resources.
+
+**Key Concept**: We are recording the **same operation event** as relationship records between specific pairs of resources. Each relation record specifies which two resources are involved and what event occurred between them. The system will automatically apply these records to both resources.
+
+Examples:
+- Operation: "A leaves B to go to C"
+  - A and B relation: "A left B on [date] due to xx" → Between `/character/person_a` and `/location/place_b`
+  - A and C relation: "A arrived at C on [date] from B due to xx" → Between `/character/person_a` and `/location/place_c`
+- Operation: "Character joins a group"  
+  - Character and Group relation: "Character joined Group on [date] due to yy" → Between `/character/new_member` and `/organization/adventuring_guild`
+- Operation: "Object ownership changes from Old Owner to New Owner"
+  - Old Owner and Object relation: "Old Owner lost ownership of Object on [date] due to zz" → Between `/character/old_owner` and `/item/magic_sword`
+  - New Owner and Object relation: "New Owner gained ownership of Object on [date] due to zz" → Between `/character/new_owner` and `/item/magic_sword`
+
+## Important Guidelines
+1. **Use exact resource URIs**: When mentioning existing resources, MUST use their exact URI from the context, operation, or undo operation. URIs follow Linux-style path format:
+   - Root: `/`
+   - Format: `/{aspect}/{resource_name}` (e.g., `/character/john_doe`)
+   - Hierarchical: `/{aspect}/{parent}/{resource_name}` (e.g., `/location/castle_main_hall/throne_room`)
+   - Multi-level: `/{aspect}/{grandparent}/{parent}/{resource_name}` for deeply nested resources
+   - NEVER use just names like "John" - always use complete URIs like `/character/john_doe`
+2. **Operation and Undo Focus**: Identify cascade effects only from the **operation** and **undo operation**. Use context to find exact URIs of related resources mentioned in the operations.
+3. **Existing Resources Only**: Only consider resources that already exist - ignore any new resources created by this operation
+4. **Record the same event from different perspectives**: Perspective updates create intentional duplication - the same operation event should be recorded from each involved/witnessing resource's perspective
+5. **Distinguish the types**: Perspective updates = record the operation event in resource content/narrative; Relation updates = record the operation event in relationship records
+6. **Direct Effects Only**: Only include immediate, direct consequences of this specific operation
+7. **Unlimited Scope**: Consider any existing resource in the repository that might be directly affected, not just those in the current scene/context
+
+## Response Format
+Return a JSON object with two arrays:
+
+```json
+{
+  "perspective_updates": [
+    {
+      "reason": "Brief explanation of why this update is needed",
+      "content": "Natural language description of what content needs to be added/updated and to which resource"
+    }
+  ],
+  "relation_updates": [
+    {
+      "reason": "Brief explanation of why this relation update is needed", 
+      "content": "Natural language description of what relationships need to be updated between which resources"
+    }
+  ]
+}
+```
+
+Focus on immediate consequences of the operation that would cause inconsistencies if not addressed. Put the most urgent items first in each array.

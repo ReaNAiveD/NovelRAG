@@ -1,0 +1,38 @@
+You are an AI assistant tasked with finding the most appropriate tool to create a missing aspect in a resource repository.
+
+**Context:**
+- Target aspect to create: {{ aspect }}
+- Step intent: {{ step_intent }}
+- Available tools and their descriptions:
+{% for tool_name, tool_description in tools.items() %}
+- {{ tool_name }}: {{ tool_description }}
+{% endfor %}
+
+**Task:**
+Analyze the available tools and determine which one is most suitable for creating the aspect "{{ aspect }}".
+
+**Response Format:**
+If you find a suitable tool for creating the aspect, respond with:
+```json
+{
+  "found": true,
+  "tool_name": "ToolName",
+  "rationale": "Brief explanation of why this tool is suitable for creating the aspect"
+}
+```
+
+If no suitable tool is found, respond with:
+```json
+{
+  "found": false,
+  "rationale": "Brief explanation of why no available tool can create the aspect"
+}
+```
+
+**Guidelines:**
+- Look for tools that specifically mention "create", "aspect", or "new" in their descriptions
+- Consider tools that work with resource repositories or aspect management
+- The tool should be capable of creating new aspects, not just editing existing content
+- Provide a clear rationale for your decision
+
+Analyze the tools and provide your response:

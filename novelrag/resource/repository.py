@@ -24,6 +24,10 @@ class SearchResult:
 
 class ResourceRepository(ABC):
     @abstractmethod
+    async def all_aspects(self) -> list[ResourceAspect]:
+        pass
+
+    @abstractmethod
     async def get_aspect(self, name: str) -> ResourceAspect | None:
         pass
 
@@ -163,6 +167,9 @@ class LanceDBResourceRepository(ResourceRepository):
             for element in aspect.iter_elements()
         ]
         self.lut = ElementLookUpTable(elements)
+
+    async def all_aspects(self) -> list[ResourceAspect]:
+        return list(self.resource_aspects.values())
 
     async def get_aspect(self, name: str) -> ResourceAspect | None:
         return self.resource_aspects.get(name)
