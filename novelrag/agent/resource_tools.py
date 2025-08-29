@@ -433,40 +433,6 @@ class ResourceWriteTool(LLMToolMixin, ContextualTool):
         )
         return json.loads(response)
 
-    async def _find_aspect_creation_tool(self, aspect: str, step_intent: str, tools: dict[str, str]) -> dict[str, Any] | None:
-        """Find a suitable tool to create the missing aspect using LLM analysis."""
-        response = await self.call_template(
-            'find_aspect_creation_tool.jinja2',
-            json_format=True,
-            aspect=aspect,
-            step_intent=step_intent,
-            tools=tools
-        )
-
-        result = json.loads(response)
-        if result.get("found"):
-            return {
-                "tool_name": result.get("tool_name"),
-                "rationale": result.get("rationale", "Tool found for aspect creation")
-            }
-        return None
-
-    async def _parse_resource_dependencies(self, dependency: str, original_proposal: str) -> tuple[str, str]:
-        """Parse the dependency string to extract aspect and description."""
-        existing_aspects: list[ResourceAspect] = await self.repo.all_aspects()
-        aspects_dict = {aspect.name: aspect.context_dict for aspect in existing_aspects}
-
-        response = await self.call_template(
-            'parse_resource_dependencies.jinja2',
-            json_format=True,
-            dependency=dependency,
-            original_proposal=original_proposal,
-            aspects=aspects_dict
-        )
-
-        result = json.loads(response)
-        return result.get["aspect"], result.get("description", dependency)
-
 
 class ResourceRelationWriteTool(LLMToolMixin, SchematicTool):
     def __init__(self, repo: ResourceRepository, template_env: TemplateEnvironment, chat_llm: ChatLLM):
