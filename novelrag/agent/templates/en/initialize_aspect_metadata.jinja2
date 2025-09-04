@@ -178,7 +178,7 @@ Use these standard data types:
       {
         "name": "name",
         "type": "string", 
-        "description": "The character's full name or primary identifier"
+        "description": "The character's full name or primary identifier, which should also be used as the basis for creating meaningful resource IDs"
       },
       {
         "name": "role",
@@ -242,6 +242,10 @@ Use these standard data types:
     {
       "name": "Unique Identity",
       "description": "Each character must have a unique name within the narrative scope"
+    },
+    {
+      "name": "Semantic Resource IDs",
+      "description": "Resource IDs should incorporate the character's name and key defining characteristics (e.g., role, trait, or function) to create meaningful, human-readable identifiers rather than generic codes"
     },
     {
       "name": "Role Consistency", 

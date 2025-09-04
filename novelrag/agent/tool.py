@@ -176,11 +176,6 @@ class BaseTool(ABC):
 
 
 class SchematicTool(BaseTool):
-    @property
-    def requires_prerequisite_steps(self) -> bool:
-        """Whether this tool may require prerequisite steps to gather additional data
-        when the provided context is insufficient for its input schema."""
-        return False
 
     @property
     @abstractmethod
@@ -228,22 +223,11 @@ class SchematicToolAdapter(LLMToolMixin, ContextualTool):
 
     async def call(self, runtime: ToolRuntime, believes: list[str], step: StepDefinition, context: list[str], tools: dict[str, str] | None = None) -> ToolOutput:
         """Execute the tool with contextual information and return a final ToolOutput"""
-        # Check if we need to gather additional context for missing inputs
-        missing_fields = await self._identify_missing_inputs(believes, step.intent, context)
-        
-        if missing_fields and self.inner.requires_prerequisite_steps:
-            # Tool can decompose into steps to gather missing data
-            steps = await self._build_data_gathering_steps(missing_fields, tools)
-            # If we failed to build steps, we have to work with what we have
-            if steps:
-                return self.decomposition(
-                    steps=steps,
-                    rationale=f"Need to gather missing inputs: {', '.join(missing_fields)}"
-                )
-            await runtime.warning(f"Failed to build steps for missing inputs: {', '.join(missing_fields)}. Proceeding with available context.")
-        elif missing_fields:
-            # Tool cannot decompose, must work with what we have
-            await runtime.warning(f"Missing inputs: {', '.join(missing_fields)}. Proceeding with available context.")
+        # Check if decomposition is needed
+        if decomposition_result := await self._analyze_decomposition_need(believes, step, context, tools):
+            # Tool needs to decompose - return the ToolDecomposition directly
+            await runtime.message(f"Pre-operation: Decomposing step into {len(decomposition_result.steps)} sub-steps. The reason is: {decomposition_result.rationale or 'No rationale provided.'}")
+            return decomposition_result
         
         # Build arguments from context using LLM
         max_retries = 3
@@ -267,43 +251,38 @@ class SchematicToolAdapter(LLMToolMixin, ContextualTool):
         except Exception as e:
             return self.error(f"Failed to execute schematic tool {self.inner.name}: {str(e)}")
 
-    async def _identify_missing_inputs(self, believes: list[str] | None = None, step_description: str | None = None, context: list[str] | None = None) -> list[str]:
-        """Identify which required inputs are missing from the current context"""
-        input_schema = self.inner.input_schema
-        
-        # Use LLM to check the missing inputs
-        # Also identify vital optional properties in input schema
-        missing_info = await self.call_template(
-            "identify_missing_inputs.jinja2",
-            tool_name=self.inner.name,
-            tool_description=self.inner.description or "No description available",
-            step_description=step_description or "",
-            context=context or [],
-            believes=believes or [],
-            input_schema=input_schema
-        )
-        
-        missing_fields = missing_info.splitlines()
-        return missing_fields
-
-    async def _build_data_gathering_steps(self, missing_fields: list[str], tools: dict[str, str] | None = None) -> list[dict[str, str]]:
-        """Build steps to gather missing data using available tools"""
-        if not tools:
-            return []
-        
-        steps_plan = await self.call_template(
-            "build_data_gathering_steps.jinja2",
-            missing_fields=missing_fields,
-            available_tools=tools,
-            input_schema=self.inner.input_schema,
-            json_format=True
-        )
-        
-        # Parse the JSON response to get steps
+    async def _analyze_decomposition_need(self, believes: list[str], step: StepDefinition, context: list[str], tools: dict[str, str] | None = None) -> ToolDecomposition | None:
+        """Analyze if decomposition is needed and return ToolDecomposition or None"""
         try:
-            return json.loads(steps_plan)['steps']
-        except json.JSONDecodeError:
-            return []
+            decomposition_json = await self.call_template(
+                "analyze_decomposition_need.jinja2",
+                tool_name=self.inner.name,
+                tool_description=self.inner.description or "No description available",
+                output_description=self.inner.output_description or "",
+                step_description=step.intent,
+                context=context or [],
+                believes=believes or [],
+                input_schema=self.inner.input_schema,
+                available_tools=tools or {},
+                json_format=True
+            )
+
+            # Parse the JSON response
+            decomposition_data = json.loads(decomposition_json)
+            # If should_decompose is False, return None
+            if not decomposition_data.get("should_decompose", False):
+                return None
+
+            # Return the ToolDecomposition
+            return self.decomposition(
+                steps=decomposition_data.get("steps", []),
+                rationale=decomposition_data.get("reason", "Decomposition required"),
+                rerun=decomposition_data.get("rerun", False)
+            )
+            
+        except (json.JSONDecodeError, Exception):
+            # Fall back to direct execution on any error
+            return None
 
     async def _build_tool_arguments(self, believes: list[str] | None = None, step_description: str | None = None, context: list[str] | None = None) -> dict[str, Any] | None:
         """Build tool arguments from context using LLM"""

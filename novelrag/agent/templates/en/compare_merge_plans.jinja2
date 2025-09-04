@@ -31,36 +31,67 @@ You are a planning agent tasked with comparing and merging two plans to create a
 
 Compare the two plans and determine the best merge strategy. Consider:
 
+**IMPORTANT: Do NOT include priority steps in the merged_plan output. Priority steps will be automatically added first by the system.**
+
 **Minimal New Insights** (favor original pending steps):
-- Different step separation but same overall approach
-- Similar intents with different tool choices
-- Logical reorganization without fundamental changes
+- Different step organization but same overall approach
+- Similar objectives with different tool choices
+- Minor optimizations without fundamental strategy changes
 
 **Significant New Insights** (favor new future plan):
-- Completely different execution path due to discoveries
-- New understanding that changes the entire approach
-- Major efficiency improvements or alternative strategies
+- Discovery of specific actionable data that enables direct goal achievement
+- New information that makes exploratory/fallback steps obsolete
+- More efficient path to goal based on concrete discoveries
+- Pivot from abstract exploration to specific targeted actions
+
+**Key Decision Factors:**
+- **Data Specificity**: If new plan contains specific steps based on discovered data, favor it over generic steps
+- **Directness**: If new plan provides a more direct path to the goal, prioritize it over exploratory approaches  
+- **Efficiency**: If execution has gathered sufficient information to bypass planned exploration, eliminate redundant steps
+- **Obsolescence**: Remove steps that search for information already discovered or gather data already available
 
 **Steps that may not contribute directly to goal but handle remaining work:**
-- Triggered steps from previous executions
 - Cleanup or finalization steps from decomposed actions
 - Dependency resolution steps that emerged during execution
+- NOTE: Triggered/decomposed steps are handled separately as priority steps
+
+## Merge Strategy Guidelines
+
+Choose one of these strategies:
+
+**Complete Replacement** (use only new future plan):
+- When new plan has concrete steps based on specific discovered data
+- When original plan contains only generic/exploratory steps that are now obsolete
+- When execution has gathered enough information to achieve goal directly
+
+**Selective Integration** (mix both plans):
+- When both plans have valuable unique steps
+- When original plan has specific steps not covered by new plan
+- When new plan fills gaps but doesn't replace core original work
+
+**Original Preservation** (use mostly original plan):
+- When new plan offers minor improvements without significant insights
+- When original plan is still the most efficient approach
+- When changes would add unnecessary complexity
+
+**CRITICAL: The merged_plan should ONLY contain non-priority steps. Priority steps are automatically handled separately.**
 
 Provide your response as JSON:
 ```json
 {
-  "decision_reason": "Explanation of whether to favor original plan or new plan",
+  "strategy": "complete_replacement|selective_integration|original_preservation",
+  "decision_reason": "Clear explanation of which strategy was chosen and why",
   "insights_summary": {
-    "missing_from_new_plan": ["What original plan has that new plan misses"],
-    "missing_from_original": ["What new plan has that original plan misses"],
-    "unnecessary_in_new": ["Steps in new plan that seem redundant"],
-    "unnecessary_in_original": ["Steps in original plan that seem redundant"]
+    "discovered_actionable_data": ["Specific data or identifiers that enable concrete actions"],
+    "obsolete_original_steps": ["Original steps that are no longer needed"],
+    "valuable_original_steps": ["Original steps that should be preserved"],
+    "new_targeted_steps": ["New steps that are more specific/direct than originals"]
   },
   "merged_plan": [
     {
-      "intent": "Step intent",
+      "intent": "Step intent", 
       "tool": "tool_name",
-      "reason": "original_plan|future_plan|triggered|decomposed|merged",
+      "reason": "original_plan|future_plan|merged",
       "reason_details": "Explanation of why this step is included and its origin"
     }
   ]

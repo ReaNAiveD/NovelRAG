@@ -10,7 +10,7 @@ from novelrag.resource.aspect import ResourceAspect
 from novelrag.resource.element import DirectiveElement
 from novelrag.resource.repository import ResourceRepository
 from novelrag.template import TemplateEnvironment
-from novelrag.resource.operation import validate_op_json
+from novelrag.resource.operation import validate_op
 from .llm_content_proposer import LLMContentProposer
 from .steps import StepDefinition
 
@@ -91,22 +91,21 @@ class ResourceFetchTool(SchematicTool):
 
     @property
     def description(self):
-        return "This tool fetches a specific resource, aspect, or repository root by its URI. " \
-            "Use this when you have a known URI and want to retrieve complete content and metadata. " \
-            "Supports: root URI (/), aspect URIs (/{aspect}), and resource URIs (/{aspect}/{resource_id} or /{aspect}/{parent_id}/{child_id}). " \
-            "The repository uses hierarchical structure: query root URI for all aspects, " \
-            "aspect URIs for metadata and root elements, " \
-            "and resource URIs for full hierarchical structure including sub-resources."
+        return "This tool fetches resources, aspects, or repository root by URI. " \
+               "Supports hierarchical queries: root URI (`/`) returns all aspect names, " \
+               "aspect URIs (`/{aspect}`) return aspect metadata with child resource names, " \
+               "and resource URIs return individual resources with their child resource names if any. " \
+               "Child URIs can be composed by appending `/{child_name}` to the parent URI. " \
+               "Use returned names for subsequent targeted queries."
 
     @property
     def output_description(self) -> str | None:
-        return "Returns the specific resource or aspect identified by the URI. " \
-               "For root URI (`/`): Returns all aspects in the repository. " \
-               "For aspect URIs (`/{aspect}`): Returns aspect metadata including name, path, children_keys, and a list of root elements. " \
-               "For resource URIs (`/{aspect}/{resource_id}` or `/{aspect}/{parent_id}/{child_id}`): Returns the individual resource with hierarchical structure. " \
-               "Use the URI to navigate between parent and child resources. " \
-               "The `relations` field maps related resource URIs to human-readable relationship descriptions. " \
-               "Child resources are listed by ID only - compose full child URIs by combining the parent URI with the child ID."
+        return "For root URI (`/`): Returns all aspect names in the repository. " \
+               "For aspect URIs (`/{aspect}`): Returns aspect metadata including child resource names. " \
+               "For resource URIs (`/{aspect}/{resource}` or deeper): Returns the individual resource with full content and child resource names if any. " \
+               "Child URIs are composed by appending `/{child_name}` to the parent URI. " \
+               "Use returned names to construct URIs for individual child queries. " \
+               "The `relations` field maps related resource URIs to human-readable relationship descriptions."
 
     @property
     def input_schema(self) -> dict[str, Any]:
@@ -115,7 +114,12 @@ class ResourceFetchTool(SchematicTool):
             "properties": {
                 "uri": {
                     "type": "string",
-                    "description": "The URI of the resource or aspect to retrieve. Use `/` for all aspects, `/aspect` for aspect metadata, or `/aspect/{+resource_id}` for individual resources."
+                    "description": "URIs follow Linux-style path format: "
+                                   "Root: `/` \n"
+                                   "Format: `/{aspect}/{resource_name}` (e.g., `/character/john_doe`) \n"
+                                   "Hierarchical: `/{aspect}/{parent}/{resource_name}` (e.g., `/location/castle_main_hall/throne_room`) \n"
+                                   "Multi-level: `/{aspect}/{grandparent}/{parent}/{resource_name}` for deeply nested resources \n"
+                                   "NEVER use just names like 'John' - always use complete URIs like `/character/john_doe`"
                 }
             },
             "required": ["uri"],
@@ -162,8 +166,8 @@ class ResourceSearchTool(SchematicTool):
 
     @property
     def description(self):
-        return "This tool is used to search for resources in the repository using semantic vector search. " \
-        "It finds resources related to your query string using AI-powered similarity matching. " \
+        return "This tool performs semantic search across resources using embedding vector similarity. " \
+        "It finds resources related to your query based on meaning and context. " \
         "Optionally filter by aspect and control the number of results returned."
     
     @property
@@ -181,7 +185,7 @@ class ResourceSearchTool(SchematicTool):
             "properties": {
                 "query": {
                     "type": "string",
-                    "description": "The search query string to find semantically similar resources."
+                    "description": "Search query for finding semantically similar resources using embedding vector similarity."
                 },
                 "aspect": {
                     "type": "string",
@@ -236,9 +240,10 @@ class ResourceWriteTool(LLMToolMixin, ContextualTool):
         "It generates proposals based on current beliefs and context, sorts them, " \
         "selects one for editing, builds an operation, and applies it to the repository. " \
         "It also discovers chain updates and backlog items based on the operation. " \
-        "Before using this tool, ensure you have a clear understanding of the aspect you are going to edit, " \
-        "you should follow the guidelines and limitations according to the aspect, " \
-        "usually this is through the ResourceFetchTool or ResourceSearchTool."
+        "Before using this tool, you MUST first query the related aspect to understand its definition, structure, and dependencies. " \
+        "Based on the aspect's dependency definitions, you may need to query resources of other types that are referenced or related. " \
+        "Always retrieve the aspect definition first, then gather any dependent resources " \
+        "before attempting to write. This ensures you have a complete understanding of the resource structure and all necessary context."
 
     async def call(self, runtime: ToolRuntime, believes: list[str], step: StepDefinition, context: list[str], tools: dict[str, str] | None = None) -> ToolOutput:
         """Edit existing content and return the updated content."""
@@ -253,7 +258,7 @@ class ResourceWriteTool(LLMToolMixin, ContextualTool):
         if not aspect:
             return self.error("Could not determine target aspect for editing. Please provide a valid aspect name in the step definition.")
         await runtime.progress("aspect", aspect, f"Determined target aspect for editing: {aspect}")
-        if self.repo.get_aspect(aspect) is None:
+        if (await self.repo.get_aspect(aspect)) is None:
             await runtime.warning("The determined aspect does not exist in the repository. Decompose the step to create it first.")
             return self.decomposition(
                 steps=[{
@@ -281,26 +286,31 @@ class ResourceWriteTool(LLMToolMixin, ContextualTool):
         await runtime.progress("proposal_selection", selected_proposal, "Selected proposal for editing.")
 
         await runtime.debug("No new write request generated from the selected proposal.")
-        operation = await self.build_operation(selected_proposal, step.intent, context)
-        if not operation:
+        operations_json = await self.build_operations(selected_proposal, step.intent, context, aspect)
+        if not operations_json:
             return self.error("Failed to build operation from the selected proposal.")
 
         await runtime.debug("Built operation successfully. Start Validation.")
         try:
-            op = validate_op_json(operation)
+            # Parse the operation JSON and extract all operations
+            operations = json.loads(operations_json)['operations']
+            
+            # Validate all operations first
+            operations = [validate_op(op) for op in operations]
+                
         except pydantic.ValidationError as e:
             return self.error("Operation validation failed: " + str(e))
 
         await runtime.message("Operation validated successfully. Preparing to apply.")
-        if not await runtime.confirmation(f"Do you want to apply the operation?\n{json.dumps(op, indent=2)}"):
+        if not await runtime.confirmation(f"Do you want to apply {len(operations)} operation(s)?\n{json.dumps([op.model_dump() for op in operations], indent=2, ensure_ascii=False)}"):
             await runtime.message("Operation application cancelled by user.")
             return self.result("Operation application cancelled by user.")
-        undo = await self.repo.apply(op)
-        await runtime.message(f"Applied operation. Undo operation created: {undo}")
+        undo_operations = [await self.repo.apply(op) for op in operations][::-1]
+        await runtime.message(f"Applied operation. Undo operation created: {undo_operations}")
         # TODO: Push the undo operation to the undo queue
 
         # Discover required updates that need to be applied as triggered actions
-        required_updates = await self._discover_required_updates(step.intent, operation, json.dumps(undo), context)
+        required_updates = await self._discover_required_updates(step.intent, [op.model_dump() for op in operations], [op.model_dump() for op in undo_operations], context)
 
         # Process perspective updates first (higher priority)
         if required_updates.get("perspective_updates"):
@@ -317,15 +327,15 @@ class ResourceWriteTool(LLMToolMixin, ContextualTool):
                 await runtime.debug(f"Relation update: {update['reason']} - {update['content']}")
 
         # Discover future work items for the backlog
-        backlog = await self._discover_backlog(step.intent, operation, json.dumps(undo), context)
+        backlog = await self._discover_backlog(step.intent, [op.model_dump() for op in operations], [op.model_dump() for op in undo_operations], context)
         if backlog:
             await runtime.message(f"Discovered {len(backlog)} backlog items.")
             for item in backlog:
                 priority = item.get("priority", "normal")
                 await runtime.backlog(content=item, priority=priority)
 
-        # Return the operation JSON that was applied as the result
-        return self.result(json.dumps(operation))
+        # Return the operations JSON that was applied as the result
+        return self.result(json.dumps([op.model_dump() for op in operations], ensure_ascii=False))
 
     async def _context_filter(self, step_description: str, context: list[str]) -> list[str]:
         return (await self.call_template(
@@ -392,11 +402,13 @@ class ResourceWriteTool(LLMToolMixin, ContextualTool):
         selected_proposal = random.choices(proposals, weights=weights, k=1)[0]
         return selected_proposal
 
-    async def build_operation(self, proposal: str, step_description: str, context: list[str]) -> str:
+    async def build_operations(self, proposal: str, step_description: str, context: list[str], aspect: str) -> str:
         return await self.call_template(
             'build_operation.jinja2',
-            proposal=proposal,
+            action=proposal,
             step_description=step_description,
+            context=context,
+            aspect=aspect,
             json_format=True
         )
 
@@ -409,29 +421,29 @@ class ResourceWriteTool(LLMToolMixin, ContextualTool):
             json_format=True
         )
 
-    async def _discover_required_updates(self, step_description: str, operation: str, undo_operation: str, context: list[str]) -> dict[str, list[dict[str, str]]]:
+    async def _discover_required_updates(self, step_description: str, operations: list[dict], undo_operations: list[dict], context: list[str]) -> dict[str, list[dict[str, str]]]:
         """Discover cascade content updates and relation updates that need to be applied immediately."""
         response = await self.call_template(
             'discover_required_updates.jinja2',
             step_description=step_description,
-            operation=operation,
-            undo_operation=undo_operation,
+            operations=operations,
+            undo_operations=undo_operations,
             context=context,
             json_format=True
         )
         return json.loads(response)
     
-    async def _discover_backlog(self, step_description: str, operation: str, undo_operation: str, context: list[str]) -> list[dict[str, Any]]:
+    async def _discover_backlog(self, step_description: str, operations: list[dict], undo_operations: list[dict], context: list[str]) -> list[dict[str, Any]]:
         """Discover backlog items including dependency items and other future work items."""
         response = await self.call_template(
             'discover_backlog.jinja2',
             step_description=step_description,
-            operation=operation,
-            undo_operation=undo_operation,
+            operations=operations,
+            undo_operations=undo_operations,
             context=context,
             json_format=True
         )
-        return json.loads(response)
+        return json.loads(response)["backlog_items"]
 
 
 class ResourceRelationWriteTool(LLMToolMixin, SchematicTool):

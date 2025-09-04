@@ -26,10 +26,12 @@ Used to add, remove, or replace elements in lists (splice operations).
 - **data**: List of new elements to insert, or null to just remove elements
 
 **IMPORTANT**: When adding new elements (data is not null), each element in the data list **MUST** contain an "id" field. The id should be:
-- A very short but accurate summary of the item
+- A meaningful name that incorporates the element's identity and key characteristics
+- Use the actual name/title when possible, combined with defining traits or roles
 - No spaces allowed - use underscores ("_") to concatenate words
 - Unique within the context
-- Descriptive enough to identify the element's purpose
+- Descriptive enough to convey both identity and essence of the element
+- Prefer semantic meaning over brevity (e.g., "john_smith" or "john_smith_detective" over "char_001")
 
 ## Response Format
 
@@ -47,7 +49,7 @@ Your response must be a valid JSON object with the following structure:
 ### Example 1: Updating character properties
 **Action**: Update character's appearance and personality
 **Step Description**: Character development phase - refining protagonist details
-**Context**: Character "protagonist_sarah" needs updated appearance and motivation
+**Context**: Character "sarah_chen_detective" needs updated appearance and motivation
 
 Response:
 ```json
@@ -55,7 +57,7 @@ Response:
   "operations": [
     {
       "target": "property",
-      "element_uri": "/character/protagonist_sarah",
+      "element_uri": "/character/sarah_chen_detective",
       "data": {
         "appearance": "Tall with dark hair and piercing blue eyes",
         "personality": "Determined but sometimes reckless",
@@ -69,7 +71,7 @@ Response:
 ### Example 2: Adding new scenes to a chapter
 **Action**: Insert two new scenes in the middle of chapter 3
 **Step Description**: Story expansion - adding tension before climax
-**Context**: Need to add scenes at position 2 in chapter "chapter_three" scenes list
+**Context**: Need to add scenes at position 2 in chapter "chapter_three_climax_preparation" scenes list
 
 Response:
 ```json
@@ -79,20 +81,20 @@ Response:
       "target": "element",
       "location": {
         "type": "element",
-        "element_uri": "/outline/chapter_three",
+        "element_uri": "/outline/chapter_three_climax_preparation",
         "children_key": "scenes"
       },
       "start": 2,
       "end": 2,
       "data": [
         {
-          "id": "attic_discovery",
+          "id": "sarah_attic_journal_discovery",
           "title": "The Discovery",
           "description": "Sarah finds the hidden journal in the attic",
           "setting": "Old Victorian house - attic"
         },
         {
-          "id": "aunt_confrontation",
+          "id": "sarah_aunt_journal_confrontation",
           "title": "The Confrontation",
           "description": "Sarah confronts her aunt about the journal's contents",
           "setting": "Kitchen - evening"
@@ -106,7 +108,7 @@ Response:
 ### Example 3: Deleting scenes from a chapter
 **Action**: Remove unnecessary scenes
 **Step Description**: Story refinement - removing filler content
-**Context**: Delete scenes at positions 1 and 2 from chapter "chapter_two" scenes list
+**Context**: Delete scenes at positions 1 and 2 from chapter "chapter_two_investigation" scenes list
 
 Response:
 ```json
@@ -116,7 +118,7 @@ Response:
       "target": "element",
       "location": {
         "type": "element",
-        "element_uri": "/outline/chapter_two",
+        "element_uri": "/outline/chapter_two_investigation",
         "children_key": "scenes"
       },
       "start": 1,
@@ -180,6 +182,11 @@ Based on the provided action, step description, and context, generate the approp
 
 ## Input Information
 
+**Target Aspect**:
+```
+{{ aspect }}
+```
+
 **Action**:
 ```
 {{ action }}
@@ -198,11 +205,12 @@ Based on the provided action, step description, and context, generate the approp
 ## Instructions
 
 Analyze the above input information and generate the appropriate operations. Make sure to:
-1. Read the action carefully to understand what needs to be done
-2. Use the step description as background context to better understand the situation
-3. Parse the context to identify specific elements, IDs, positions, and data requirements
-4. Choose the correct operation type (property or element) based on the action
-5. Structure the operations correctly according to the schema above
-6. **For Element Operations**: When adding new elements, ensure each element has an "id" field that is a short, accurate summary with no spaces (use underscores instead)
+1. Consider the target aspect when determining element URIs and operation structure
+2. Read the action carefully to understand what needs to be done
+3. Use the step description as background context to better understand the situation
+4. Parse the context to identify specific elements, IDs, positions, and data requirements
+5. Choose the correct operation type (property or element) based on the action
+6. Structure the operations correctly according to the schema above
+7. **For Element Operations**: When adding new elements, ensure each element has an "id" field that is a short, accurate summary with no spaces (use underscores instead)
 
 Generate your response as a valid JSON object with the "operations" key containing a list of operations:

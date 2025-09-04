@@ -89,19 +89,26 @@ class LLMPursuitContext(LLMToolMixin, PursuitContext):
         different facets. Considers future steps to determine appropriate facet
         granularity and organization.
 
+        This method now stores context from ALL step outcomes - successful, failed,
+        and decomposed - to preserve key findings and learnings.
+
         :param step: The step outcome to store in the context.
         :param future_steps: List of future step definitions that may be relevant.
         """
-        if not step.results:
+        # Skip storage only if there's absolutely no content to extract
+        if not (step.results or step.error_message or step.decomposed_actions or step.discovered_insights):
             return
 
-        # Prepare step information for context extraction
+        # Prepare comprehensive step information for context extraction
         step_info = {
             "tool": step.action.tool,
             "intent": step.action.intent,
             "status": step.status.value,
             "results": step.results,
-            "progress": step.progress
+            "error_message": step.error_message,
+            "discovered_insights": step.discovered_insights,
+            "decomposed_actions": step.decomposed_actions,
+            "triggered_actions": step.triggered_actions
         }
 
         # Prepare future steps information to guide facet organization
@@ -145,7 +152,8 @@ class LLMPursuitContext(LLMToolMixin, PursuitContext):
             generic_facet = f"{step.action.tool} execution results and findings"
             if generic_facet not in self.knowledge_facets:
                 self.knowledge_facets[generic_facet] = []
-            self.knowledge_facets[generic_facet].extend(step.results)
+            if step.results:
+                self.knowledge_facets[generic_facet].extend(step.results)
 
     async def retrieve_context(self, step: StepDefinition, threshold: int = 50) -> list[str]:
         """

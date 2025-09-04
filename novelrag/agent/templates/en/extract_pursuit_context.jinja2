@@ -61,10 +61,23 @@ When results contain hierarchical or structured information (e.g., "A. Overview"
   - Original: "1. Plot Structure: 1.1 Three-act format, 1.2 Character arcs"
   - Split into: "1. Plot Structure, 1.1 Three-act narrative format" and "1. Plot Structure, 1.2 Character development arcs"
 
-### Progress Information
-- Track incremental achievements and milestones using exact progress terminology
-- Note workflow states and intermediate results with original status language
-- Capture process improvements and optimizations preserving measurement units and values
+### From Error Messages and Failure Analysis
+- Document specific error conditions and their causes with exact error text
+- Extract constraint information that prevents certain approaches
+- Note requirements that must be met before attempting similar tasks
+- Preserve diagnostic information for troubleshooting similar issues
+
+### From Discovered Insights and Observations
+- Capture unexpected learnings and emergent patterns from step execution
+- Document new understanding that wasn't part of the original intent
+- Note correlations and relationships discovered during execution
+- Preserve serendipitous findings that could benefit future steps
+
+### From Triggered Actions and Backlog Items
+- Document follow-up tasks and dependencies identified during execution
+- Extract workflow insights about task relationships and sequencing
+- Note priority items and urgency indicators for future planning
+- Preserve context about why certain actions were triggered
 
 ## Facet Selection Strategy
 
@@ -267,6 +280,65 @@ Your response must be a valid JSON object where:
     "Insufficient context is primary cause of dialogue generation failures",
     "Missing personality details prevent authentic character voice development",
     "Undefined relationship dynamics result in generic conversation patterns"
+  ]
+}
+```
+
+### Example 5: Decomposed Step with Planning Insights
+**Step Info**:
+```json
+{
+  "tool": "scene_planner",
+  "intent": "Create comprehensive opening scene with multiple character introductions",
+  "status": "decomposed",
+  "results": [],
+  "progress": {"decomposition_analysis": ["complex_scene_identified"]},
+  "error_message": null,
+  "decomposed_actions": [
+    {"tool": "character_introducer", "intent": "Introduce protagonist Sarah Chen in her office environment"},
+    {"tool": "environment_describer", "intent": "Establish San Francisco police station atmosphere and setting"},
+    {"tool": "dialogue_generator", "intent": "Create opening conversation between Sarah and her partner"},
+    {"tool": "conflict_establisher", "intent": "Introduce the case that will drive the story forward"}
+  ],
+  "discovered_insights": [
+    "Opening scene requires careful sequencing to avoid information overload",
+    "Character introductions work better when integrated with environmental context",
+    "Multiple perspective introductions need clear transitions to maintain reader orientation"
+  ],
+  "backlog_items": [],
+  "triggered_actions": []
+}
+```
+
+**Future Steps**: [
+  {"tool": "character_introducer", "intent": "Introduce protagonist Sarah Chen in her office environment"},
+  {"tool": "environment_describer", "intent": "Establish San Francisco police station atmosphere and setting"}
+]
+
+**Current Facets**: ["character development and personality traits", "Victorian environmental atmosphere and lighting systems"]
+
+**Response**:
+```json
+{
+  "scene planning decomposition strategy and workflow": [
+    "Complex scenes require breakdown into focused subtasks for better execution",
+    "Scene planning identified four key components: character introduction, environment, dialogue, conflict",
+    "Sequential task organization prevents information overload in narrative development"
+  ],
+  "character introduction techniques and best practices": [
+    "Character introductions work better when integrated with environmental context",
+    "Protagonist introduction should establish workplace setting and professional identity",
+    "Multiple character perspectives need clear transitions to maintain reader orientation"
+  ],
+  "narrative pacing and information management": [
+    "Opening scene requires careful sequencing to avoid information overload",
+    "Multiple perspective introductions need clear transitions to maintain reader orientation",
+    "Scene complexity assessment helps determine appropriate task decomposition level"
+  ],
+  "scene composition workflow and task dependencies": [
+    "Scene creation follows sequence: character, environment, dialogue, then conflict introduction",
+    "Environmental context should be established before character interactions begin",
+    "Conflict introduction requires foundation of character and setting establishment"
   ]
 }
 ```
