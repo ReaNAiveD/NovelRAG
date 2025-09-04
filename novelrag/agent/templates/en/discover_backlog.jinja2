@@ -64,28 +64,31 @@ These are general future work items of various specific types that emerged from 
 7. **Use Exact URIs**: When referencing existing resources in target_resources or descriptions, always use complete URIs like `/character/john_doe`, never just names
 
 ## Response Format
-Return a JSON array containing all backlog items:
+
+Return a JSON object containing all backlog items under the key "backlog_items":
 
 ```json
-[
-  {
-    "type": "dependency",
-    "priority": "high|normal",
-    "description": "General description of the needed resource",
-    "search_guidance": "Instructions for finding existing compatible resources",
-    "creation_guidance": "Instructions for creating if no existing resource fits",
-    "aspect_hint": "Suggested aspect type for the resource",
-    "context_reference": "Reference to the part of the operation that created this dependency"
-  },
-  {
-    "type": "character_development|plot_thread|world_building|relationship_development|consequence_exploration|research_task|continuity_check|expansion_opportunity",
-    "priority": "high|normal|low", 
-    "description": "Detailed description of the work to be done",
-    "rationale": "Why this backlog item is important",
-    "target_resources": "URIs or descriptions of resources this work would affect",
-    "context_reference": "Reference to the part of the operation that suggests this work"
-  }
-]
+{
+  "backlog_items": [
+    {
+      "type": "dependency",
+      "priority": "high|normal",
+      "description": "General description of the needed resource",
+      "search_guidance": "Instructions for finding existing compatible resources",
+      "creation_guidance": "Instructions for creating if no existing resource fits",
+      "aspect_hint": "Suggested aspect type for the resource",
+      "context_reference": "Reference to the part of the operation that created this dependency"
+    },
+    {
+      "type": "character_development|plot_thread|world_building|relationship_development|consequence_exploration|research_task|continuity_check|expansion_opportunity",
+      "priority": "high|normal|low", 
+      "description": "Detailed description of the work to be done",
+      "rationale": "Why this backlog item is important",
+      "target_resources": "URIs or descriptions of resources this work would affect",
+      "context_reference": "Reference to the part of the operation that suggests this work"
+    }
+  ]
+}
 ```
 
 Focus on identifying meaningful future work that would enhance the narrative, maintain consistency, or expand the world in valuable ways. Prioritize items that are most important for the overall story progression.

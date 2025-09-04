@@ -135,7 +135,7 @@ class LanceDBResourceRepository(ResourceRepository):
         aspects = {}
         elements = []
         with open(config_path, 'r', encoding='utf-8') as f:
-            resource_config: dict = yaml.safe_load(f)
+            resource_config: dict = yaml.safe_load(f) or {}
         for aspect_name, aspect_config in resource_config.items():
             aspect_config = AspectConfig.model_validate(aspect_config)
             aspect = ResourceAspect.from_config(aspect_name, aspect_config)
@@ -156,7 +156,7 @@ class LanceDBResourceRepository(ResourceRepository):
         """Convert the repository to a dictionary of AspectConfig objects."""
         with open(self.config_path, 'w', encoding='utf-8') as f:
             yaml.safe_dump({
-                name: aspect.to_config()
+                name: aspect.to_config().model_dump()
                 for name, aspect in self.resource_aspects.items()
             }, f, indent=2, allow_unicode=True, encoding='utf-8')
 

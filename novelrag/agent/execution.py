@@ -113,24 +113,6 @@ async def _execute_step(step: StepDefinition, tools: dict[str, ContextualTool], 
         )
 
         if isinstance(result, ToolDecomposition):
-            # Handle tool decomposition into sub-actions
-            # decomposed_actions = []
-            # for sub_step in result.steps:
-            #     sub_action = StepDefinition(
-            #         tool=sub_step['tool'],
-            #         intent=sub_step['description'],
-            #         reason="decomposed",
-            #         reason_details=f"Decomposed from: {step.intent}"
-            #     )
-            #     decomposed_actions.append(sub_action)
-            # if result.rerun:
-            #     decomposed_actions.append(StepDefinition(
-            #         tool=step.tool,
-            #         intent=step.intent,
-            #         progress=runtime._progress,
-            #         reason="rerun from decomposition",
-            #         reason_details=f"Rerun after decomposition of: {step.intent}. Decomposed steps: {(', '.join([s['description'] for s in result.steps]) if result.steps else 'None')}"
-            #     ))
             return StepOutcome(
                 action=step,
                 status=StepStatus.DECOMPOSED,
@@ -228,8 +210,8 @@ class ExecutionPlan:
         # Execute the step with the retrieved context
         outcome = await _execute_step(next_action, tools, believes, step_context, channel, fallback_tool)
 
-        # Store the outcome in context for future steps
-        if outcome.status == StepStatus.SUCCESS:
-            await context.store_context(outcome, self.pending_steps[1:])
+        # Store the outcome in context for future steps - regardless of status
+        # Key findings should be preserved even from failed or decomposed steps
+        await context.store_context(outcome, self.pending_steps[1:])
 
         return outcome
