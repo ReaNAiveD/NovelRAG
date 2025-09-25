@@ -8,8 +8,6 @@ You are tasked with building tool arguments by:
 - **Schema Mapping**: Mapping extracted information to the correct fields in the input schema
 - **Type Conversion**: Ensuring values match the expected data types (string, number, boolean, object, array)
 - **Default Handling**: Using appropriate default values for optional fields when beneficial
-- **Inference**: Making reasonable inferences when information is partially available
-- **Validation**: Ensuring the final arguments would be valid according to the schema
 
 ## Input Schema Understanding
 
@@ -27,7 +25,6 @@ When building arguments, consider:
 
 ### Tool Description Analysis
 - **Read tool description first** to understand the tool's purpose and any special field requirements
-- **Identify OR conditions** (e.g., "requires A OR B") and conditional logic (e.g., "if X then Y is required")
 - **Note optional but recommended fields** mentioned in the description
 - **Understand field relationships** and dependencies described in the tool description
 
@@ -36,25 +33,7 @@ When building arguments, consider:
 - Extract specific details like names, numbers, configurations, or settings
 - Use exact values when provided without modification
 
-### Inference and Derivation
-- Make logical inferences when partial information is available
-- Derive values from related context when direct values aren't provided
-- Use step description to understand the intent and fill in reasonable values
-- Apply domain knowledge to complete missing details
-
-### Type Conversion
-- Convert string representations to appropriate types (e.g., "5" → 5 for integer fields)
-- Parse boolean values from text ("true", "yes", "enabled" → true)
-- Structure text into objects or arrays when schema requires complex types
-- Format text according to expected patterns (e.g., dates, URLs, identifiers)
-
 ## Argument Building Strategy
-
-### Priority Order
-1. **Exact Matches**: Use direct values from context that exactly match schema fields
-2. **Clear Inferences**: Include values that can be confidently inferred from context
-3. **Reasonable Defaults**: Add helpful optional fields with sensible default values
-4. **Step-Specific Values**: Include values that make sense given the step description
 
 ### Quality Guidelines
 - **Accuracy**: Ensure all values are correct and properly formatted

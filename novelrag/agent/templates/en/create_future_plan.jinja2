@@ -95,6 +95,23 @@ Analyze the provided execution context and generate an optimized plan for future
 {% if last_step.triggered_actions %}- Triggered Actions: {{ last_step.triggered_actions | length }} actions{% endif %}
 {% if last_step.decomposed_actions %}- Decomposed Actions: {{ last_step.decomposed_actions | length }} actions{% endif %}
 
+{% if adapt_planning_instructions and adapt_planning_instructions|length > 0 %}
+## Strategic Adaptation Guidance
+
+The following strategic guidance should inform your adaptive planning approach based on execution results:
+
+{% for instruction in adapt_planning_instructions %}
+- {{ instruction }}
+{% endfor %}
+
+### Applying Adaptive Guidance
+- **Execution-Informed Decisions**: Use these guidelines to interpret execution results and adjust planning accordingly
+- **Context-Sensitive Planning**: Apply relevant guidance based on what has been discovered through execution
+- **Strategic Pivoting**: Let these instructions guide how to modify the approach based on new information
+- **Result Integration**: Consider how execution outcomes interact with these strategic principles
+
+{% endif %}
+
 ## Instructions
 
 1. **Analyze Execution Results**: Carefully examine what data, identifiers, or concrete information was discovered in executed steps
@@ -105,28 +122,6 @@ Analyze the provided execution context and generate an optimized plan for future
 6. **Generate Targeted Plan**: Create specific steps for each actionable item discovered, rather than generic operations
 7. **Validate Completeness**: Ensure the plan covers all necessary work to fully achieve the goal
 8. **Apply Completion Check**: If the goal can already be achieved with executed results, return { "steps": [] }
-
-## Planning Considerations
-
-Create a future plan based on the execution history and insights gained. Consider:
-
-### 1. Result Analysis and Action Translation
-- **Data Discovery Impact**: When a step discovers specific identifiers, names, or data items that can be directly acted upon, create individual steps for each item
-- **Concrete vs. Abstract**: Prioritize concrete actions based on discovered data over abstract exploratory steps
-- **Information Sufficiency**: Assess whether executed steps have gathered enough information to bypass exploratory or fallback steps
-
-### 2. Plan Evolution Logic
-- **Obsolescence Detection**: Remove or skip pending steps that are no longer relevant due to discoveries in executed steps
-- **Path Pivoting**: When execution discovers a more direct path to the goal, abandon less efficient planned approaches
-- **Specificity Progression**: Move from general exploration to specific actions as more concrete information becomes available
-
-### 3. Strategic Planning Principles
-- **Build on Discoveries**: Leverage concrete data found in execution results to create targeted follow-up steps
-- **Eliminate Redundancy**: Don't duplicate work that has already been successfully completed
-- **Focus on Goal Achievement**: Ensure all future steps directly contribute to the stated goal
-- **Optimize Sequence**: Order steps to create efficient dependencies and logical flow
-
-
 
 ## Response Format
 

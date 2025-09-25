@@ -1,3 +1,4 @@
+from novelrag.agent.plan_strategy import AspectQueryInstructions, AspectStructureKnowledge, CompositePlanningStrategy, ResourceCreateInstructions, ResourceQueryInstructions, ResourceStructureKnowledge, ResourceUpdateInstructions
 from .agent import Agent
 from .channel import SessionChannel
 from .planning import PursuitPlanner
@@ -34,7 +35,15 @@ class AgentIntent(LLMIntent):
             tools['resource_write'] = writer_tool
             tools['aspect_create'] = aspect_create_tool
             tools['resource_relation_write'] = relation_tool
-        planner = PursuitPlanner(template_env=self.template_env, chat_llm=self.chat_llm(context.chat_llm_factory))
+        planning_strategy = CompositePlanningStrategy([
+            ResourceStructureKnowledge(),
+            AspectStructureKnowledge(),
+            AspectQueryInstructions(),
+            ResourceQueryInstructions(),
+            ResourceCreateInstructions(),
+            ResourceUpdateInstructions(),
+        ])
+        planner = PursuitPlanner(template_env=self.template_env, chat_llm=self.chat_llm(context.chat_llm_factory), strategy=planning_strategy)
         summarizer = PursuitSummarizer(template_env=self.template_env, chat_llm=self.chat_llm(context.chat_llm_factory))
         agent = Agent(
             tools=tools,

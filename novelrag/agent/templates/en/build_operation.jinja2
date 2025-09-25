@@ -71,7 +71,7 @@ Response:
 ### Example 2: Adding new scenes to a chapter
 **Action**: Insert two new scenes in the middle of chapter 3
 **Step Description**: Story expansion - adding tension before climax
-**Context**: Need to add scenes at position 2 in chapter "chapter_three_climax_preparation" scenes list
+**Context**: Need to add scenes at position 2 in chapter climax_preparation scenes list
 
 Response:
 ```json
@@ -81,7 +81,7 @@ Response:
       "target": "element",
       "location": {
         "type": "element",
-        "element_uri": "/outline/chapter_three_climax_preparation",
+        "element_uri": "/outline/climax_preparation",
         "children_key": "scenes"
       },
       "start": 2,
@@ -108,7 +108,7 @@ Response:
 ### Example 3: Deleting scenes from a chapter
 **Action**: Remove unnecessary scenes
 **Step Description**: Story refinement - removing filler content
-**Context**: Delete scenes at positions 1 and 2 from chapter "chapter_two_investigation" scenes list
+**Context**: Delete scenes at positions 1 and 2 from chapter [investigation](/outline/investigation) scenes list
 
 Response:
 ```json
@@ -118,7 +118,7 @@ Response:
       "target": "element",
       "location": {
         "type": "element",
-        "element_uri": "/outline/chapter_two_investigation",
+        "element_uri": "/outline/investigation",
         "children_key": "scenes"
       },
       "start": 1,
@@ -132,7 +132,7 @@ Response:
 ### Example 4: Decomposing a scene into multiple smaller scenes
 **Action**: Break down complex scene into multiple focused scenes
 **Step Description**: Scene restructuring - improving pacing and clarity
-**Context**: Replace scene at position 1 in chapter "chapter_four" with three decomposed scenes
+**Context**: Replace scene at position 1 in chapter [chapter_four](/outline/chapter_four) with three decomposed scenes
 
 Response:
 ```json

@@ -82,7 +82,7 @@ async def _execute_step(step: StepDefinition, tools: dict[str, ContextualTool], 
         if fallback_tool:
             tool = fallback_tool
             if channel:
-                await channel.debug(f"Using LLMLogicalOperationTool for step with tool='{step.tool}' - performing logical operation: {step.intent}")
+                await channel.debug(f"Using fallback tool({tool.name}) for step with tool='{step.tool}' - performing logical operation: {step.intent}")
         else:
             return StepOutcome(
                 action=step,
