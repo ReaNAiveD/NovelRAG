@@ -1,6 +1,8 @@
 import json
 import logging
 
+from novelrag.agent.plan_strategy import NoOpPlanningStrategy, PlanningStrategy
+
 from .execution import ExecutionPlan
 from .context import PursuitContext
 from .steps import StepDefinition, StepOutcome, StepStatus
@@ -14,8 +16,9 @@ logger = logging.getLogger(__name__)
 class PursuitPlanner(LLMToolMixin):
     """Responsible for planning and executing goals using the agent's tools."""
     
-    def __init__(self, chat_llm: ChatLLM, template_env: TemplateEnvironment):
+    def __init__(self, chat_llm: ChatLLM, template_env: TemplateEnvironment, strategy: PlanningStrategy | None = None):
         super().__init__(chat_llm=chat_llm, template_env=template_env)
+        self.strategy = strategy or NoOpPlanningStrategy()
 
     async def create_initial_plan(self, goal: str, believes: list[str], tools: dict[str, ContextualTool]) -> list[StepDefinition]:
         """
@@ -35,15 +38,20 @@ class PursuitPlanner(LLMToolMixin):
                 info["input_schema"] = tool.inner.input_schema
             tool_info[name] = info
 
+        planning_instructions = self.strategy.initial_planning_instructions()
+
         response = await self.call_template(
             "decompose_goal.jinja2",
             json_format=True,
             goal=goal,
             believes=believes,
-            tools=tool_info
+            tools=tool_info,
+            planning_instructions=planning_instructions
         )
         steps = json.loads(response)["steps"]
         steps = [StepDefinition(**step) for step in steps]
+        steps = self.strategy.post_plan_drafted(steps)
+        steps = self.strategy.post_plan_determined(steps)
         return steps
 
     async def adapt_plan(
@@ -77,6 +85,7 @@ class PursuitPlanner(LLMToolMixin):
                 completed_steps=original_plan.executed_steps,
                 pending_steps=original_plan.pending_steps
             )
+            planning_context = self.strategy.filter_planning_context(planning_context)
 
             if last_step.status == StepStatus.SUCCESS:
                 return await self._adapt_plan_from_success(last_step, original_plan, believes, tools, planning_context)
@@ -111,13 +120,153 @@ class PursuitPlanner(LLMToolMixin):
         new_future_plan = await self._create_future_plan(
             original_plan.executed_steps + [last_step], original_plan.goal, believes, tools, planning_context
         )
+        new_future_plan = self.strategy.post_plan_drafted(new_future_plan)
 
         # Compare and merge plans
         merged_plan = await self._compare_and_merge_plans(
             new_future_plan, original_plan.pending_steps[1:], priority_steps, believes, planning_context
         )
 
-        return priority_steps + merged_plan
+        return self.strategy.post_plan_determined(priority_steps + merged_plan)
+
+    async def _adapt_plan_from_failure(self, last_step: StepOutcome, original_plan: ExecutionPlan,
+                                     believes: list[str], tools: dict[str, ContextualTool],
+                                     planning_context: list[str]) -> list[StepDefinition]:
+        """
+        Adapt plan after failed step execution.
+        1. Analyze failure with full execution history
+        2. Create recovery steps and determine if rerun is needed
+        3. Create new future plan incorporating recovery context
+        4. Compare and merge with original pending steps
+        """
+        # Analyze failure with full execution history
+        failure_analysis = await self._analyze_failure(
+            last_step, original_plan.executed_steps, original_plan.goal, believes, tools, planning_context
+        )
+
+        # Build priority steps (recovery + optional rerun)
+        priority_steps = []
+
+        # Add recovery steps
+        for step_data in failure_analysis.get("recovery_steps", []):
+            priority_steps.append(StepDefinition(**step_data))
+
+        # Add rerun if recommended
+        if failure_analysis.get("should_rerun", False):
+            priority_steps.append(StepDefinition(
+                intent=last_step.action.intent,
+                tool=last_step.action.tool,
+                progress=last_step.action.progress,
+                reason="rerun",
+                reason_details=failure_analysis.get("rerun_reason", "Rerun after recovery steps")
+            ))
+
+        # Create new future plan with recovery context
+        new_future_plan = await self._create_future_plan(
+            original_plan.executed_steps + [last_step], original_plan.goal, believes, tools, planning_context
+        )
+        new_future_plan = self.strategy.post_plan_drafted(new_future_plan)
+
+        # Compare and merge plans
+        merged_plan = await self._compare_and_merge_plans(
+            new_future_plan, original_plan.pending_steps[1:], priority_steps, believes, planning_context
+        )
+
+        return self.strategy.post_plan_determined(priority_steps + merged_plan)
+
+    async def _adapt_plan_from_decomposition(self, last_step: StepOutcome, original_plan: ExecutionPlan,
+                                           believes: list[str], tools: dict[str, ContextualTool],
+                                           planning_context: list[str]) -> list[StepDefinition]:
+        """
+        Adapt plan after step decomposition.
+        1. Add decomposed steps as priority
+        2. Create new future plan based on all executed steps
+        3. Compare and merge with original pending steps
+        """
+        # Build priority steps (only decomposed steps)
+        priority_steps: list[StepDefinition] = []
+
+        # Add decomposed steps
+        if last_step.decomposed_actions:
+            priority_steps = await self._convert_decomposed_actions_to_steps(
+                last_step, tools, believes, planning_context
+            )
+
+        # Create new future plan
+        new_future_plan = await self._create_future_plan(
+            original_plan.executed_steps + [last_step], original_plan.goal, believes, tools, planning_context
+        )
+        new_future_plan = self.strategy.post_plan_drafted(new_future_plan)
+
+        # Compare and merge plans
+        merged_plan = await self._compare_and_merge_plans(
+            new_future_plan, original_plan.pending_steps[1:], priority_steps, believes, planning_context
+        )
+
+        return self.strategy.post_plan_determined(priority_steps + merged_plan)
+
+    async def _create_future_plan(self, executed_steps: list[StepOutcome], goal: str,
+                                believes: list[str], tools: dict[str, ContextualTool],
+                                planning_context: list[str]) -> list[StepDefinition]:
+        """
+        Create a new plan for future work based on ALL executed steps and their outcomes.
+
+        Args:
+            executed_steps: All steps executed so far, including the last step
+            goal: The original goal being pursued
+            believes: Current beliefs of the agent
+            tools: Available tools
+            planning_context: Relevant historical context for planning decisions
+
+        Returns:
+            List of StepDefinition instances representing the new future plan
+        """
+        if not executed_steps:
+            return []
+
+        last_step = executed_steps[-1]
+
+        # Build tool info including input schemas for SchematicTools
+        tool_info = {}
+        for name, tool in tools.items():
+            info: dict[str, str | dict | None] = {"description": tool.description}
+            if isinstance(tool, SchematicToolAdapter):
+                info["input_schema"] = tool.inner.input_schema
+            tool_info[name] = info
+
+        adapt_instructions = self.strategy.adapt_planning_instructions()
+
+        response = await self.call_template(
+            "create_future_plan.jinja2",
+            json_format=True,
+            goal=goal,
+            believes=believes,
+            tools=tool_info,
+            planning_context=planning_context,
+            adapt_planning_instructions=adapt_instructions,
+            executed_steps=[{
+                "intent": outcome.action.intent,
+                "tool": outcome.action.tool,
+                "status": outcome.status.value,
+                "results": outcome.results,
+                "error_message": outcome.error_message,
+                "discovered_insights": outcome.discovered_insights
+            } for outcome in executed_steps],
+            last_step={
+                "intent": last_step.action.intent,
+                "tool": last_step.action.tool,
+                "status": last_step.status.value,
+                "results": last_step.results,
+                "error_message": last_step.error_message,
+                "discovered_insights": last_step.discovered_insights,
+                "triggered_actions": last_step.triggered_actions,
+                "decomposed_actions": last_step.decomposed_actions
+            }
+        )
+
+        result = json.loads(response)
+        future_steps = [StepDefinition(**step) for step in result.get("steps", [])]
+        return future_steps
 
     async def _convert_triggered_actions_to_steps(
         self,
@@ -224,140 +373,6 @@ class PursuitPlanner(LLMToolMixin):
             ))
 
         return decomposed_steps
-
-    async def _adapt_plan_from_failure(self, last_step: StepOutcome, original_plan: ExecutionPlan,
-                                     believes: list[str], tools: dict[str, ContextualTool],
-                                     planning_context: list[str]) -> list[StepDefinition]:
-        """
-        Adapt plan after failed step execution.
-        1. Analyze failure with full execution history
-        2. Create recovery steps and determine if rerun is needed
-        3. Create new future plan incorporating recovery context
-        4. Compare and merge with original pending steps
-        """
-        # Analyze failure with full execution history
-        failure_analysis = await self._analyze_failure(
-            last_step, original_plan.executed_steps, original_plan.goal, believes, tools, planning_context
-        )
-
-        # Build priority steps (recovery + optional rerun)
-        priority_steps = []
-
-        # Add recovery steps
-        for step_data in failure_analysis.get("recovery_steps", []):
-            priority_steps.append(StepDefinition(**step_data))
-
-        # Add rerun if recommended
-        if failure_analysis.get("should_rerun", False):
-            priority_steps.append(StepDefinition(
-                intent=last_step.action.intent,
-                tool=last_step.action.tool,
-                progress=last_step.action.progress,
-                reason="rerun",
-                reason_details=failure_analysis.get("rerun_reason", "Rerun after recovery steps")
-            ))
-
-        # Create new future plan with recovery context
-        new_future_plan = await self._create_future_plan(
-            original_plan.executed_steps + [last_step], original_plan.goal, believes, tools, planning_context
-        )
-
-        # Compare and merge plans
-        merged_plan = await self._compare_and_merge_plans(
-            new_future_plan, original_plan.pending_steps[1:], priority_steps, believes, planning_context
-        )
-
-        return priority_steps + merged_plan
-
-    async def _adapt_plan_from_decomposition(self, last_step: StepOutcome, original_plan: ExecutionPlan,
-                                           believes: list[str], tools: dict[str, ContextualTool],
-                                           planning_context: list[str]) -> list[StepDefinition]:
-        """
-        Adapt plan after step decomposition.
-        1. Add decomposed steps as priority
-        2. Create new future plan based on all executed steps
-        3. Compare and merge with original pending steps
-        """
-        # Build priority steps (only decomposed steps)
-        priority_steps: list[StepDefinition] = []
-
-        # Add decomposed steps
-        if last_step.decomposed_actions:
-            priority_steps = await self._convert_decomposed_actions_to_steps(
-                last_step, tools, believes, planning_context
-            )
-
-        # Create new future plan
-        new_future_plan = await self._create_future_plan(
-            original_plan.executed_steps + [last_step], original_plan.goal, believes, tools, planning_context
-        )
-
-        # Compare and merge plans
-        merged_plan = await self._compare_and_merge_plans(
-            new_future_plan, original_plan.pending_steps[1:], priority_steps, believes, planning_context
-        )
-
-        return priority_steps + merged_plan
-
-    async def _create_future_plan(self, executed_steps: list[StepOutcome], goal: str,
-                                believes: list[str], tools: dict[str, ContextualTool],
-                                planning_context: list[str]) -> list[StepDefinition]:
-        """
-        Create a new plan for future work based on ALL executed steps and their outcomes.
-
-        Args:
-            executed_steps: All steps executed so far, including the last step
-            goal: The original goal being pursued
-            believes: Current beliefs of the agent
-            tools: Available tools
-            planning_context: Relevant historical context for planning decisions
-
-        Returns:
-            List of StepDefinition instances representing the new future plan
-        """
-        if not executed_steps:
-            return []
-
-        last_step = executed_steps[-1]
-
-        # Build tool info including input schemas for SchematicTools
-        tool_info = {}
-        for name, tool in tools.items():
-            info: dict[str, str | dict | None] = {"description": tool.description}
-            if isinstance(tool, SchematicToolAdapter):
-                info["input_schema"] = tool.inner.input_schema
-            tool_info[name] = info
-
-        response = await self.call_template(
-            "create_future_plan.jinja2",
-            json_format=True,
-            goal=goal,
-            believes=believes,
-            tools=tool_info,
-            planning_context=planning_context,
-            executed_steps=[{
-                "intent": outcome.action.intent,
-                "tool": outcome.action.tool,
-                "status": outcome.status.value,
-                "results": outcome.results,
-                "error_message": outcome.error_message,
-                "discovered_insights": outcome.discovered_insights
-            } for outcome in executed_steps],
-            last_step={
-                "intent": last_step.action.intent,
-                "tool": last_step.action.tool,
-                "status": last_step.status.value,
-                "results": last_step.results,
-                "error_message": last_step.error_message,
-                "discovered_insights": last_step.discovered_insights,
-                "triggered_actions": last_step.triggered_actions,
-                "decomposed_actions": last_step.decomposed_actions
-            }
-        )
-
-        result = json.loads(response)
-        future_steps = [StepDefinition(**step) for step in result.get("steps", [])]
-        return future_steps
 
     async def _compare_and_merge_plans(self, new_future_plan: list[StepDefinition],
                                      original_pending_steps: list[StepDefinition],

@@ -37,10 +37,16 @@ Steps can include conditional logic expressed in natural language within the int
 - **Existence validation**: Check if resources already exist before creating duplicates
 
 Common conditional patterns:
-- "Query for [criteria], and if not found, proceed with creation"
-- "Check if [condition exists], and if so, modify existing [resource]"
-- "Search for similar [items], and only create new if none match [criteria]"
+- "if the [criteria] is not found in previous steps, proceed with creation"
+- "if [condition exists], modify existing [resource]"
 - "If [previous step found X], then [do Y], otherwise [do Z]"
+- "Query the details of all children of [resource_uri]"
+
+Specially, for a part like:
+- "Query resource with uri [uri] to see if it matches [criteria], if not, choose one of its children that is most similar to [criteria] and continue querying down the hierarchy until a match is found or a leaf node is reached"
+decompose it into:
+- "Query resource with uri [uri] to see if it matches [criteria]"
+- "If the resource with [uri] does not match [criteria], choose one of its children that is most similar to [criteria] and continue querying down the hierarchy until a match is found or a leaf node is reached"
 
 ### Step Sequencing Principles
 1. **Foundation First**: Start with steps that gather necessary context or setup required state
@@ -101,7 +107,7 @@ Each step in the steps array must include:
 - The protagonist is a young mage learning to control their powers
 - Magic is feared by common people
 
-**Available Tools**: story_reader, character_creator, world_builder, conflict_analyzer
+**Available Tools**: story_reader, character_searcher, worlder_searcher, character_creator, world_builder, conflict_analyzer
 
 **Response**:
 ```json
@@ -114,7 +120,7 @@ Each step in the steps array must include:
       "reason_details": "Foundation step to gather context for antagonist creation"
     },
     {
-      "tool": "world_builder",
+      "tool": "worlder_searcher",
       "intent": "Research the medieval fantasy world's political structure, magic system, and social tensions around magic users",
       "reason": "initial_plan",
       "reason_details": "World context needed to create believable antagonist motivations"
@@ -140,154 +146,6 @@ Each step in the steps array must include:
 }
 ```
 
-### Example 2: Data Analysis Goal with Conditional Branching
-**Goal**: Analyze customer behavior patterns and generate actionable business insights
-**Beliefs**:
-- Customer data exists in multiple databases
-- Previous analysis showed seasonal purchasing trends
-- Marketing team needs segmentation recommendations
-
-**Available Tools**: data_collector, data_validator, pattern_analyzer, report_generator
-
-**Response**:
-```json
-{
-  "steps": [
-    {
-      "tool": "data_collector",
-      "intent": "Collect customer transaction data from all available databases, prioritizing the most recent 12 months",
-      "reason": "initial_plan",
-      "reason_details": "Foundation step to gather raw data for analysis"
-    },
-    {
-      "tool": "data_validator",
-      "intent": "Validate data quality, identify missing records, and check for inconsistencies across database sources",
-      "reason": "initial_plan",
-      "reason_details": "Data quality assurance before analysis begins"
-    },
-    {
-      "intent": "If data validation reveals significant quality issues, determine data cleaning strategy; otherwise proceed with pattern analysis",
-      "reason": "initial_plan",
-      "reason_details": "Conditional logic step to handle data quality variations"
-    },
-    {
-      "tool": "pattern_analyzer",
-      "intent": "Analyze customer purchasing patterns, focusing on seasonal trends, frequency patterns, and product category preferences",
-      "reason": "initial_plan",
-      "reason_details": "Core analysis step to identify customer behavior insights"
-    },
-    {
-      "intent": "Segment customers based on discovered patterns and create distinct behavioral profiles for marketing targeting",
-      "reason": "initial_plan",
-      "reason_details": "Logical analysis step to create actionable customer segments"
-    },
-    {
-      "tool": "report_generator",
-      "intent": "Generate comprehensive report with customer segments, key insights, and specific marketing recommendations for each segment",
-      "reason": "initial_plan",
-      "reason_details": "Final deliverable step to present actionable business insights"
-    }
-  ]
-}
-```
-
-### Example 3: Content Creation Goal with Query-Based Branching
-**Goal**: Create a comprehensive guide on sustainable gardening practices
-**Beliefs**:
-- Target audience includes both beginners and experienced gardeners
-- Focus should be on eco-friendly and cost-effective methods
-- Content should be practical and actionable
-
-**Available Tools**: research_tool, content_creator, editor, formatter
-
-**Response**:
-```json
-{
-  "steps": [
-    {
-      "tool": "research_tool",
-      "intent": "Research existing sustainable gardening guides to identify content gaps and opportunities for unique value",
-      "reason": "initial_plan",
-      "reason_details": "Market research step to ensure comprehensive coverage"
-    },
-    {
-      "tool": "research_tool",
-      "intent": "Gather scientific information on sustainable gardening practices, including composting, natural pest control, and water conservation techniques",
-      "reason": "initial_plan",
-      "reason_details": "Technical research for credible content foundation"
-    },
-    {
-      "intent": "Organize research findings into a logical content structure that progresses from beginner to advanced techniques",
-      "reason": "initial_plan",
-      "reason_details": "Content planning step to create user-friendly progression"
-    },
-    {
-      "tool": "content_creator",
-      "intent": "Create comprehensive guide sections covering soil health, composting, organic pest control, and water-wise gardening practices",
-      "reason": "initial_plan",
-      "reason_details": "Main content creation step based on research and structure"
-    },
-    {
-      "tool": "content_creator",
-      "intent": "Develop practical examples, seasonal checklists, and beginner-friendly quick-start guides for each major topic",
-      "reason": "initial_plan",
-      "reason_details": "Actionable content creation for practical implementation"
-    },
-    {
-      "tool": "editor",
-      "intent": "Review and refine content for clarity, accuracy, and accessibility to both beginner and experienced audiences",
-      "reason": "initial_plan",
-      "reason_details": "Quality assurance step to ensure content meets audience needs"
-    },
-    {
-      "tool": "formatter",
-      "intent": "Format the guide with clear headings, bullet points, and visual hierarchy to enhance readability and usability",
-      "reason": "initial_plan",
-      "reason_details": "Final presentation step to optimize user experience"
-    }
-  ]
-}
-```
-
-### Example 4: Simple Goal with Logical Operations
-**Goal**: Analyze the main themes in a short story
-**Beliefs**:
-- The story explores themes of identity and belonging
-- Literary analysis should identify both explicit and implicit themes
-- Analysis should support interpretations with textual evidence
-
-**Available Tools**: text_analyzer, citation_finder
-
-**Response**:
-```json
-{
-  "steps": [
-    {
-      "tool": "text_analyzer",
-      "intent": "Analyze the short story text to identify recurring motifs, symbols, and thematic elements",
-      "reason": "initial_plan",
-      "reason_details": "Textual analysis step to identify thematic components"
-    },
-    {
-      "intent": "Examine character development and dialogue to identify themes related to identity and belonging",
-      "reason": "initial_plan",
-      "reason_details": "Logical analysis step focusing on character-driven themes"
-    },
-    {
-      "tool": "citation_finder",
-      "intent": "Find specific textual evidence that supports the identified themes of identity and belonging",
-      "reason": "initial_plan",
-      "reason_details": "Evidence gathering step to support thematic analysis"
-    },
-    {
-      "intent": "Synthesize findings into a comprehensive thematic analysis, connecting explicit and implicit theme expressions",
-      "reason": "initial_plan",
-      "reason_details": "Final synthesis step to complete the literary analysis"
-    }
-  ]
-}
-```
-
 ## Your Task
 
 Decompose the provided goal into a strategic sequence of executable steps.
@@ -306,6 +164,23 @@ Decompose the provided goal into a strategic sequence of executable steps.
 {% for tool_name, tool_info in tools.items() %}
 - **{{ tool_name }}**: {{ tool_info }}
 {% endfor %}
+
+## Strategic Planning Guidance
+
+{% if planning_instructions and planning_instructions|length > 0 %}
+The following strategic guidance should inform your planning approach:
+
+{% for instruction in planning_instructions %}
+- {{ instruction }}
+{% endfor %}
+
+### Applying Strategic Guidance
+- **Integration**: Incorporate these guidelines into your step sequencing and tool selection
+- **Contextual Application**: Apply relevant guidance based on the specific goal and domain
+- **Complementary Planning**: Use these instructions alongside the general planning principles above
+- **Domain-Specific Focus**: Pay special attention to guidance that directly relates to the goal's domain
+
+{% endif %}
 
 ## Instructions
 

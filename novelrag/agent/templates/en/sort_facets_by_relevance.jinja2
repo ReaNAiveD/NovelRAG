@@ -30,44 +30,6 @@ Return a JSON object with a single "facets" array containing ALL input facets so
 }
 ```
 
-## Examples
-
-### Example 1: Character Dialogue Generation
-**Step Info**:
-```json
-{
-  "tool": "dialogue_generator",
-  "intent": "Create conversation between Sarah and her mother about family restaurant"
-}
-```
-
-**Available Facets**: ["character Sarah Chen core identity and background", "Sarah Chen family relationships and dynamics", "Victorian London environmental atmosphere and sensory details", "character personality traits for dialogue development", "Victorian social class structure and geographical divisions"]
-
-**Response**:
-```json
-{
-  "facets": ["Sarah Chen family relationships and dynamics", "character personality traits for dialogue development", "character Sarah Chen core identity and background", "Victorian social class structure and geographical divisions", "Victorian London environmental atmosphere and sensory details"]
-}
-```
-
-### Example 2: Scene Location Research
-**Step Info**:
-```json
-{
-  "tool": "location_researcher",
-  "intent": "Find suitable Victorian London locations for detective investigation scenes"
-}
-```
-
-**Available Facets**: ["character Sarah Chen core identity and background", "Victorian London environmental atmosphere and sensory details", "Victorian crime patterns and criminal organization", "Victorian social class structure and geographical divisions", "dialogue generation requirements and prerequisites"]
-
-**Response**:
-```json
-{
-  "facets": ["Victorian London environmental atmosphere and sensory details", "Victorian crime patterns and criminal organization", "Victorian social class structure and geographical divisions", "character Sarah Chen core identity and background", "dialogue generation requirements and prerequisites"]
-}
-```
-
 ## Current Task
 
 **Step Info**:
