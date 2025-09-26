@@ -1,49 +1,17 @@
-You are an expert creative writing assistant specialized in generating diverse perspectives for content creation. Your task is to generate multiple distinct perspectives that will guide content creation for a specific story development step.
+You are an expert creative writing assistant generating {{ num_perspectives }} diverse perspectives for story development. Each perspective must explore unexplored gaps in the provided context while respecting story constraints.
 
 ## Understanding the Task
 
-You need to create {{ num_perspectives }} diverse perspectives that:
+Create perspectives that:
+- **Are Step-Relevant**: Address the current step requirements
+- **Maximize Creativity**: Use unconventional approaches within story boundaries
+- **Avoid Overlap**: Offer genuinely different creative territory
+- **Pack Information**: Dense, actionable guidance (10-20 words each)
+- **Fill Context Gaps**: Address areas mentioned but unexplored in provided context
 
-- **Address the Step**: Each perspective should be relevant to the current step description
-- **Are Contextually Aware**: Consider the provided context and current story beliefs
-- **Avoid Overlap**: Each perspective should offer a genuinely different approach
-- **Provide Clear Direction**: Give specific, actionable guidance (10-20 words each)
-- **Maximize Creativity**: Explore unconventional angles, fresh approaches, and innovative storytelling methods
-- **Pack Information**: Use concise phrases that convey maximum creative direction
-- **Respect Constraints**: Stay within the boundaries of the story context
+## Input Context
 
-## Perspective Quality Guidelines
-
-### Creative Innovation Requirements
-- **Break Conventions**: Challenge typical storytelling approaches with fresh perspectives
-- **Unique Angles**: Find unexpected entry points into the scene or character development
-- **Creative Techniques**: Suggest innovative narrative methods, unusual viewpoints, or artistic approaches
-- **Fresh Elements**: Introduce new story dimensions mentioned in context but unexplored
-
-### Information Density Guidelines
-- **Keyword-Rich**: Pack multiple creative elements into concise phrases (not complete sentences)
-- **Multi-Layered**: Include technique + focus + emotional tone + specific detail when possible
-- **Actionable Specifics**: Combine what to do with how to do it creatively
-
-### Examples of Enhanced Creative Perspectives
-
-- "Unreliable narrator misremembers key details, revealing character psychology through memory gaps"
-- "Sensory overload: taste/texture descriptions mirror protagonist's emotional overwhelm during confrontation"
-- "Parallel timeline structure: past trauma echoes present choices through fragmented flashbacks"
-- "Silent communication: meaningful glances, micro-expressions, body language replace direct dialogue"
-- "Environmental storytelling: room details, weather, objects reflect internal character states"
-
-### Creative Diversity Strategies
-- **Narrative Innovation**: Stream-of-consciousness, fragmented time, multiple POVs, unreliable narration
-- **Sensory Focus**: Synesthesia, sensory memory triggers, unusual sensory combinations
-- **Structural Experiments**: Non-linear progression, parallel scenes, symbolic frameworks
-- **Character Psychology**: Subconscious motivations, defense mechanisms, hidden desires revealed through actions
-- **Atmospheric Techniques**: Mood through setting, symbolic weather, meaningful objects
-- **Dialogue Innovation**: Subtext-heavy conversations, cultural language patterns, generational speech differences
-
-## Context Analysis
-
-**Current Step Description:**
+**Step Description:**
 ```
 {{ step_description }}
 ```
@@ -53,54 +21,52 @@ You need to create {{ num_perspectives }} diverse perspectives that:
 - {{ item }}
 {% endfor %}
 
-**Current Story Beliefs:**
+**Story Beliefs:**
 {% for belief in believes %}
 - {{ belief }}
 {% endfor %}
 
-## Perspective Generation Strategy
+## Creative Techniques
 
-1. **Analyze the Step**: Understand what kind of content needs to be created
-2. **Identify Opportunities**: Look for different creative angles from the context
-3. **Ensure Diversity**: Make sure each perspective offers a distinct approach
-4. **Validate Feasibility**: Confirm each perspective can be reasonably executed
-5. **Check Relevance**: Ensure all perspectives address the step requirements
+**Narrative Innovation**: Stream-of-consciousness, fragmented time, unreliable narration, multiple POVs
+**Sensory Focus**: Synesthesia, sensory memory triggers, unusual combinations
+**Character Psychology**: Subconscious motivations, defense mechanisms revealed through actions
+**Atmospheric Methods**: Mood through setting, symbolic weather, meaningful objects
 
-## Response Format Requirements
+## Creative Examples
+- "Unreliable narrator misremembers key details, revealing character psychology through memory gaps"
+- "Sensory overload: taste/texture descriptions mirror protagonist's emotional overwhelm during confrontation"
+- "Silent communication: meaningful glances, micro-expressions replace direct dialogue"
+- "Environmental storytelling: room details, weather reflect internal character states"
 
-Generate exactly {{ num_perspectives }} perspectives. Each perspective must be:
-- **Ultra-Concise**: 10-20 words maximum, phrase-style (not complete sentences)
-- **Creative-Forward**: Prioritize innovative, unexpected approaches over conventional ones
-- **Information-Dense**: Pack multiple creative elements (technique + focus + detail)
-- **Distinctly Different**: Each perspective should explore completely different creative territory
-- **Context-Integrated**: Weave in specific story elements, characters, or situations from provided context
+## Requirements
 
-**Creativity Priority**: Generate the most innovative, unexpected perspectives possible while staying relevant to the step. Avoid predictable or conventional approaches.
+Each perspective must:
+- Use 10-20 words, phrase-style (no complete sentences)
+- Prioritize innovative, unexpected approaches
+- Pack multiple elements (technique + focus + detail)
+- Explore different creative territory from other perspectives
+- Integrate specific story elements from context
+- Address unexplored context areas without conflicts
 
-Return your response as a JSON object with this exact structure:
+Return as JSON:
 
 ```json
 {
+  "context_analysis": "Analysis of required information from context to complete this step",
   "perspectives": [
     {
-      "description": "Creative technique + specific focus + unique angle (10-20 words, phrase-style)",
+      "description": "Creative technique + focus + unique angle (10-20 words, phrase-style)",
       "rationale": "Why this creative approach uniquely serves the current step"
-    },
-    {
-      "description": "Different innovative approach + story element + creative method (10-20 words)",
-      "rationale": "How this perspective offers fresh creative value"
     }
   ]
 }
 ```
 
 ## Quality Checklist
-
-Before finalizing, verify each perspective:
-- [ ] Uses 10-20 words in concise phrase format (not complete sentences)
-- [ ] Suggests genuinely creative, unconventional approach
-- [ ] Packs maximum information density (technique + focus + specifics)
-- [ ] Explores completely different creative territory from other perspectives
-- [ ] Integrates story context elements creatively
-- [ ] Prioritizes innovation over conventional storytelling
-- [ ] Provides clear creative direction despite brevity
+- [ ] 10-20 words, phrase format
+- [ ] Genuinely creative, unconventional approach
+- [ ] Maximum information density
+- [ ] Explores different creative territory
+- [ ] Integrates story context creatively
+- [ ] Addresses context gaps, not conflicts

@@ -12,11 +12,8 @@ class PlanningStrategy(abc.ABC):
 
     def filter_planning_context(self, context: list[str]) -> list[str]:
         raise NotImplementedError()
-
-    def post_plan_drafted(self, raw_steps: list[StepDefinition]) -> list[StepDefinition]:
-        raise NotImplementedError()
     
-    def post_plan_determined(self, merged_steps: list[StepDefinition]) -> list[StepDefinition]:
+    def post_planning(self, merged_steps: list[StepDefinition]) -> list[StepDefinition]:
         raise NotImplementedError()
 
 
@@ -34,15 +31,10 @@ class CompositePlanningStrategy(PlanningStrategy):
         for strategy in self.strategies:
             context = strategy.filter_planning_context(context)
         return context
-
-    def post_plan_drafted(self, raw_steps: list[StepDefinition]) -> list[StepDefinition]:
-        for strategy in self.strategies:
-            raw_steps = strategy.post_plan_drafted(raw_steps)
-        return raw_steps
     
-    def post_plan_determined(self, merged_steps: list[StepDefinition]) -> list[StepDefinition]:
+    def post_planning(self, merged_steps: list[StepDefinition]) -> list[StepDefinition]:
         for strategy in self.strategies:
-            merged_steps = strategy.post_plan_determined(merged_steps)
+            merged_steps = strategy.post_planning(merged_steps)
         return merged_steps
 
 
@@ -58,11 +50,8 @@ class NoOpPlanningStrategy(PlanningStrategy):
 
     def filter_planning_context(self, context: list[str]) -> list[str]:
         return context
-
-    def post_plan_drafted(self, raw_steps: list[StepDefinition]) -> list[StepDefinition]:
-        return raw_steps
     
-    def post_plan_determined(self, merged_steps: list[StepDefinition]) -> list[StepDefinition]:
+    def post_planning(self, merged_steps: list[StepDefinition]) -> list[StepDefinition]:
         return merged_steps
 
 
