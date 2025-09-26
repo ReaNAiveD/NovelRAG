@@ -15,24 +15,24 @@ For each decomposed action, analyze its content and convert it into a proper ste
 {% if tool_info.input_schema %}
 Input Schema: {{ tool_info.input_schema | tojson }}
 {% endif %}
-{% endfor %}
+{%- endfor %}
 
 ## Current Context
 **Original Step**: {{ original_step_intent }}
 **Current Beliefs**: 
 {% for belief in believes %}
 - {{ belief }}
-{% endfor %}
+{%- endfor %}
 
 **Planning Context**:
 {% for context in planning_context %}
 - {{ context }}
-{% endfor %}
+{%- endfor %}
 
 ## Decomposed Actions to Convert
 {% for action in decomposed_actions %}
 **Sub-Action {{ loop.index }}**: {{ action | tojson }}
-{% endfor %}
+{%- endfor %}
 
 ## Instructions
 1. For each decomposed action, analyze its content and purpose

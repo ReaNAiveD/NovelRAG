@@ -180,12 +180,12 @@ Analyze the provided information and identify missing fields from the input sche
 **Available Context:**
 {% for item in context %}
 - {{ item }}
-{% endfor %}
+{%- endfor %}
 
 **Current Believes:**
 {% for believe in believes %}
 - {{ believe }}
-{% endfor %}
+{%- endfor %}
 
 **Tool Input Schema:**
 ```json

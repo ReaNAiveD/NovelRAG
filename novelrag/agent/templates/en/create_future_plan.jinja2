@@ -13,7 +13,7 @@ Create a complete execution plan by:
 ## Planning Context
 {% for item in planning_context %}
 - {{ item }}
-{% endfor %}
+{%- endfor %}
 
 ## Core Technical Rules
 
@@ -52,22 +52,22 @@ Analyze execution history and generate a complete execution plan by merging imme
 **Agent Beliefs:**
 {% for belief in believes %}
 - {{ belief }}
-{% endfor %}
+{%- endfor %}
 
 **Available Tools:**
 {% for tool_name, tool_info in tools.items() %}
 - **{{ tool_name }}**: {{ tool_info }}
-{% endfor %}
+{%- endfor %}
 
 **Immediate Steps (execute first):**
 {% for step in immediate_steps %}
 - **{{ step.intent }}** ({{ step.tool }}) - {{ step.reason_details }}
-{% endfor %}
+{%- endfor %}
 
 **Original Pending Steps:**
 {% for step in original_pending_steps %}
 - **{{ step.intent }}** ({{ step.tool }}) - {{ step.reason_details }}
-{% endfor %}
+{%- endfor %}
 
 **Executed Steps:**
 {% for step in executed_steps %}
@@ -75,7 +75,7 @@ Analyze execution history and generate a complete execution plan by merging imme
   {% if step.results %}- Results: {{ step.results | join(', ') }}{% endif %}
   {% if step.error_message %}- Error: {{ step.error_message }}{% endif %}
   {% if step.discovered_insights %}- Insights: {{ step.discovered_insights | join(', ') }}{% endif %}
-{% endfor %}
+{%- endfor %}
 
 **Last Step Outcome:**
 - Intent: {{ last_step.intent }}
@@ -94,7 +94,7 @@ The following strategic guidance should inform your adaptive planning approach b
 
 {% for instruction in adapt_planning_instructions %}
 - {{ instruction }}
-{% endfor %}
+{%- endfor %}
 
 ### Applying Adaptive Guidance
 - **Execution-Informed Decisions**: Use these guidelines to interpret execution results and adjust planning accordingly

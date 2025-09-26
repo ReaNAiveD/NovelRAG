@@ -30,7 +30,7 @@ The tool expects the following input schema:
 {% if context %}
 {% for item in context %}
 - {{ item }}
-{% endfor %}
+{%- endfor %}
 {% else %}
 - No context available
 {% endif %}
@@ -39,7 +39,7 @@ The tool expects the following input schema:
 {% if believes %}
 {% for belief in believes %}
 - {{ belief }}
-{% endfor %}
+{%- endfor %}
 {% else %}
 - No beliefs established
 {% endif %}
@@ -50,7 +50,7 @@ The tool expects the following input schema:
 The following tools are available to handle decomposed steps:
 {% for tool_name_avail, tool_desc in available_tools.items() %}
 - **{{ tool_name_avail }}**: {{ tool_desc }}
-{% endfor %}
+{%- endfor %}
 {% else %}
 - No additional tools available for decomposition
 {% endif %}

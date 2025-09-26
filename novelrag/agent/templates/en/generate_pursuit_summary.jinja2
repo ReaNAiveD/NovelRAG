@@ -170,13 +170,13 @@ Generate a comprehensive summary response based on the goal pursuit execution.
 **All Execution Steps:**
 {% for step in steps %}
 - **Tool**: {{ step.tool }} | **Intent**: {{ step.intent }} | **Status**: {{ step.status }}
-{% endfor %}
+{%- endfor %}
 
 **Key Steps with Results:**
 {% for key_step in key_steps %}
 **{{ key_step.tool }}**: {{ key_step.intent }}
 - Results: {{ key_step.results | join(', ') if key_step.results else 'No specific results recorded' }}
-{% endfor %}
+{%- endfor %}
 
 ## Instructions
 
