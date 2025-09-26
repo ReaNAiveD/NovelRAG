@@ -28,7 +28,7 @@ You are analyzing a step that involves creating or updating content. Your goal i
 **Description**: {{ aspect.description or "No description available" }}
 **Children Keys**: {{ aspect.children_keys | join(", ") if aspect.children_keys else "None" }}
 
-{% endfor %}
+{%- endfor %}
 
 ## Domain Examples for New Aspects
 
@@ -114,7 +114,7 @@ Please determine the most suitable aspect or create new aspect for the step desc
 
 {% for item in context %}
 - {{ item }}
-{% endfor %}
+{%- endfor %}
 
 ## Important Guidelines
 

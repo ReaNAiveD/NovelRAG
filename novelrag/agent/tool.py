@@ -2,6 +2,7 @@
 
 from abc import ABC, abstractmethod
 import json
+import logging
 from typing import Any
 
 from novelrag.llm.types import ChatLLM
@@ -9,6 +10,8 @@ from novelrag.template import TemplateEnvironment
 from .steps import StepDefinition
 
 from .types import ToolOutput, ToolDecomposition, ToolResult, ToolError
+
+logger = logging.getLogger(__name__)
 
 
 class LLMToolMixin:
@@ -20,12 +23,17 @@ class LLMToolMixin:
     
     async def call_template(self, template_name: str, user_question: str | None = None, json_format: bool = False, **kwargs: bool | int | float | str | list | dict) -> str:
         """Call an LLM with a template and return the response."""
+        logger.info(f"\n┌─ Calling template: {template_name} with json_format={json_format} ─────────────────")
         template = self.template_env.load_template(template_name)
         prompt = template.render(**kwargs)
-        return await self.chat_llm.chat(messages=[
+        logger.debug('\n' + prompt)
+        response = await self.chat_llm.chat(messages=[
             {'role': 'system', 'content': prompt},
             {'role': 'user', 'content': user_question or 'Please answer the question.'}
         ], response_format='json_object' if json_format else None)
+        logger.info(f"\n┌─ Received response from LLM for template {template_name}")
+        logger.debug('\n' + response)
+        return response
 
 
 class ToolRuntime(ABC):

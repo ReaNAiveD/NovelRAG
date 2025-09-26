@@ -125,7 +125,7 @@ Analyze the provided pursuit steps and identify the most significant ones based 
 **Completed Steps**:
 {% for step in steps %}
 {{ loop.index0 }}. Tool: {{ step.tool }}, Intent: {{ step.intent }}, Status: {{ step.status }}
-{% endfor %}
+{%- endfor %}
 
 ## Instructions
 

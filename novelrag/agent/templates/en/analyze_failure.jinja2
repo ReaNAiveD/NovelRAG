@@ -5,12 +5,12 @@ You are a planning agent analyzing a failed step execution to determine recovery
 **Current Beliefs:**
 {% for belief in believes %}
 - {{ belief }}
-{% endfor %}
+{%- endfor %}
 
 **Available Tools:**
 {% for tool_name, tool_info in tools.items() %}
 - **{{ tool_name }}**: {{ tool_info }}
-{% endfor %}
+{%- endfor %}
 
 **All Executed Steps (chronological order):**
 {% for step in executed_steps %}
@@ -20,7 +20,7 @@ You are a planning agent analyzing a failed step execution to determine recovery
   - Results: {{ step.results | join(', ') if step.results else 'None' }}
   {% if step.error_message %}- Error: {{ step.error_message }}{% endif %}
   {% if step.discovered_insights %}- Insights: {{ step.discovered_insights | join(', ') }}{% endif %}
-{% endfor %}
+{%- endfor %}
 
 **Failed Step Details:**
 - Intent: {{ failed_step.intent }}

@@ -15,24 +15,24 @@ For each triggered action, analyze its content and convert it into a proper step
 {% if tool_info.input_schema %}
 Input Schema: {{ tool_info.input_schema | tojson }}
 {% endif %}
-{% endfor %}
+{%- endfor %}
 
 ## Current Context
 **Triggering Step**: {{ triggering_step_intent }}
 **Current Beliefs**: 
 {% for belief in believes %}
 - {{ belief }}
-{% endfor %}
+{%- endfor %}
 
 **Planning Context**:
 {% for context in planning_context %}
 - {{ context }}
-{% endfor %}
+{%- endfor %}
 
 ## Triggered Actions to Convert
 {% for action in triggered_actions %}
 **Action {{ loop.index }}**: {{ action | tojson }}
-{% endfor %}
+{%- endfor %}
 
 ## Instructions
 1. For each triggered action, analyze its content and purpose

@@ -6,7 +6,7 @@ You are a planning agent tasked with comparing and merging two plans to create a
   - Tool: {{ step.tool }}
   - Reason: {{ step.reason }}
   {% if step.reason_details %}- Details: {{ step.reason_details }}{% endif %}
-{% endfor %}
+{%- endfor %}
 
 **New Future Plan:**
 {% for step in new_future_plan %}
@@ -14,7 +14,7 @@ You are a planning agent tasked with comparing and merging two plans to create a
   - Tool: {{ step.tool }}
   - Reason: {{ step.reason }}
   {% if step.reason_details %}- Details: {{ step.reason_details }}{% endif %}
-{% endfor %}
+{%- endfor %}
 
 **Priority Steps (triggered/decomposed - must go first):**
 {% for step in priority_steps %}
@@ -22,12 +22,12 @@ You are a planning agent tasked with comparing and merging two plans to create a
   - Tool: {{ step.tool }}
   - Reason: {{ step.reason }}
   {% if step.reason_details %}- Details: {{ step.reason_details }}{% endif %}
-{% endfor %}
+{%- endfor %}
 
 **Current Beliefs:**
 {% for belief in believes %}
 - {{ belief }}
-{% endfor %}
+{%- endfor %}
 
 Compare the two plans and determine the best merge strategy. Consider:
 

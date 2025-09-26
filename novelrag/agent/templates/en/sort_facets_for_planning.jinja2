@@ -17,17 +17,17 @@ You are analyzing knowledge facets to determine which are most relevant for plan
 **Executed Steps History:**
 {% for step in planning_info.executed_steps %}
 - {{ step.tool }}: {{ step.intent }} ({{ step.status }})
-{% endfor %}
+{%- endfor %}
 
 **Pending Steps:**
 {% for step in planning_info.pending_steps %}
 - {{ step.tool }}: {{ step.intent }}
-{% endfor %}
+{%- endfor %}
 
 ## Available Knowledge Facets
 {% for facet in available_facets %}
 - {{ facet }}
-{% endfor %}
+{%- endfor %}
 
 ## Task
 Sort the available knowledge facets by relevance for planning future steps. Consider:

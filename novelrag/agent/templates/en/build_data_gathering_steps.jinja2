@@ -23,7 +23,7 @@ When selecting tools, consider:
 ### Available Tools:
 {% for tool_name, tool_description in available_tools.items() %}
 - **{{ tool_name }}**: {{ tool_description }}
-{% endfor %}
+{%- endfor %}
 
 ## Step Planning Guidelines
 
@@ -216,6 +216,6 @@ Response:
 **Available Tools**: 
 {% for tool_name, tool_description in available_tools.items() %}
 - **{{ tool_name }}**: {{ tool_description }}
-{% endfor %}
+{%- endfor %}
 
 Based on the above input schema, missing fields, and available tools, create a strategic sequence of data gathering steps that will systematically collect all the required information.

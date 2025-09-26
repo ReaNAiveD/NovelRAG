@@ -122,12 +122,12 @@ Decompose the provided goal into a strategic sequence of executable steps.
 **Agent Beliefs:**
 {% for belief in believes %}
 - {{ belief }}
-{% endfor %}
+{%- endfor %}
 
 **Available Tools:**
 {% for tool_name, tool_info in tools.items() %}
 - **{{ tool_name }}**: {{ tool_info }}
-{% endfor %}
+{%- endfor %}
 
 ## Strategic Planning Guidance
 
@@ -136,7 +136,7 @@ The following strategic guidance should inform your planning approach:
 
 {% for instruction in planning_instructions %}
 - {{ instruction }}
-{% endfor %}
+{%- endfor %}
 
 ### Applying Strategic Guidance
 - **Integration**: Incorporate these guidelines into your step sequencing and tool selection

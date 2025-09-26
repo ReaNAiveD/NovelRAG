@@ -356,7 +356,7 @@ Extract and organize knowledge from the provided step execution results, conside
 {% if future_steps %}
 {% for future_step in future_steps %}
 - {{ future_step.tool }}: {{ future_step.intent }}
-{% endfor %}
+{%- endfor %}
 {% else %}
 (No future steps provided)
 {% endif %}
@@ -365,7 +365,7 @@ Extract and organize knowledge from the provided step execution results, conside
 {% if current_facets %}
 {% for facet in current_facets %}
 - {{ facet }}
-{% endfor %}
+{%- endfor %}
 {% else %}
 (No existing facets - you can create new ones as needed)
 {% endif %}
