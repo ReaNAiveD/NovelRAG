@@ -246,6 +246,7 @@ class SchematicToolAdapter(LLMToolMixin, ContextualTool):
             return self.error(f"Failed to build tool arguments after {max_retries} attempts")
         try:
             # Call the inner schematic tool with the built arguments
+            await runtime.message(f"Executing tool '{self.inner.name}' with arguments: {tool_args}")
             result = await self.inner.call(runtime, **tool_args)
             return result
         except Exception as e:

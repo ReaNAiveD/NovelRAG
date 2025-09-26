@@ -53,7 +53,7 @@ class LLMContentProposer(LLMToolMixin, ContentProposer):
                 perspective, believes, step_description, context
             )
             if content_proposal:
-                logger.debug(f"Generate Proposal from perspective {perspective['id']}: {content_proposal.content}")
+                logger.debug(f"Generate Proposal from perspective {perspective['description']}: {content_proposal.content}")
                 proposals.append(content_proposal)
 
         # Ensure we have at least one proposal
@@ -101,7 +101,6 @@ class LLMContentProposer(LLMToolMixin, ContentProposer):
         """
         response = await self.call_template(
             "generate_content_from_perspective.jinja2",
-            perspective_id=perspective["id"],
             perspective_description=perspective["description"],
             perspective_rationale=perspective["rationale"],
             step_description=step_description,

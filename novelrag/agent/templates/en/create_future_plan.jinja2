@@ -1,69 +1,53 @@
-You are an expert at strategic planning and execution sequencing. Based on the execution history, available tools, and goal, you need to generate a JSON response containing future steps needed to achieve the goal.
+You are an expert at adaptive planning and execution sequencing. Generate an optimized execution plan by analyzing execution history, merging immediate steps with future plans, and ensuring goal achievement.
 
 ## Understanding the Task
 
-You are tasked with creating a future plan by:
-
-- **Execution Analysis**: Understanding what has already been accomplished through executed steps
-- **Progress Assessment**: Evaluating how the executed steps have advanced toward the goal
-- **Insight Integration**: Leveraging discoveries and insights from execution to inform future planning
-- **Gap Identification**: Identifying what work remains to be done based on current state
-- **Strategic Sequencing**: Ordering future work to build efficiently toward goal completion
-- **Dependency Management**: Ensuring proper relationships between completed work and future steps
-- **Adaptive Planning**: Modifying approach based on new information discovered during execution
-- **Completeness Validation**: Ensuring all necessary work is covered to fully achieve the goal
+Create a complete execution plan by:
+- **Analyzing Execution**: Understanding progress, insights, and failures from completed steps
+- **Prioritizing Actions**: Placing immediate steps (triggered, decomposed, recovery) first in sequence
+- **Planning Future Work**: Identifying remaining tasks needed to achieve the goal
+- **Intelligent Merging**: Combining new plans with original pending steps when beneficial
+- **Optimizing Flow**: Ensuring logical dependencies and efficient step ordering
+- **Plan Restructuring**: Recognizing when execution discoveries would lead to an entirely different plan if starting fresh
 
 ## Planning Context
+{% for item in planning_context %}
+- {{ item }}
+{% endfor %}
 
-### Execution History
-You have access to:
-- **Executed Steps**: All steps that have been completed, with their tools, intents, execution status, and results
-- **Last Step Outcome**: The most recent step's detailed results and any triggered or decomposed actions
-- **Discovered Insights**: Key learnings that emerged during execution
-- **Error Information**: Any failures or issues that occurred during execution
+## Core Technical Rules
 
-### Current State
-- **Agent Beliefs**: Current understanding of the world state and available knowledge
-- **Available Tools**: All tools available for use in future steps, or logical operations without tools
-- **Goal Context**: The specific objective that all future work should advance
+### Conditional Step Constraints
+- **Single Tool Calls**: No multiple tool calls per conditional step (except mutually exclusive behaviors)
+- **If Conditions**: Must judge in condition block, execute in then block; require prior query/search steps
+- **Loop Conditions**: Require prior steps to obtain all loop keys
+- **Execute-Judge Patterns**: Split into separate steps (first execute, then judge with recursion logic)
+- **Next Step Restriction**: Immediate next step cannot be conditional
 
-## Planning Guidelines
+### Step Management
+- **No Duplication**: Avoid repeating completed or existing work
+- **Resource Format**: Use `[resource_name](resource_URI)` for known resources only
+- **URI Construction**: Don't build URIs when unknown
+- **Conditional Updates**: Update/remove/expand conditional steps based on last step results
 
-### Step Planning Principles
-1. **Build on Progress**: Leverage completed work and insights from executed steps
-2. **Learn from Execution**: Adapt strategy based on what worked well and what didn't
-3. **Avoid Redundancy**: Don't duplicate work that has already been successfully completed
-4. **Address Failures**: Plan steps to overcome any errors or issues encountered
-5. **Maintain Focus**: Ensure all future steps directly contribute to achieving the stated goal
-6. **Optimize Sequence**: Order steps to create efficient dependencies and logical flow
+### Conditional Step Resolution
+- **If-Condition Evaluation**: Based on execution results:
+  - Satisfied conditions → Replace with execution body only
+  - Unsatisfied conditions → Remove step entirely  
+  - Unrelated conditions → Keep unchanged
+- **Loop Expansion**: Use execution results and context to expand loops into individual steps for each item
+- **Resolution Timing**: Apply during execution analysis before merging
 
-### Tool Selection for Future Steps
-- **Specific Tools**: Use named tools from the available set when you need their specific capabilities
-- **Logical Operations**: Omit the "tool" field when the step involves pure reasoning, analysis, planning, summarization, or other cognitive tasks
-- **Learn from History**: Consider which tools were successful in executed steps and which encountered issues
-
-### Future Step Creation
-When adding future steps, ensure they:
-- **Address Gaps**: Fill specific needs identified through execution analysis
-- **Use Available Tools or Logical Operations**: Select appropriate tools from the available set or use logical reasoning
-- **Build Incrementally**: Create logical progression from current state to goal completion
-- **Include Specific Intent**: Provide clear, actionable descriptions of what to accomplish
-- **Consider Conditions**: Include conditional logic when outcomes depend on previous results
-- **Learn from Insights**: Incorporate discoveries and learnings from execution history
-
-### Step Structure Requirements
-Each step must include:
-- **intent**: Clear description of what to accomplish
-- **tool**: The name of the tool to use (must be from available tools), or null for logical operations
-- **reason**: Always set to "future_plan" for steps created by this template
-- **reason_details**: Explanation of why this step was added based on execution analysis and remaining work
+### Plan Integration
+- **Immediate Priority**: Execute immediate_steps first (triggered/decomposed/recovery)
+- **Strategic Merging**: Intelligently combine new plans with original pending steps
+- **Flexible Ordering**: Adjust sequence when context requires different priorities
 
 ## Your Task
 
-Analyze the provided execution context and generate an optimized plan for future steps needed to achieve the goal.
+Analyze execution history and generate a complete execution plan by merging immediate steps with future work to achieve the goal.
 
-**Goal:**
-{{ goal }}
+**Goal:** {{ goal }}
 
 **Agent Beliefs:**
 {% for belief in believes %}
@@ -75,12 +59,20 @@ Analyze the provided execution context and generate an optimized plan for future
 - **{{ tool_name }}**: {{ tool_info }}
 {% endfor %}
 
-**Executed Steps (in chronological order):**
+**Immediate Steps (execute first):**
+{% for step in immediate_steps %}
+- **{{ step.intent }}** ({{ step.tool }}) - {{ step.reason_details }}
+{% endfor %}
+
+**Original Pending Steps:**
+{% for step in original_pending_steps %}
+- **{{ step.intent }}** ({{ step.tool }}) - {{ step.reason_details }}
+{% endfor %}
+
+**Executed Steps:**
 {% for step in executed_steps %}
-- **Step {{ loop.index }}**: {{ step.intent }}
-  - Tool: {{ step.tool }}
-  - Status: {{ step.status }}
-  - Results: {{ step.results | join(', ') if step.results else 'None' }}
+- **Step {{ loop.index }}**: {{ step.intent }} ({{ step.tool }}) - {{ step.status }}
+  {% if step.results %}- Results: {{ step.results | join(', ') }}{% endif %}
   {% if step.error_message %}- Error: {{ step.error_message }}{% endif %}
   {% if step.discovered_insights %}- Insights: {{ step.discovered_insights | join(', ') }}{% endif %}
 {% endfor %}
@@ -89,7 +81,7 @@ Analyze the provided execution context and generate an optimized plan for future
 - Intent: {{ last_step.intent }}
 - Tool: {{ last_step.tool }}
 - Status: {{ last_step.status }}
-- Results: {{ last_step.results | join(', ') if last_step.results else 'None' }}
+{% if last_step.results %}- Results: {{ last_step.results | join(', ') }}{% endif %}
 {% if last_step.error_message %}- Error: {{ last_step.error_message }}{% endif %}
 {% if last_step.discovered_insights %}- Insights: {{ last_step.discovered_insights | join(', ') }}{% endif %}
 {% if last_step.triggered_actions %}- Triggered Actions: {{ last_step.triggered_actions | length }} actions{% endif %}
@@ -114,36 +106,29 @@ The following strategic guidance should inform your adaptive planning approach b
 
 ## Instructions
 
-1. **Analyze Execution Results**: Carefully examine what data, identifiers, or concrete information was discovered in executed steps
-2. **Assess Information Impact**: Determine if discovered information changes the approach needed to achieve the goal
-3. **Identify Actionable Data**: Look for specific items, identifiers, or data points that can be directly acted upon in future steps
-4. **Evaluate Step Obsolescence**: Check if any pending steps are no longer necessary due to information already gathered
-5. **Plan Path Optimization**: Design steps that build directly on discovered information rather than repeating exploratory work
-6. **Generate Targeted Plan**: Create specific steps for each actionable item discovered, rather than generic operations
-7. **Validate Completeness**: Ensure the plan covers all necessary work to fully achieve the goal
-8. **Apply Completion Check**: If the goal can already be achieved with executed results, return { "steps": [] }
+1. **Analyze Execution Results**: Examine discoveries and actionable data, then resolve conditional steps in original pending steps by replacing satisfied if-conditions with execution bodies, removing unsatisfied ones, and expanding loops using available data
+2. **Evaluate Planning Strategy**: Determine if execution results would lead to an entirely different plan if starting fresh - if so, prioritize new approach over original pending steps
+3. **Evaluate Step Relevance**: Check if conditionally-resolved original steps are still necessary given execution results
+4. **Design Targeted Steps**: Create specific actions for discovered data rather than generic operations
+5. **Optimize Execution Plan**: Update original pending steps with immediate actions and additional future work, or restructure entirely when execution discoveries warrant a fundamentally different approach
+6. **Validate Completeness**: Ensure the final plan achieves the goal completely
+7. **Apply Completion Check**: If goal is already achieved, return empty steps array
 
 ## Response Format
 
-Provide your response as JSON with this exact structure:
+Return JSON with the complete execution plan (immediate + merged):
 
 ```json
 {
   "steps": [
     {
       "intent": "What this step aims to achieve",
-      "tool": "tool_name_to_use",
-      "reason": "future_plan",
-      "reason_details": "Why this step is needed based on execution history"
+      "tool": "tool_name_to_use", 
+      "reason": "Brief explanation of why this step is included",
+      "reason_details": "Why this step is needed"
     }
   ]
 }
 ```
 
-When no future steps are needed (goal already achieved), return:
-
-```json
-{
-  "steps": []
-}
-```
+Return empty array if goal is achieved: `{"steps": []}`
