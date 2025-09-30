@@ -23,8 +23,13 @@ You are tasked with performing logical operations that require reasoning, analys
 ```
 
 **Available Context:**
-{% for item in context %}
+{% for facet, items in context.items() %}
+{% if items %}
+### {{ facet }}
+{% for item in items %}
 - {{ item }}
+{%- endfor %}
+{%- endif %}
 {%- endfor %}
 
 **Current Beliefs:**

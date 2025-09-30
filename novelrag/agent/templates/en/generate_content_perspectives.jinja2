@@ -17,8 +17,16 @@ Create perspectives that:
 ```
 
 **Available Context:**
-{% for item in context %}
+
+When processing context information, if there are conflicting pieces of information from different steps, prioritize knowledge from later steps (higher step indices) over earlier steps (lower step indices). Later steps represent more recent discoveries and updated understanding that should supersede earlier assumptions or findings.
+
+{% for facet, items in context.items() %}
+{% if items %}
+### {{ facet }}
+{% for item in items %}
 - {{ item }}
+{%- endfor %}
+{%- endif %}
 {%- endfor %}
 
 **Story Beliefs:**

@@ -245,7 +245,7 @@ class ResourceWriteTool(LLMToolMixin, ContextualTool):
         "Always retrieve the aspect definition first, then gather any dependent resources " \
         "before attempting to write. This ensures you have a complete understanding of the resource structure and all necessary context."
 
-    async def call(self, runtime: ToolRuntime, believes: list[str], step: StepDefinition, context: list[str], tools: dict[str, str] | None = None) -> ToolOutput:
+    async def call(self, runtime: ToolRuntime, believes: list[str], step: StepDefinition, context: dict[str, list[str]], tools: dict[str, str] | None = None) -> ToolOutput:
         """Edit existing content and return the updated content."""
         if step.intent is None or not step.intent:
             return self.error("No step description provided. Please provide a description of the current step.")
@@ -337,14 +337,7 @@ class ResourceWriteTool(LLMToolMixin, ContextualTool):
         # Return the operations JSON that was applied as the result
         return self.result(json.dumps([op.model_dump() for op in operations], ensure_ascii=False))
 
-    async def _context_filter(self, step_description: str, context: list[str]) -> list[str]:
-        return (await self.call_template(
-            'context_filter.jinja2',
-            step_description=step_description,
-            context=context,
-        )).splitlines()
-
-    async def _determine_target_aspect(self, step: StepDefinition, context: list[str]) -> str:
+    async def _determine_target_aspect(self, step: StepDefinition, context: dict[str, list[str]]) -> str:
         aspects = await self.repo.all_aspects()
 
         response = await self.call_template(
@@ -402,7 +395,7 @@ class ResourceWriteTool(LLMToolMixin, ContextualTool):
         selected_proposal = random.choices(proposals, weights=weights, k=1)[0]
         return selected_proposal
 
-    async def build_operations(self, proposal: str, step_description: str, context: list[str], aspect: str) -> str:
+    async def build_operations(self, proposal: str, step_description: str, context: dict[str, list[str]], aspect: str) -> str:
         return await self.call_template(
             'build_operation.jinja2',
             action=proposal,
@@ -421,7 +414,7 @@ class ResourceWriteTool(LLMToolMixin, ContextualTool):
             json_format=True
         )
 
-    async def _discover_required_updates(self, step_description: str, operations: list[dict], undo_operations: list[dict], context: list[str]) -> dict[str, list[dict[str, str]]]:
+    async def _discover_required_updates(self, step_description: str, operations: list[dict], undo_operations: list[dict], context: dict[str, list[str]]) -> dict[str, list[dict[str, str]]]:
         """Discover cascade content updates and relation updates that need to be applied immediately."""
         response = await self.call_template(
             'discover_required_updates.jinja2',
@@ -433,7 +426,7 @@ class ResourceWriteTool(LLMToolMixin, ContextualTool):
         )
         return json.loads(response)
     
-    async def _discover_backlog(self, step_description: str, operations: list[dict], undo_operations: list[dict], context: list[str]) -> list[dict[str, Any]]:
+    async def _discover_backlog(self, step_description: str, operations: list[dict], undo_operations: list[dict], context: dict[str, list[str]]) -> list[dict[str, Any]]:
         """Discover backlog items including dependency items and other future work items."""
         response = await self.call_template(
             'discover_backlog.jinja2',

@@ -6,8 +6,13 @@ You have access to the following information:
 - **Applied Operation**: {{ operation }}
 - **Undo Operation**: {{ undo_operation }}
 - **Context Information**: 
-{% for item in context %}
+{% for facet, items in context.items() %}
+{% if items %}
+  ### {{ facet }}
+{% for item in items %}
   - {{ item }}
+{%- endfor %}
+{%- endif %}
 {%- endfor %}
 
 ## Your Task

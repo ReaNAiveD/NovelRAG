@@ -4,6 +4,7 @@ import logging
 from typing import Any
 
 from novelrag.agent.channel import AgentChannel
+from novelrag.agent.strategy import ContextStrategy
 from novelrag.llm.types import ChatLLM
 from novelrag.template import TemplateEnvironment
 
@@ -65,13 +66,14 @@ class Agent(LLMToolMixin):
     - AgentExecutor: Executes actions and tools
     """
 
-    def __init__(self, tools: dict[str, BaseTool], channel: AgentChannel, planner: PursuitPlanner, summarizer: PursuitSummarizer, template_env: TemplateEnvironment, chat_llm: ChatLLM):
+    def __init__(self, tools: dict[str, BaseTool], channel: AgentChannel, planner: PursuitPlanner, summarizer: PursuitSummarizer, context_strategy: ContextStrategy, template_env: TemplateEnvironment, chat_llm: ChatLLM):
         # Initialize core components
         self.mind = AgentMind()
         self.channel = channel
 
         self.planner = planner
         self.summarizer = summarizer
+        self.context_strategy = context_strategy
         self.tools: dict[str, BaseTool] = tools
         self.contextual_tools: dict[str, ContextualTool] = dict()
         for (name, tool) in self.tools.items():
@@ -110,7 +112,7 @@ class Agent(LLMToolMixin):
 
     async def pursue_goal(self, goal: str):
         # Create a new PursuitContext for this specific goal pursuit
-        pursuit_context = LLMPursuitContext(self.template_env, self.chat_llm)
+        pursuit_context = LLMPursuitContext(self.context_strategy, self.template_env, self.chat_llm)
 
         pursuit = await GoalPursuit.initialize_pursuit(
             goal=goal,

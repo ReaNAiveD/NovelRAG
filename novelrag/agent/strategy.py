@@ -10,10 +10,15 @@ class PlanningStrategy(abc.ABC):
     def adapt_planning_instructions(self) -> list[str]:
         raise NotImplementedError()
 
-    def filter_planning_context(self, context: list[str]) -> list[str]:
+    def filter_planning_context(self, context: dict[str, list[str]]) -> dict[str, list[str]]:
         raise NotImplementedError()
     
     def post_planning(self, merged_steps: list[StepDefinition]) -> list[StepDefinition]:
+        raise NotImplementedError()
+    
+
+class ContextStrategy(abc.ABC):
+    def extract_context_instructions(self) -> list[str]:
         raise NotImplementedError()
 
 
@@ -22,12 +27,26 @@ class CompositePlanningStrategy(PlanningStrategy):
         self.strategies = strategies
 
     def initial_planning_instructions(self) -> list[str]:
-        return [instruction for strategy in self.strategies for instruction in strategy.initial_planning_instructions()]
+        result = []
+        for i, strategy in enumerate(self.strategies):
+            instructions = strategy.initial_planning_instructions()
+            if instructions:
+                result.extend(instructions)
+                if i < len(self.strategies) - 1:  # Not the last strategy
+                    result.append("")
+        return result
 
     def adapt_planning_instructions(self) -> list[str]:
-        return [instruction for strategy in self.strategies for instruction in strategy.adapt_planning_instructions()]
+        result = []
+        for i, strategy in enumerate(self.strategies):
+            instructions = strategy.adapt_planning_instructions()
+            if instructions:
+                result.extend(instructions)
+                if i < len(self.strategies) - 1:  # Not the last strategy
+                    result.append("")
+        return result
 
-    def filter_planning_context(self, context: list[str]) -> list[str]:
+    def filter_planning_context(self, context: dict[str, list[str]]) -> dict[str, list[str]]:
         for strategy in self.strategies:
             context = strategy.filter_planning_context(context)
         return context
@@ -36,6 +55,21 @@ class CompositePlanningStrategy(PlanningStrategy):
         for strategy in self.strategies:
             merged_steps = strategy.post_planning(merged_steps)
         return merged_steps
+
+
+class CompositeContextStrategy(ContextStrategy):
+    def __init__(self, strategies: list[ContextStrategy]):
+        self.strategies = strategies
+    
+    def extract_context_instructions(self) -> list[str]:
+        result = []
+        for i, strategy in enumerate(self.strategies):
+            instructions = strategy.extract_context_instructions()
+            if instructions:
+                result.extend(instructions)
+                if i < len(self.strategies) - 1:  # Not the last strategy
+                    result.append("")
+        return result
 
 
 class NoOpPlanningStrategy(PlanningStrategy):
@@ -48,7 +82,7 @@ class NoOpPlanningStrategy(PlanningStrategy):
     def adapt_planning_instructions(self) -> list[str]:
         return self.shared_planning_instructions() + []
 
-    def filter_planning_context(self, context: list[str]) -> list[str]:
+    def filter_planning_context(self, context: dict[str, list[str]]) -> dict[str, list[str]]:
         return context
     
     def post_planning(self, merged_steps: list[StepDefinition]) -> list[StepDefinition]:
@@ -123,4 +157,19 @@ class ResourceUpdateInstructions(NoOpPlanningStrategy):
             "3.1. Keep expand the aspects and resources context until you have sufficient information to update the resource.",
             "3.2. In order to avoid infinite expansion, limit the number of expansion steps to 10.",
             "4. Update the target resource with the new information. Ensure compliance with aspect constraints and relationships. Provide all related context in the update step.",
+        ]
+
+
+class NoOpContextStrategy(ContextStrategy):
+    def extract_context_instructions(self) -> list[str]:
+        return []
+
+
+class ResourceContextKnowledge(NoOpContextStrategy):
+    def extract_context_instructions(self) -> list[str]:
+        return [
+            "Resources follow a hierarchical URI structure, including root, aspect, resource, and multiple levels of child resources.",
+            "If the context is extracted from a root, aspect or resource, include the URI path in the context to clarify its level in the hierarchy.",
+            "The URI should be appended to the context sentence. For example, 'Annie always works hard at TechCorp(/organization/techcorp) to win awards(/achievements/techcorp_award/excellence_award). (URI: /characters/annie)'.",
+            "When referencing other resources in the context, include their URIs as well.",
         ]

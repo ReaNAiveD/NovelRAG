@@ -14,7 +14,7 @@ For each triggered action, analyze its content and convert it into a proper step
 **{{ tool_name }}**: {{ tool_info.description }}
 {% if tool_info.input_schema %}
 Input Schema: {{ tool_info.input_schema | tojson }}
-{% endif %}
+{%- endif %}
 {%- endfor %}
 
 ## Current Context
@@ -25,8 +25,13 @@ Input Schema: {{ tool_info.input_schema | tojson }}
 {%- endfor %}
 
 **Planning Context**:
-{% for context in planning_context %}
-- {{ context }}
+{% for facet, items in planning_context.items() %}
+{% if items %}
+### {{ facet }}
+{% for item in items %}
+- {{ item }}
+{%- endfor %}
+{%- endif %}
 {%- endfor %}
 
 ## Triggered Actions to Convert

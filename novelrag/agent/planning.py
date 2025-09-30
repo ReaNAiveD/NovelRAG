@@ -1,7 +1,7 @@
 import json
 import logging
 
-from novelrag.agent.plan_strategy import NoOpPlanningStrategy, PlanningStrategy
+from novelrag.agent.strategy import NoOpPlanningStrategy, PlanningStrategy
 
 from .execution import ExecutionPlan
 from .context import PursuitContext
@@ -81,8 +81,8 @@ class PursuitPlanner(LLMToolMixin):
             planning_context = await context.retrieve_planning_context(
                 goal=original_plan.goal,
                 last_step=last_step,
-                completed_steps=original_plan.executed_steps,
-                pending_steps=original_plan.pending_steps
+                completed_steps=original_plan.executed_steps + [last_step],
+                pending_steps=original_plan.pending_steps[1:]
             )
             planning_context = self.strategy.filter_planning_context(planning_context)
 
@@ -101,7 +101,7 @@ class PursuitPlanner(LLMToolMixin):
 
     async def _adapt_plan_from_success(self, last_step: StepOutcome, original_plan: ExecutionPlan,
                                      believes: list[str], tools: dict[str, ContextualTool],
-                                     planning_context: list[str]) -> list[StepDefinition]:
+                                     planning_context: dict[str, list[str]]) -> list[StepDefinition]:
         """
         Adapt plan after successful step execution.
         Creates unified execution plan with immediate steps (triggered) first.
@@ -123,7 +123,7 @@ class PursuitPlanner(LLMToolMixin):
 
     async def _adapt_plan_from_failure(self, last_step: StepOutcome, original_plan: ExecutionPlan,
                                      believes: list[str], tools: dict[str, ContextualTool],
-                                     planning_context: list[str]) -> list[StepDefinition]:
+                                     planning_context: dict[str, list[str]]) -> list[StepDefinition]:
         """
         Adapt plan after failed step execution.
         Creates unified execution plan with immediate steps (recovery + optional rerun) first.
@@ -160,7 +160,7 @@ class PursuitPlanner(LLMToolMixin):
 
     async def _adapt_plan_from_decomposition(self, last_step: StepOutcome, original_plan: ExecutionPlan,
                                            believes: list[str], tools: dict[str, ContextualTool],
-                                           planning_context: list[str]) -> list[StepDefinition]:
+                                           planning_context: dict[str, list[str]]) -> list[StepDefinition]:
         """
         Adapt plan after step decomposition.
         Creates unified execution plan with immediate steps (decomposed) first.
@@ -184,7 +184,7 @@ class PursuitPlanner(LLMToolMixin):
 
     async def _create_future_plan(self, executed_steps: list[StepOutcome], goal: str,
                                 believes: list[str], tools: dict[str, ContextualTool],
-                                planning_context: list[str], immediate_steps: list[StepDefinition],
+                                planning_context: dict[str, list[str]], immediate_steps: list[StepDefinition],
                                 original_pending_steps: list[StepDefinition]) -> list[StepDefinition]:
         """
         Create a complete execution plan by merging immediate steps with updated original steps.
@@ -265,7 +265,7 @@ class PursuitPlanner(LLMToolMixin):
         last_step: StepOutcome,
         tools: dict[str, ContextualTool],
         believes: list[str],
-        planning_context: list[str]
+        planning_context: dict[str, list[str]]
     ) -> list[StepDefinition]:
         """
         Convert triggered actions from dict format to StepDefinition objects.
@@ -274,7 +274,7 @@ class PursuitPlanner(LLMToolMixin):
             last_step: The step outcome containing triggered actions
             tools: Available tools for mapping
             believes: Current beliefs of the agent
-            planning_context: Relevant historical context
+            planning_context: Relevant historical context organized by facets
             
         Returns:
             List of StepDefinition objects converted from triggered actions
@@ -318,7 +318,7 @@ class PursuitPlanner(LLMToolMixin):
         last_step: StepOutcome,
         tools: dict[str, ContextualTool],
         believes: list[str],
-        planning_context: list[str]
+        planning_context: dict[str, list[str]]
     ) -> list[StepDefinition]:
         """
         Convert decomposed actions from dict format to StepDefinition objects.
@@ -368,7 +368,7 @@ class PursuitPlanner(LLMToolMixin):
 
     async def _analyze_failure(self, failed_step: StepOutcome, executed_steps: list[StepOutcome],
                              goal: str, believes: list[str], tools: dict[str, ContextualTool],
-                             planning_context: list[str]) -> dict:
+                             planning_context: dict[str, list[str]]) -> dict:
         """
         Analyze a failed step with full execution history to determine recovery strategy.
 

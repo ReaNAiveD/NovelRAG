@@ -1,5 +1,3 @@
-"""Base classes for tools and mixins."""
-
 from abc import ABC, abstractmethod
 import json
 import logging
@@ -23,16 +21,18 @@ class LLMToolMixin:
     
     async def call_template(self, template_name: str, user_question: str | None = None, json_format: bool = False, **kwargs: bool | int | float | str | list | dict) -> str:
         """Call an LLM with a template and return the response."""
-        logger.info(f"\n┌─ Calling template: {template_name} with json_format={json_format} ─────────────────")
+        logger.info(f"Calling template: {template_name} with json_format={json_format} ─────────────────")
         template = self.template_env.load_template(template_name)
         prompt = template.render(**kwargs)
         logger.debug('\n' + prompt)
+        logger.debug('───────────────────────────────────────────────────────────────────────────────')
         response = await self.chat_llm.chat(messages=[
             {'role': 'system', 'content': prompt},
             {'role': 'user', 'content': user_question or 'Please answer the question.'}
         ], response_format='json_object' if json_format else None)
-        logger.info(f"\n┌─ Received response from LLM for template {template_name}")
-        logger.debug('\n' + response)
+        logger.info(f"Received response from LLM for template {template_name}")
+        logger.debug('\n' + response) 
+        logger.debug('───────────────────────────────────────────────────────────────────────────────')
         return response
 
 
@@ -202,7 +202,7 @@ class SchematicTool(BaseTool):
 
 class ContextualTool(BaseTool):
     @abstractmethod
-    async def call(self, runtime: ToolRuntime, believes: list[str], step: StepDefinition, context: list[str], tools: dict[str, str] | None = None) -> ToolOutput:
+    async def call(self, runtime: ToolRuntime, believes: list[str], step: StepDefinition, context: dict[str, list[str]], tools: dict[str, str] | None = None) -> ToolOutput:
         """Execute the tool with contextual information and yield outputs asynchronously"""
         raise NotImplementedError("ContextualTool subclasses must implement the call method")
 
@@ -229,7 +229,7 @@ class SchematicToolAdapter(LLMToolMixin, ContextualTool):
         """Output description of the tool, delegated to the inner tool"""
         return self.inner.output_description
 
-    async def call(self, runtime: ToolRuntime, believes: list[str], step: StepDefinition, context: list[str], tools: dict[str, str] | None = None) -> ToolOutput:
+    async def call(self, runtime: ToolRuntime, believes: list[str], step: StepDefinition, context: dict[str, list[str]], tools: dict[str, str] | None = None) -> ToolOutput:
         """Execute the tool with contextual information and return a final ToolOutput"""
         # Check if decomposition is needed
         if decomposition_result := await self._analyze_decomposition_need(believes, step, context, tools):
@@ -260,7 +260,7 @@ class SchematicToolAdapter(LLMToolMixin, ContextualTool):
         except Exception as e:
             return self.error(f"Failed to execute schematic tool {self.inner.name}: {str(e)}")
 
-    async def _analyze_decomposition_need(self, believes: list[str], step: StepDefinition, context: list[str], tools: dict[str, str] | None = None) -> ToolDecomposition | None:
+    async def _analyze_decomposition_need(self, believes: list[str], step: StepDefinition, context: dict[str, list[str]], tools: dict[str, str] | None = None) -> ToolDecomposition | None:
         """Analyze if decomposition is needed and return ToolDecomposition or None"""
         try:
             decomposition_json = await self.call_template(
@@ -269,7 +269,7 @@ class SchematicToolAdapter(LLMToolMixin, ContextualTool):
                 tool_description=self.inner.description or "No description available",
                 output_description=self.inner.output_description or "",
                 step_description=step.intent,
-                context=context or [],
+                context=context or {},
                 believes=believes or [],
                 input_schema=self.inner.input_schema,
                 available_tools=tools or {},
@@ -293,7 +293,7 @@ class SchematicToolAdapter(LLMToolMixin, ContextualTool):
             # Fall back to direct execution on any error
             return None
 
-    async def _build_tool_arguments(self, believes: list[str] | None = None, step_description: str | None = None, context: list[str] | None = None) -> dict[str, Any] | None:
+    async def _build_tool_arguments(self, believes: list[str] | None = None, step_description: str | None = None, context: dict[str, list[str]] | None = None) -> dict[str, Any] | None:
         """Build tool arguments from context using LLM"""
         input_schema = self.inner.input_schema
         
@@ -302,7 +302,7 @@ class SchematicToolAdapter(LLMToolMixin, ContextualTool):
             tool_name=self.inner.name,
             tool_description=self.inner.description or "No description available",
             step_description=step_description or "",
-            context=context or [],
+            context=context or {},
             believes=believes or [],
             input_schema=input_schema,
             json_format=True
@@ -341,12 +341,12 @@ class LLMLogicalOperationTool(LLMToolMixin, ContextualTool):
     def output_description(self) -> str | None:
         return "Returns the result of the logical operation or inference task based on the step description and context."
 
-    async def call(self, runtime: ToolRuntime, believes: list[str], step: StepDefinition, context: list[str], tools: dict[str, str] | None = None) -> ToolOutput:
+    async def call(self, runtime: ToolRuntime, believes: list[str], step: StepDefinition, context: dict[str, list[str]], tools: dict[str, str] | None = None) -> ToolOutput:
         """Execute logical operation based on the step description and context."""
         if believes is None:
             believes = []
         if context is None:
-            context = []
+            context = {}
 
         await runtime.debug(f"Performing logical operation: {step.intent}")
 
@@ -373,7 +373,7 @@ class LLMLogicalOperationTool(LLMToolMixin, ContextualTool):
         await runtime.message("Completed logical operation successfully")
         return self.result(result)
 
-    async def _perform_logical_operation(self, step_description: str, context: list[str], believes: list[str]) -> str:
+    async def _perform_logical_operation(self, step_description: str, context: dict[str, list[str]], believes: list[str]) -> str:
         """Perform the logical operation and return the JSON response."""
         return await self.call_template(
             'perform_logical_operation.jinja2',

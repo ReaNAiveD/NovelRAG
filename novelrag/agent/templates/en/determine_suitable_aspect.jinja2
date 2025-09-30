@@ -112,8 +112,13 @@ Please determine the most suitable aspect or create new aspect for the step desc
 
 ### Context Information
 
-{% for item in context %}
+{% for facet, items in context.items() %}
+{% if items %}
+#### {{ facet }}
+{% for item in items %}
 - {{ item }}
+{%- endfor %}
+{%- endif %}
 {%- endfor %}
 
 ## Important Guidelines
