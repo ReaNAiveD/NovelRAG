@@ -9,10 +9,10 @@ You are analyzing knowledge facets to determine which are most relevant for plan
 - Status: {{ planning_info.last_step.status }}
 {% if planning_info.last_step.results %}
 - Results: {{ planning_info.last_step.results | join(', ') }}
-{% endif %}
+{%- endif %}
 {% if planning_info.last_step.discovered_insights %}
 - Insights: {{ planning_info.last_step.discovered_insights | join(', ') }}
-{% endif %}
+{%- endif %}
 
 **Executed Steps History:**
 {% for step in planning_info.executed_steps %}

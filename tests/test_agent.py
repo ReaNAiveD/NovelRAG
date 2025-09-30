@@ -21,6 +21,7 @@ ensuring the agent's behavioral contracts are properly verified.
 """
 
 import unittest
+import unittest.mock
 from unittest.mock import AsyncMock, MagicMock
 from datetime import datetime
 
@@ -29,6 +30,7 @@ from novelrag.agent.channel import AgentChannel
 from novelrag.agent.execution import StepDefinition, ExecutionPlan, StepOutcome, StepStatus
 from novelrag.agent.planning import PursuitPlanner
 from novelrag.agent.pursuit import GoalPursuitResult, PursuitStatus, PursuitSummarizer
+from novelrag.agent.strategy import ContextStrategy
 from novelrag.agent.tool import BaseTool, ContextualTool
 from novelrag.agent.types import ToolResult
 from novelrag.llm.types import ChatLLM
@@ -56,7 +58,7 @@ class MockContextualTool(ContextualTool):
         return self._description
     
     async def call(self, runtime, believes: list[str], step: StepDefinition,
-                   context: list[str], tools: dict[str, str] | None = None):
+                   context: dict[str, list[str]], tools: dict[str, str] | None = None):
         """Mock call method that returns a predefined ToolResult."""
         self.call_count += 1
         self.last_call_args = {
@@ -82,6 +84,7 @@ class TestAgent(unittest.IsolatedAsyncioTestCase):
         self.mock_planner = AsyncMock(spec=PursuitPlanner)
         self.mock_channel = AsyncMock(spec=AgentChannel)
         self.mock_summarizer = AsyncMock(spec=PursuitSummarizer)
+        self.mock_context_strategy = MagicMock(spec=ContextStrategy)
 
         self.agent = Agent(
             tools=self.mock_tools,
@@ -90,6 +93,7 @@ class TestAgent(unittest.IsolatedAsyncioTestCase):
             planner=self.mock_planner,
             channel=self.mock_channel,
             summarizer=self.mock_summarizer,
+            context_strategy=self.mock_context_strategy,
         )
     
     def test_agent_initialization(self):
@@ -160,18 +164,20 @@ class TestAgent(unittest.IsolatedAsyncioTestCase):
             await self.agent.pursue_goal(goal)
 
             # Verify initialization was called correctly
-            mock_pursuit_class.initialize_pursuit.assert_called_once_with(
-                goal=goal,
-                believes=self.agent.believes,
-                tools=self.agent.contextual_tools,
-                planner=self.mock_planner
-            )
+            mock_pursuit_class.initialize_pursuit.assert_called_once()
+            call_args = mock_pursuit_class.initialize_pursuit.call_args
+            self.assertEqual(call_args[1]['goal'], goal)
+            self.assertEqual(call_args[1]['believes'], self.agent.believes)
+            self.assertEqual(call_args[1]['tools'], self.agent.contextual_tools)
+            self.assertEqual(call_args[1]['planner'], self.mock_planner)
+            self.assertIsNotNone(call_args[1]['context'])  # LLMPursuitContext instance
 
             # Verify run_to_completion was called
             mock_pursuit_instance.run_to_completion.assert_called_once_with(
                 self.agent.contextual_tools,
                 self.mock_channel,
-                self.mock_planner
+                self.mock_planner,
+                self.agent.fallback_tool
             )
 
             # Verify summarizer was called

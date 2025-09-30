@@ -11,8 +11,16 @@ Create a complete execution plan by:
 - **Plan Restructuring**: Recognizing when execution discoveries would lead to an entirely different plan if starting fresh
 
 ## Planning Context
-{% for item in planning_context %}
+
+When processing context information, if there are conflicting pieces of information from different steps, prioritize knowledge from later steps (higher step indices) over earlier steps (lower step indices). Later steps represent more recent discoveries and updated understanding that should supersede earlier assumptions or findings.
+
+{% for facet, items in planning_context.items() %}
+{% if items %}
+### {{ facet }}
+{% for item in items %}
 - {{ item }}
+{%- endfor %}
+{%- endif %}
 {%- endfor %}
 
 ## Core Technical Rules
@@ -72,20 +80,17 @@ Analyze execution history and generate a complete execution plan by merging imme
 **Executed Steps:**
 {% for step in executed_steps %}
 - **Step {{ loop.index }}**: {{ step.intent }} ({{ step.tool }}) - {{ step.status }}
-  {% if step.results %}- Results: {{ step.results | join(', ') }}{% endif %}
-  {% if step.error_message %}- Error: {{ step.error_message }}{% endif %}
-  {% if step.discovered_insights %}- Insights: {{ step.discovered_insights | join(', ') }}{% endif %}
 {%- endfor %}
 
 **Last Step Outcome:**
 - Intent: {{ last_step.intent }}
 - Tool: {{ last_step.tool }}
 - Status: {{ last_step.status }}
-{% if last_step.results %}- Results: {{ last_step.results | join(', ') }}{% endif %}
-{% if last_step.error_message %}- Error: {{ last_step.error_message }}{% endif %}
-{% if last_step.discovered_insights %}- Insights: {{ last_step.discovered_insights | join(', ') }}{% endif %}
-{% if last_step.triggered_actions %}- Triggered Actions: {{ last_step.triggered_actions | length }} actions{% endif %}
-{% if last_step.decomposed_actions %}- Decomposed Actions: {{ last_step.decomposed_actions | length }} actions{% endif %}
+{% if last_step.results %}- Results: {{ last_step.results | join(', ') }}{%- endif %}
+{% if last_step.error_message %}- Error: {{ last_step.error_message }}{%- endif %}
+{% if last_step.discovered_insights %}- Insights: {{ last_step.discovered_insights | join(', ') }}{%- endif %}
+{% if last_step.triggered_actions %}- Triggered Actions: {{ last_step.triggered_actions | length }} actions{%- endif %}
+{% if last_step.decomposed_actions %}- Decomposed Actions: {{ last_step.decomposed_actions | length }} actions{%- endif %}
 
 {% if adapt_planning_instructions and adapt_planning_instructions|length > 0 %}
 ## Strategic Adaptation Guidance
@@ -93,7 +98,7 @@ Analyze execution history and generate a complete execution plan by merging imme
 The following strategic guidance should inform your adaptive planning approach based on execution results:
 
 {% for instruction in adapt_planning_instructions %}
-- {{ instruction }}
+{{ instruction }}
 {%- endfor %}
 
 ### Applying Adaptive Guidance
@@ -102,7 +107,7 @@ The following strategic guidance should inform your adaptive planning approach b
 - **Strategic Pivoting**: Let these instructions guide how to modify the approach based on new information
 - **Result Integration**: Consider how execution outcomes interact with these strategic principles
 
-{% endif %}
+{%- endif %}
 
 ## Instructions
 

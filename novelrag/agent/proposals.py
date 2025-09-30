@@ -36,6 +36,6 @@ class ContentProposal:
 class ContentProposer:
     """Proposes content changes based on current beliefs and context."""
     
-    async def propose(self, believes: list[str], step_description: str, context: list[str]) -> list[ContentProposal]:
+    async def propose(self, believes: list[str], step_description: str, context: dict[str, list[str]]) -> list[ContentProposal]:
         """Propose content based on current beliefs."""
         raise NotImplementedError("Subclasses should implement this method.")

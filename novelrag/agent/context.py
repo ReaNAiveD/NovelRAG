@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 import json
-from typing import Dict, List
 
 from novelrag.agent.steps import StepOutcome, StepDefinition
+from novelrag.agent.strategy import ContextStrategy
 from novelrag.agent.tool import LLMToolMixin
 from novelrag.llm.types import ChatLLM
 from novelrag.template import TemplateEnvironment
@@ -15,23 +15,24 @@ class PursuitContext(ABC):
     """
 
     @abstractmethod
-    async def store_context(self, step: StepOutcome, future_steps: list[StepDefinition]) -> None:
+    async def store_context(self, step: StepOutcome, step_idx: int, future_steps: list[StepDefinition]) -> None:
         """
         Store the context of the pursuit agent.
 
         :param step: The step outcome to store in the context.
+        :param step_idx: The step index to prepend to each line of context.
         :param future_steps: List of future step definitions that may be relevant.
         """
         raise NotImplementedError()
 
     @abstractmethod
-    async def retrieve_context(self, step: StepDefinition, threshold: int = 50) -> list[str]:
+    async def retrieve_context(self, step: StepDefinition, threshold: int = 50) -> dict[str, list[str]]:
         """
         Retrieve the context for a given step definition.
 
         :param step: The step definition to retrieve context for.
         :param threshold: The maximum number of context items to retrieve.
-        :return: A list of context strings.
+        :return: A dictionary mapping facet names to lists of context strings.
         """
         raise NotImplementedError("Context retrieval not implemented yet.")
 
@@ -39,7 +40,7 @@ class PursuitContext(ABC):
     async def retrieve_planning_context(self, goal: str, last_step: StepOutcome,
                                       completed_steps: list[StepOutcome],
                                       pending_steps: list[StepDefinition],
-                                      threshold: int = 50) -> list[str]:
+                                      threshold: int = 50) -> dict[str, list[str]]:
         """
         Retrieve relevant context for planning decisions based on goal, last step, and plan state.
 
@@ -48,7 +49,7 @@ class PursuitContext(ABC):
         :param completed_steps: List of all completed step outcomes.
         :param pending_steps: List of remaining step definitions.
         :param threshold: The maximum number of context items to retrieve.
-        :return: A list of relevant context strings for planning.
+        :return: A dictionary mapping facet names to lists of context strings for planning.
         """
         raise NotImplementedError()
 
@@ -71,7 +72,7 @@ class LLMPursuitContext(LLMToolMixin, PursuitContext):
     2. Select relevant facets when retrieving context
     """
 
-    def __init__(self, template_env: TemplateEnvironment, chat_llm: ChatLLM):
+    def __init__(self, strategy: ContextStrategy, template_env: TemplateEnvironment, chat_llm: ChatLLM):
         """
         Initialize the LLM-based pursuit context.
 
@@ -79,9 +80,10 @@ class LLMPursuitContext(LLMToolMixin, PursuitContext):
         :param chat_llm: Chat LLM for processing contexts and knowledge facets
         """
         super().__init__(template_env, chat_llm)
-        self.knowledge_facets: Dict[str, List[str]] = {}
+        self.strategy = strategy
+        self.knowledge_facets: dict[str, list[str]] = {}
 
-    async def store_context(self, step: StepOutcome, future_steps: list[StepDefinition]) -> None:
+    async def store_context(self, step: StepOutcome, step_idx: int, future_steps: list[StepDefinition]) -> None:
         """
         Store the context from a step outcome by extracting knowledge into facets.
 
@@ -93,6 +95,7 @@ class LLMPursuitContext(LLMToolMixin, PursuitContext):
         and decomposed - to preserve key findings and learnings.
 
         :param step: The step outcome to store in the context.
+        :param step_idx: The step index to prepend to each line of context.
         :param future_steps: List of future step definitions that may be relevant.
         """
         # Skip storage only if there's absolutely no content to extract
@@ -130,6 +133,7 @@ class LLMPursuitContext(LLMToolMixin, PursuitContext):
                 step_info=step_info,
                 future_steps=future_steps_info,
                 current_facets=current_facets,
+                extract_instructions=self.strategy.extract_context_instructions(),
                 json_format=True
             )
 
@@ -141,11 +145,13 @@ class LLMPursuitContext(LLMToolMixin, PursuitContext):
                 if facet not in self.knowledge_facets:
                     self.knowledge_facets[facet] = []
 
-                # Add new knowledge items to the facet
+                # Add new knowledge items to the facet with step_idx prepended
                 if isinstance(knowledge_list, list):
-                    self.knowledge_facets[facet].extend(knowledge_list)
+                    prepended_items = [f"[Step {step_idx}] {item}" for item in knowledge_list]
+                    self.knowledge_facets[facet].extend(prepended_items)
                 else:
-                    self.knowledge_facets[facet].append(str(knowledge_list))
+                    prepended_item = f"[Step {step_idx}] {str(knowledge_list)}"
+                    self.knowledge_facets[facet].append(prepended_item)
 
         except (json.JSONDecodeError, KeyError, Exception) as e:
             # Fallback: store raw results under a generic facet
@@ -153,9 +159,10 @@ class LLMPursuitContext(LLMToolMixin, PursuitContext):
             if generic_facet not in self.knowledge_facets:
                 self.knowledge_facets[generic_facet] = []
             if step.results:
-                self.knowledge_facets[generic_facet].extend(step.results)
+                prepended_results = [f"[Step {step_idx}] {result}" for result in step.results]
+                self.knowledge_facets[generic_facet].extend(prepended_results)
 
-    async def retrieve_context(self, step: StepDefinition, threshold: int = 50) -> list[str]:
+    async def retrieve_context(self, step: StepDefinition, threshold: int = 50) -> dict[str, list[str]]:
         """
         Retrieve relevant context for a given step definition.
 
@@ -164,10 +171,10 @@ class LLMPursuitContext(LLMToolMixin, PursuitContext):
 
         :param step: The step definition to retrieve context for.
         :param threshold: The maximum number of context items to retrieve.
-        :return: A list of relevant context strings.
+        :return: A dictionary mapping facet names to lists of context strings.
         """
         if not self.knowledge_facets:
-            return []
+            return {}
 
         # Prepare step information for facet sorting
         step_info = {
@@ -196,23 +203,29 @@ class LLMPursuitContext(LLMToolMixin, PursuitContext):
             sorted_facets = available_facets
 
         # Collect knowledge from the sorted facets, limited by threshold
-        collected_context = []
+        result_context = {}
+        total_items = 0
         for facet in sorted_facets:
             if facet in self.knowledge_facets:
                 facet_knowledge = self.knowledge_facets[facet]
-                collected_context.extend(facet_knowledge)
-
-                # Stop if we've reached the threshold
-                if len(collected_context) >= threshold:
+                
+                # Calculate how many items we can take from this facet
+                remaining_threshold = threshold - total_items
+                if remaining_threshold <= 0:
                     break
+                    
+                # Take items up to remaining threshold
+                items_to_take = min(len(facet_knowledge), remaining_threshold)
+                if items_to_take > 0:
+                    result_context[facet] = facet_knowledge[:items_to_take]
+                    total_items += items_to_take
 
-        # Trim to exact threshold if we exceeded it
-        return collected_context[:threshold]
+        return result_context
 
     async def retrieve_planning_context(self, goal: str, last_step: StepOutcome,
                                       completed_steps: list[StepOutcome],
                                       pending_steps: list[StepDefinition],
-                                      threshold: int = 50) -> list[str]:
+                                      threshold: int = 50) -> dict[str, list[str]]:
         """
         Retrieve relevant context for planning decisions based on goal, last step, and plan state.
 
@@ -226,10 +239,10 @@ class LLMPursuitContext(LLMToolMixin, PursuitContext):
         :param completed_steps: List of all completed step outcomes.
         :param pending_steps: List of remaining step definitions.
         :param threshold: The maximum number of context items to retrieve.
-        :return: A list of relevant context strings for planning.
+        :return: A dictionary mapping facet names to lists of context strings for planning.
         """
         if not self.knowledge_facets:
-            return []
+            return {}
 
         # Prepare planning information for facet sorting
         planning_info = {
@@ -273,20 +286,26 @@ class LLMPursuitContext(LLMToolMixin, PursuitContext):
             sorted_facets = available_facets
 
         # Collect knowledge from the sorted facets, limited by threshold
-        collected_context = []
+        result_context = {}
+        total_items = 0
         for facet in sorted_facets:
             if facet in self.knowledge_facets:
                 facet_knowledge = self.knowledge_facets[facet]
-                collected_context.extend(facet_knowledge)
-
-                # Stop if we've reached the threshold
-                if len(collected_context) >= threshold:
+                
+                # Calculate how many items we can take from this facet
+                remaining_threshold = threshold - total_items
+                if remaining_threshold <= 0:
                     break
+                    
+                # Take items up to remaining threshold
+                items_to_take = min(len(facet_knowledge), remaining_threshold)
+                if items_to_take > 0:
+                    result_context[facet] = facet_knowledge[:items_to_take]
+                    total_items += items_to_take
 
-        # Trim to exact threshold if we exceeded it
-        return collected_context[:threshold]
+        return result_context
 
-    def get_all_facets(self) -> Dict[str, List[str]]:
+    def get_all_facets(self) -> dict[str, list[str]]:
         """
         Get all stored knowledge facets and their information.
 
@@ -300,7 +319,7 @@ class LLMPursuitContext(LLMToolMixin, PursuitContext):
         """
         self.knowledge_facets.clear()
 
-    def get_facet_summary(self) -> Dict[str, int]:
+    def get_facet_summary(self) -> dict[str, int]:
         """
         Get a summary of knowledge facets and their information counts.
 

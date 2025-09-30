@@ -79,6 +79,16 @@ When results contain hierarchical or structured information (e.g., "A. Overview"
 - Note priority items and urgency indicators for future planning
 - Preserve context about why certain actions were triggered
 
+## Additional Extraction Instructions
+
+{%- if extract_instructions %}
+Follow these specific extraction guidelines:
+
+{%- for instruction in extract_instructions %}
+- {{ instruction }}
+{%- endfor %}
+{%- endif %}
+
 ## Facet Selection Strategy
 
 ### Using Existing Facets
@@ -359,7 +369,7 @@ Extract and organize knowledge from the provided step execution results, conside
 {%- endfor %}
 {% else %}
 (No future steps provided)
-{% endif %}
+{%- endif %}
 
 **Current Facets Available:**
 {% if current_facets %}
@@ -368,7 +378,7 @@ Extract and organize knowledge from the provided step execution results, conside
 {%- endfor %}
 {% else %}
 (No existing facets - you can create new ones as needed)
-{% endif %}
+{%- endif %}
 
 ## Instructions
 

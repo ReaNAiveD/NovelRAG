@@ -18,8 +18,12 @@ You are a planning agent analyzing a failed step execution to determine recovery
   - Tool: {{ step.tool }}
   - Status: {{ step.status }}
   - Results: {{ step.results | join(', ') if step.results else 'None' }}
-  {% if step.error_message %}- Error: {{ step.error_message }}{% endif %}
-  {% if step.discovered_insights %}- Insights: {{ step.discovered_insights | join(', ') }}{% endif %}
+{%- if step.error_message %}
+  - Error: {{ step.error_message }}
+{%- endif %}
+{%- if step.discovered_insights %}
+  - Insights: {{ step.discovered_insights | join(', ') }}
+{%- endif %}
 {%- endfor %}
 
 **Failed Step Details:**

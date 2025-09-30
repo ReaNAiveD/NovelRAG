@@ -27,13 +27,13 @@ class LLMContentProposer(LLMToolMixin, ContentProposer):
         super().__init__(template_env=template_env, chat_llm=chat_llm)
         self.num_proposals = num_proposals
 
-    async def propose(self, believes: list[str], step_description: str, context: list[str]) -> list[ContentProposal]:
+    async def propose(self, believes: list[str], step_description: str, context: dict[str, list[str]]) -> list[ContentProposal]:
         """Propose content based on current beliefs using Sequential Diverse Prompting.
 
         Args:
             believes: Current story beliefs
             step_description: Description of the current step
-            context: Available story context
+            context: Available story context organized by facets
 
         Returns:
             List of content proposals with reasoning
@@ -62,7 +62,7 @@ class LLMContentProposer(LLMToolMixin, ContentProposer):
 
         return proposals
 
-    async def _generate_perspectives(self, believes: list[str], step_description: str, context: list[str]) -> list[dict[str, Any]]:
+    async def _generate_perspectives(self, believes: list[str], step_description: str, context: dict[str, list[str]]) -> list[dict[str, Any]]:
         """Generate diverse perspectives for content creation.
 
         Returns:
@@ -86,7 +86,7 @@ class LLMContentProposer(LLMToolMixin, ContentProposer):
         perspective: dict[str, Any],
         believes: list[str],
         step_description: str,
-        context: list[str]
+        context: dict[str, list[str]]
     ) -> ContentProposal | None:
         """Generate content based on a specific perspective.
 
@@ -94,7 +94,7 @@ class LLMContentProposer(LLMToolMixin, ContentProposer):
             perspective: Perspective dictionary with id, description, and rationale
             believes: Current story beliefs
             step_description: Description of the current step
-            context: Available story context
+            context: Available story context organized by facets
 
         Returns:
             ContentProposal or None if generation fails
@@ -123,25 +123,32 @@ class LLMContentProposer(LLMToolMixin, ContentProposer):
         self,
         believes: list[str],
         step_description: str,
-        context: list[str]
+        context: dict[str, list[str]]
     ) -> list[ContentProposal]:
         """Generate a fallback proposal when perspective generation fails.
 
         Args:
             believes: Current story beliefs
             step_description: Description of the current step
-            context: Available story context
+            context: Available story context organized by facets
 
         Returns:
             List containing a single fallback content proposal
         """
         # Create a simple direct prompt for content generation
+        # Flatten context for fallback prompt
+        context_text = ""
+        if context:
+            for facet, items in context.items():
+                if items:
+                    context_text += f"\n{facet}:\n" + "\n".join(f"- {item}" for item in items)
+        
         fallback_prompt = f"""
         Based on the following step description and context, generate appropriate story content:
         
         Step: {step_description}
         
-        Context: {' '.join(context) if context else 'No specific context provided'}
+        Context: {context_text if context_text else 'No specific context provided'}
         
         Story Beliefs: {' '.join(believes) if believes else 'No current beliefs'}
         

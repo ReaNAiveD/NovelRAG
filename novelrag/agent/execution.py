@@ -70,7 +70,7 @@ class ExecutionToolRuntime(ToolRuntime):
 
 # Execute step function - works directly with StepDefinition
 async def _execute_step(step: StepDefinition, tools: dict[str, ContextualTool], believes: list[str],
-                        context: list[str], channel: AgentChannel | None = None,
+                        context: dict[str, list[str]], channel: AgentChannel | None = None,
                         fallback_tool: LLMLogicalOperationTool | None = None) -> StepOutcome:
     """Execute the action and return its outcome."""
     start_time = datetime.now()
@@ -205,13 +205,14 @@ class ExecutionPlan:
 
         # Retrieve context for this specific step using PursuitContext
         step_context = await context.retrieve_context(next_action)
-        await channel.info(f"Retrieve {len(step_context)} context for step [{next_action.intent}]")
+        total_context_items = sum(len(items) for items in step_context.values())
+        await channel.info(f"Retrieve {total_context_items} context items from {len(step_context)} facets for step [{next_action.intent}]")
         await channel.debug(f"Retrieved context for step [{next_action.intent}]: {step_context}")
         # Execute the step with the retrieved context
         outcome = await _execute_step(next_action, tools, believes, step_context, channel, fallback_tool)
 
         # Store the outcome in context for future steps - regardless of status
         # Key findings should be preserved even from failed or decomposed steps
-        await context.store_context(outcome, self.pending_steps[1:])
+        await context.store_context(outcome, step_idx=len(self.executed_steps), future_steps=self.pending_steps[1:])
 
         return outcome

@@ -62,8 +62,13 @@ Build tool arguments from the provided information.
 ```
 
 **Available Context:**
-{% for item in context %}
+{% for facet, items in context.items() %}
+{% if items %}
+### {{ facet }}
+{% for item in items %}
 - {{ item }}
+{%- endfor %}
+{%- endif %}
 {%- endfor %}
 
 **Current Believes:**
