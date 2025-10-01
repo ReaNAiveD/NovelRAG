@@ -260,13 +260,18 @@ class ResourceWriteTool(LLMToolMixin, ContextualTool):
         await runtime.progress("aspect", aspect, f"Determined target aspect for editing: {aspect}")
         if (await self.repo.get_aspect(aspect)) is None:
             await runtime.warning("The determined aspect does not exist in the repository. Decompose the step to create it first.")
-            return self.decomposition(
-                steps=[{
-                    'description': f"Create the missing aspect '{aspect}' required for this editing operation.",
-                    'context': f"The step '{step.intent}' requires aspect '{aspect}' which does not exist in the repository."
+            # Create structured error message with decomposition data
+            decomposition_info = {
+                "is_decomposition": True,
+                "steps": [{
+                    'intent': f"Create the missing aspect '{aspect}' required for this editing operation.",
+                    'tool': 'create_aspect'
                 }],
-                rerun=True
-            )
+                "rationale": f"The step '{step.intent}' requires aspect '{aspect}' which does not exist in the repository.",
+                "rerun": True
+            }
+            error_message = f"DECOMPOSITION_REQUIRED: {json.dumps(decomposition_info)}"
+            return self.error(error_message)
 
         proposal_sets = [await proposer.propose(believes, step.intent, context) for proposer in self.content_proposers]
         proposals = [item for sublist in proposal_sets for item in sublist]

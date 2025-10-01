@@ -8,7 +8,7 @@ from .channel import AgentChannel
 from .context import PursuitContext
 from .steps import StepDefinition, StepOutcome, StepStatus
 from .tool import ContextualTool, ToolRuntime, LLMLogicalOperationTool
-from .types import ToolResult, ToolDecomposition, ToolError
+from .types import ToolResult, ToolError
 
 logger = logging.getLogger(__name__)
 
@@ -112,19 +112,7 @@ async def _execute_step(step: StepDefinition, tools: dict[str, ContextualTool], 
             tools={name: t.description or '' for name, t in tools.items()}
         )
 
-        if isinstance(result, ToolDecomposition):
-            return StepOutcome(
-                action=step,
-                status=StepStatus.DECOMPOSED,
-                started_at=start_time,
-                completed_at=datetime.now(),
-                decomposed_actions=result.steps,
-                rerun=result.rerun,
-                triggered_actions=runtime._triggered_actions,
-                backlog_items=runtime._backlog,
-                progress=runtime._progress,
-            )
-        elif isinstance(result, ToolResult):
+        if isinstance(result, ToolResult):
             return StepOutcome(
                 action=step,
                 status=StepStatus.SUCCESS,

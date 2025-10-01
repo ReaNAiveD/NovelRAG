@@ -90,7 +90,6 @@ Analyze execution history and generate a complete execution plan by merging imme
 {% if last_step.error_message %}- Error: {{ last_step.error_message }}{%- endif %}
 {% if last_step.discovered_insights %}- Insights: {{ last_step.discovered_insights | join(', ') }}{%- endif %}
 {% if last_step.triggered_actions %}- Triggered Actions: {{ last_step.triggered_actions | length }} actions{%- endif %}
-{% if last_step.decomposed_actions %}- Decomposed Actions: {{ last_step.decomposed_actions | length }} actions{%- endif %}
 
 {% if adapt_planning_instructions and adapt_planning_instructions|length > 0 %}
 ## Strategic Adaptation Guidance

@@ -9,7 +9,6 @@ class ToolOutputType(str, Enum):
     """Types of tool outputs"""
     OUTPUT = "output"
     ERROR = "error"
-    DECOMPOSITION = "decomposition"
 
 
 class ToolOutputBase(BaseModel):
@@ -30,17 +29,10 @@ class ToolResult(ToolOutputBase):
     type: Literal[ToolOutputType.OUTPUT] = ToolOutputType.OUTPUT # type: ignore
     result: Annotated[str, Field(description="Result data")]
 
-class ToolDecomposition(ToolOutputBase):
-    """Tool directly decomposes into further planning steps"""
-    type: Literal[ToolOutputType.DECOMPOSITION] = ToolOutputType.DECOMPOSITION # type: ignore
-    steps: Annotated[list[dict[str, str]], Field(description="List of decomposed steps")]
-    rationale: Annotated[str | None, Field(default=None, description="Reasoning for decomposition")]
-    rerun: Annotated[bool, Field(default=False, description="Whether to add the original step as a rerun after decomposed steps")]
-
 
 # Union type for all possible outputs
 ToolOutput = Annotated[
-    ToolResult | ToolError | ToolDecomposition,
+    ToolResult | ToolError,
     Field(discriminator='type')
 ]
 
