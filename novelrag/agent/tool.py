@@ -7,7 +7,7 @@ from novelrag.llm.types import ChatLLM
 from novelrag.template import TemplateEnvironment
 from .steps import StepDefinition
 
-from .types import ToolOutput, ToolDecomposition, ToolResult, ToolError
+from .types import ToolOutput, ToolResult, ToolError
 
 logger = logging.getLogger(__name__)
 
@@ -177,11 +177,6 @@ class BaseTool(ABC):
         """Create a ToolError output with the given error message"""
         return ToolError(error_message=error_message)
 
-    @staticmethod
-    def decomposition(steps: list[dict[str, str]], rationale: str | None = None, rerun: bool = False) -> ToolDecomposition:
-        """Create a ToolDecomposition output with the given steps and rationale"""
-        return ToolDecomposition(steps=steps, rationale=rationale, rerun=rerun)
-
 
 class SchematicTool(BaseTool):
 
@@ -232,10 +227,17 @@ class SchematicToolAdapter(LLMToolMixin, ContextualTool):
     async def call(self, runtime: ToolRuntime, believes: list[str], step: StepDefinition, context: dict[str, list[str]], tools: dict[str, str] | None = None) -> ToolOutput:
         """Execute the tool with contextual information and return a final ToolOutput"""
         # Check if decomposition is needed
-        if decomposition_result := await self._analyze_decomposition_need(believes, step, context, tools):
-            # Tool needs to decompose - return the ToolDecomposition directly
-            await runtime.message(f"Pre-operation: Decomposing step into {len(decomposition_result.steps)} sub-steps. The reason is: {decomposition_result.rationale or 'No rationale provided.'}")
-            return decomposition_result
+        if decomposition_error := await self._analyze_decomposition_need(believes, step, context, tools):
+            # Tool needs to decompose - return the ToolError with decomposition data
+            # Parse decomposition info from error message for logging
+            try:
+                decomposition_info = json.loads(decomposition_error.error_message.split("DECOMPOSITION_REQUIRED: ", 1)[1])
+                steps_count = len(decomposition_info.get("steps", []))
+                rationale = decomposition_info.get("rationale", "No rationale provided")
+                await runtime.error(f"Step requires decomposition: {steps_count} sub-steps needed. Reason: {rationale}")
+            except (json.JSONDecodeError, IndexError):
+                await runtime.error(f"Step requires decomposition: {decomposition_error.error_message}")
+            return decomposition_error
         
         # Build arguments from context using LLM
         max_retries = 3
@@ -260,8 +262,8 @@ class SchematicToolAdapter(LLMToolMixin, ContextualTool):
         except Exception as e:
             return self.error(f"Failed to execute schematic tool {self.inner.name}: {str(e)}")
 
-    async def _analyze_decomposition_need(self, believes: list[str], step: StepDefinition, context: dict[str, list[str]], tools: dict[str, str] | None = None) -> ToolDecomposition | None:
-        """Analyze if decomposition is needed and return ToolDecomposition or None"""
+    async def _analyze_decomposition_need(self, believes: list[str], step: StepDefinition, context: dict[str, list[str]], tools: dict[str, str] | None = None) -> ToolError | None:
+        """Analyze if decomposition is needed and return ToolError with decomposition data or None"""
         try:
             decomposition_json = await self.call_template(
                 "analyze_decomposition_need.jinja2",
@@ -282,12 +284,16 @@ class SchematicToolAdapter(LLMToolMixin, ContextualTool):
             if not decomposition_data.get("should_decompose", False):
                 return None
 
-            # Return the ToolDecomposition
-            return self.decomposition(
-                steps=decomposition_data.get("steps", []),
-                rationale=decomposition_data.get("reason", "Decomposition required"),
-                rerun=decomposition_data.get("rerun", False)
-            )
+            # Create structured error message with decomposition data
+            decomposition_info = {
+                "is_decomposition": True,
+                "steps": decomposition_data.get("steps", []),
+                "rationale": decomposition_data.get("reason", "Decomposition required"),
+                "rerun": decomposition_data.get("rerun", False)
+            }
+            error_message = f"DECOMPOSITION_REQUIRED: {json.dumps(decomposition_info)}"
+            
+            return self.error(error_message)
             
         except (json.JSONDecodeError, Exception):
             # Fall back to direct execution on any error

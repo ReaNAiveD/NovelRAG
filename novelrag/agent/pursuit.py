@@ -79,8 +79,6 @@ class GoalPursuit:
                 await channel.error(f"Step[{outcome.action.tool}] failed: {outcome.error_message}")
             elif outcome.status == StepStatus.SUCCESS:
                 await channel.info(f"Step results: {outcome.results}")
-            elif outcome.status == StepStatus.DECOMPOSED:
-                await channel.info(f"Step decomposed into sub-actions: {[step for step in outcome.decomposed_actions]}")
 
             new_steps = await planner.adapt_plan(
                 last_step=outcome,

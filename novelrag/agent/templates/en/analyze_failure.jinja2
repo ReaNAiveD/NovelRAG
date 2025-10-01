@@ -33,51 +33,53 @@ You are a planning agent analyzing a failed step execution to determine recovery
 - Error: {{ failed_step.error_message }}
 - Results: {{ failed_step.results | join(', ') if failed_step.results else 'None' }}
 
-Analyze the failure considering the full execution history. Look for:
+**Analysis Framework:**
+Analyze the failure considering the full execution history:
 
-1. **Expected vs Unexpected Failure**: Determine if this failure is expected given the current goal and step intent
-   - Is this a "checking if something exists before creating it" scenario?
-   - Is this a validation step where failure is a normal part of the workflow?
-   - Does the intent suggest this failure was anticipated as part of the process?
+**1. Expected vs Unexpected Failures:**
+- **Expected**: Failure is anticipated part of workflow (checking existence before creation, validation steps, permission tests)
+- **Unexpected**: Tool errors, missing prerequisites, parameter issues requiring recovery
+- Consider: Does the step intent suggest this failure was anticipated? Does failure help achieve the goal?
 
-2. **Failure Patterns**: Has this type of failure occurred before?
-3. **Prerequisites**: Are there missing dependencies or setup steps?
-4. **Tool Issues**: Is this a tool-specific problem or approach problem?
-5. **Context Changes**: Did previous steps change the context in unexpected ways?
-6. **Recovery Options**: What are the possible ways to recover (only if failure is unexpected)?
+**2. Prerequisite Analysis:**
+- Check if failure indicates missing files, resources, or dependencies
+- Identify if required setup steps were skipped or incomplete
+- Determine if environmental prerequisites (permissions, access, etc.) are missing
 
-**Expected Failure Examples:**
-- Querying a resource URI to check if it exists before creating it (failure means it doesn't exist, which is expected)
-- Testing connectivity or permissions where failure indicates the need to set them up
-- Validation steps where failure indicates invalid input that needs correction
-- Conditional checks where failure drives the next logical step
+**3. Complexity Assessment:**
+- Analyze if the failed step is too complex and needs to be broken down into smaller steps
+- Check if the approach needs modification or if alternative tools should be used
+- Consider if the step requires preparatory actions before it can succeed
+
+**4. Analysis Considerations:**
+- Failure patterns from execution history
+- Missing dependencies or prerequisites  
+- Tool-specific issues vs approach problems
+- Context changes from previous steps
+- Error message analysis for specific missing requirements
+
+**5. Recovery Strategy Guidelines:**
+- **Expected failures**: Continue with plan, set should_rerun=false typically
+- **Unexpected failures**: Provide explicit recovery steps with correct approaches, may need should_rerun=true
+- **Needs breakdown**: Identify specific sub-steps required to make the original step feasible
 
 Provide your analysis and recovery strategy as JSON:
 ```json
 {
-  "analysis": "Detailed analysis of why the step failed based on execution history",
-  "is_expected_failure": true/false,
-  "expected_failure_reason": "If expected: explain why this failure is expected given the goal and intent",
-  "recommendation": "Strategic recommendation - for expected failures: continue with plan; for unexpected: recovery approach",
-  "recovery_steps": [
-    // Only include recovery steps if is_expected_failure is false
-    // If expected failure, this should be an empty array []
+  "analysis": "Brief analysis of why the step failed and what is missing or needed",
+  "failure_type": "expected|unexpected|needs_breakdown",
+  "strategy_recommendation": "What to do next and why",
+  "next_steps": [
     {
-      "intent": "Specific recovery action with explicit correct approach (e.g., 'Use correct parameter format X instead of Y', 'Apply proper method Z for this scenario')",
+      "intent": "Specific action to take",
       "tool": "tool_name",
-      "reason": "recovery",
-      "reason_details": "Analysis summary: [Brief analysis of the failure]. Correct approach: [Explicit description of what the correct method/parameter/approach should be and why it will work]"
+      "reason": "recovery|prerequisite|breakdown|continue",
+      "reason_details": "Why this step helps achieve the goal and addresses the failure"
     }
   ],
   "should_rerun": true/false,
-  "rerun_reason": "Why the original step should be rerun after recovery (or why not). For expected failures, typically false unless the step needs to be retried with different parameters."
+  "rerun_reason": "Why the original step should be rerun after recovery (or why not)"
 }
 ```
 
-**Important Guidelines:**
-- **Expected Failures**: Generate NO recovery steps - set recovery_steps to empty array []
-- **Unexpected Failures**: Generate recovery steps as before with explicit correct approaches
-- **Intent Analysis**: Carefully consider if the step intent suggests the failure was anticipated
-- **Goal Alignment**: Consider if the failure actually helps achieve the overall goal
-- Be explicit about what "correct" means in the context of the failed step
-- Provide actionable, specific guidance that can be executed without additional context
+Focus on actionable, specific guidance. For expected failures, proceed with the plan. For unexpected failures, provide explicit recovery approaches. For complex steps, break them down into manageable sub-steps.

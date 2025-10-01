@@ -90,8 +90,6 @@ class PursuitPlanner(LLMToolMixin):
                 return await self._adapt_plan_from_success(last_step, original_plan, believes, tools, planning_context)
             elif last_step.status == StepStatus.FAILED:
                 return await self._adapt_plan_from_failure(last_step, original_plan, believes, tools, planning_context)
-            elif last_step.status == StepStatus.DECOMPOSED:
-                return await self._adapt_plan_from_decomposition(last_step, original_plan, believes, tools, planning_context)
             else:
                 logging.warning(f"Unhandled step status: {last_step.status}. Using simple fallback.")
                 return original_plan.pending_steps[1:]
@@ -126,18 +124,18 @@ class PursuitPlanner(LLMToolMixin):
                                      planning_context: dict[str, list[str]]) -> list[StepDefinition]:
         """
         Adapt plan after failed step execution.
-        Creates unified execution plan with immediate steps (recovery + optional rerun) first.
+        Creates unified execution plan with immediate steps (recovery/decomposition + optional rerun) first.
         """
         # Analyze failure with full execution history
         failure_analysis = await self._analyze_failure(
             last_step, original_plan.executed_steps, original_plan.goal, believes, tools, planning_context
         )
 
-        # Build immediate steps (recovery + optional rerun)
+        # Build immediate steps from analysis recommendations
         immediate_steps = []
 
-        # Add recovery steps
-        for step_data in failure_analysis.get("recovery_steps", []):
+        # Process all recommended next steps uniformly
+        for step_data in failure_analysis.get("next_steps", []):
             immediate_steps.append(StepDefinition(**step_data))
 
         # Add rerun if recommended
@@ -151,30 +149,6 @@ class PursuitPlanner(LLMToolMixin):
             ))
 
         # Create unified execution plan with recovery context
-        execution_plan = await self._create_future_plan(
-            original_plan.executed_steps + [last_step], original_plan.goal, believes, tools, planning_context,
-            immediate_steps, original_plan.pending_steps[1:]
-        )
-
-        return self.strategy.post_planning(execution_plan)
-
-    async def _adapt_plan_from_decomposition(self, last_step: StepOutcome, original_plan: ExecutionPlan,
-                                           believes: list[str], tools: dict[str, ContextualTool],
-                                           planning_context: dict[str, list[str]]) -> list[StepDefinition]:
-        """
-        Adapt plan after step decomposition.
-        Creates unified execution plan with immediate steps (decomposed) first.
-        """
-        # Build immediate steps (only decomposed steps)
-        immediate_steps: list[StepDefinition] = []
-
-        # Add decomposed steps
-        if last_step.decomposed_actions:
-            immediate_steps = await self._convert_decomposed_actions_to_steps(
-                last_step, tools, believes, planning_context
-            )
-
-        # Create unified execution plan
         execution_plan = await self._create_future_plan(
             original_plan.executed_steps + [last_step], original_plan.goal, believes, tools, planning_context,
             immediate_steps, original_plan.pending_steps[1:]
@@ -251,8 +225,7 @@ class PursuitPlanner(LLMToolMixin):
                 "results": last_step.results,
                 "error_message": last_step.error_message,
                 "discovered_insights": last_step.discovered_insights,
-                "triggered_actions": last_step.triggered_actions,
-                "decomposed_actions": last_step.decomposed_actions
+                "triggered_actions": last_step.triggered_actions
             }
         )
 
@@ -313,59 +286,6 @@ class PursuitPlanner(LLMToolMixin):
 
         return triggered_steps
 
-    async def _convert_decomposed_actions_to_steps(
-        self,
-        last_step: StepOutcome,
-        tools: dict[str, ContextualTool],
-        believes: list[str],
-        planning_context: dict[str, list[str]]
-    ) -> list[StepDefinition]:
-        """
-        Convert decomposed actions from dict format to StepDefinition objects.
-        
-        Args:
-            last_step: The step outcome containing decomposed actions
-            tools: Available tools for mapping
-            believes: Current beliefs of the agent
-            planning_context: Relevant historical context
-            
-        Returns:
-            List of StepDefinition objects converted from decomposed actions
-        """
-        if not last_step.decomposed_actions:
-            return []
-
-        # Build tool info including input schemas for SchematicTools
-        tool_info = {}
-        for name, tool in tools.items():
-            info: dict[str, str | dict | None] = {"description": tool.description}
-            if isinstance(tool, SchematicToolAdapter):
-                info["input_schema"] = tool.inner.input_schema
-            tool_info[name] = info
-
-        response = await self.call_template(
-            "convert_decomposed_actions.jinja2",
-            json_format=True,
-            decomposed_actions=last_step.decomposed_actions,
-            original_step_intent=last_step.action.intent,
-            tools=tool_info,
-            believes=believes,
-            planning_context=planning_context
-        )
-
-        result = json.loads(response)
-        decomposed_steps = []
-        
-        for step_data in result.get("steps", []):
-            decomposed_steps.append(StepDefinition(
-                intent=step_data["intent"],
-                tool=step_data["tool"],
-                reason="decomposed",
-                reason_details=f"Decomposed from: {last_step.action.intent}"
-            ))
-
-        return decomposed_steps
-
     async def _analyze_failure(self, failed_step: StepOutcome, executed_steps: list[StepOutcome],
                              goal: str, believes: list[str], tools: dict[str, ContextualTool],
                              planning_context: dict[str, list[str]]) -> dict:
@@ -419,6 +339,6 @@ class PursuitPlanner(LLMToolMixin):
 
         # Log the failure analysis for debugging
         logger.info(f"Failure analysis: {result.get('analysis', 'No analysis provided')}")
-        logger.info(f"Recovery recommendation: {result.get('recommendation', 'No recommendation provided')}")
+        logger.info(f"Recovery recommendation: {result.get('strategy_recommendation', 'No recommendation provided')}")
 
         return result

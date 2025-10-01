@@ -99,7 +99,7 @@ class LLMPursuitContext(LLMToolMixin, PursuitContext):
         :param future_steps: List of future step definitions that may be relevant.
         """
         # Skip storage only if there's absolutely no content to extract
-        if not (step.results or step.error_message or step.decomposed_actions or step.discovered_insights):
+        if not (step.results or step.error_message or step.discovered_insights):
             return
 
         # Prepare comprehensive step information for context extraction
@@ -110,7 +110,6 @@ class LLMPursuitContext(LLMToolMixin, PursuitContext):
             "results": step.results,
             "error_message": step.error_message,
             "discovered_insights": step.discovered_insights,
-            "decomposed_actions": step.decomposed_actions,
             "triggered_actions": step.triggered_actions
         }
 
