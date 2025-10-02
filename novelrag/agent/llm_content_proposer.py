@@ -115,7 +115,7 @@ class LLMContentProposer(LLMToolMixin, ContentProposer):
         if content and len(content) > 10:  # Basic content validation
             # Use only the perspective description for the reason
             reason = perspective['description']
-            return ContentProposal(content=content, reason=reason)
+            return ContentProposal(content=content, perspective=reason)
 
         return None
 
@@ -163,11 +163,11 @@ class LLMContentProposer(LLMToolMixin, ContentProposer):
         if content.strip():
             return [ContentProposal(
                 content=content.strip(),
-                reason="Generated using fallback approach due to perspective generation failure"
+                perspective="Generated using fallback approach due to perspective generation failure"
             )]
 
         # Ultimate fallback
         return [ContentProposal(
             content="[Content generation failed - please provide more specific context or try again]",
-            reason="Unable to generate content due to technical issues"
+            perspective="Unable to generate content due to technical issues"
         )]

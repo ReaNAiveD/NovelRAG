@@ -1,7 +1,7 @@
 import importlib.util
 
 from novelrag.config.llm import ChatConfig, AzureOpenAIChatConfig, EmbeddingConfig, AzureOpenAIEmbeddingConfig, \
-    OpenAIChatConfig, DeepSeekChatConfig
+    OpenAIChatConfig, DeepSeekChatConfig, OpenAIEmbeddingConfig
 from novelrag.exceptions import NoChatLLMConfigError, NoEmbeddingConfigError
 from .types import ChatLLM, EmbeddingLLM
 
@@ -48,11 +48,8 @@ class EmbeddingLLMFactory:
             else:
                 raise Exception(f'Unexpected Config: {config}')
         elif importlib.util.find_spec('azure.ai.inference'):
-            if isinstance(config, AzureOpenAIEmbeddingConfig):
-                from .azure_ai import AzureAIEmbeddingLLM
-                return AzureAIEmbeddingLLM.from_config(config)
-            else:
-                raise Exception(f'Unexpected Config: {config}')
+            from .azure_ai import AzureAIEmbeddingLLM
+            return AzureAIEmbeddingLLM.from_config(config)
         else:
             raise Exception(f'No AI SDK found: please install openai or azure-ai-inference')
 
