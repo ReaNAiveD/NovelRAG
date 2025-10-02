@@ -1,7 +1,7 @@
 from azure.ai.inference.aio import EmbeddingsClient
 from azure.core.credentials import AzureKeyCredential
 
-from novelrag.config.llm import AzureOpenAIEmbeddingConfig
+from novelrag.config.llm import AzureOpenAIEmbeddingConfig, EmbeddingConfig, OpenAIEmbeddingConfig
 from novelrag.llm import EmbeddingLLM
 
 
@@ -14,7 +14,7 @@ class AzureAIEmbeddingLLM(EmbeddingLLM):
         self.model = model
 
     @classmethod
-    def from_config(cls, config: AzureOpenAIEmbeddingConfig):
+    def from_config(cls, config: EmbeddingConfig):
         if isinstance(config, AzureOpenAIEmbeddingConfig):
             endpoint = config.endpoint.rstrip('/') + f'/openai/deployments/{config.deployment}'
             if config.api_key:
@@ -31,13 +31,14 @@ class AzureAIEmbeddingLLM(EmbeddingLLM):
                 model=config.model,
                 **credential
             )
-        else:
+        elif isinstance(config, OpenAIEmbeddingConfig):
             client = EmbeddingsClient(
                 endpoint=config.endpoint,
                 credential=AzureKeyCredential(config.api_key),
-                api_version=config.api_version,
                 model=config.model,
             )
+        else:
+            raise Exception(f'Unexpected Config: {config}')
         model = config.model
         return cls(client, model)
 

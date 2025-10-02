@@ -226,47 +226,45 @@ class SchematicToolAdapter(LLMToolMixin, ContextualTool):
 
     async def call(self, runtime: ToolRuntime, believes: list[str], step: StepDefinition, context: dict[str, list[str]], tools: dict[str, str] | None = None) -> ToolOutput:
         """Execute the tool with contextual information and return a final ToolOutput"""
-        # Check if decomposition is needed
-        if decomposition_error := await self._analyze_decomposition_need(believes, step, context, tools):
-            # Tool needs to decompose - return the ToolError with decomposition data
-            # Parse decomposition info from error message for logging
-            try:
-                decomposition_info = json.loads(decomposition_error.error_message.split("DECOMPOSITION_REQUIRED: ", 1)[1])
-                steps_count = len(decomposition_info.get("steps", []))
-                rationale = decomposition_info.get("rationale", "No rationale provided")
-                await runtime.error(f"Step requires decomposition: {steps_count} sub-steps needed. Reason: {rationale}")
-            except (json.JSONDecodeError, IndexError):
-                await runtime.error(f"Step requires decomposition: {decomposition_error.error_message}")
-            return decomposition_error
+        # Prepare execution by checking breakdown needs and building tool arguments in one step
+        analysis_result = await self._prepare_execution(believes, step, context, tools)
         
-        # Build arguments from context using LLM
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                tool_args = await self._build_tool_arguments(believes, step.intent, context)
-            except Exception as e:
-                await runtime.warning(f"Error building tool arguments: {str(e)}")
-                tool_args = None
-            if tool_args is not None:
-                await runtime.debug(f"Built tool arguments: {tool_args}")
-                break
-            if attempt < max_retries - 1:
-                await runtime.warning(f"Failed to build tool arguments (attempt {attempt + 1}/{max_retries}). Retrying...")
-        else:
-            return self.error(f"Failed to build tool arguments after {max_retries} attempts")
+        if analysis_result.get("requires_breakdown", False):
+            # Tool needs breakdown - return the ToolError with breakdown data
+            breakdown_info = analysis_result["breakdown"]
+            await runtime.error(f"Step requires breakdown: {breakdown_info.get('reason', 'Breakdown required')}")
+            
+            # Create structured error message with breakdown data
+            error_info = {
+                "is_decomposition": True,
+                "rationale": breakdown_info.get("reason", "Breakdown required"),
+                "rerun": breakdown_info.get("rerun", False),
+                "available_context": breakdown_info.get("available_context", ""),
+                "missing_requirements": breakdown_info.get("missing_requirements", []),
+                "blocking_conditions": breakdown_info.get("blocking_conditions", [])
+            }
+            error_message = f"DECOMPOSITION_REQUIRED: {json.dumps(error_info)}"
+            return self.error(error_message)
+        
+        # Extract tool arguments from analysis result
+        tool_args = analysis_result.get("tool_arguments", {})
+        if not tool_args:
+            return self.error("Failed to build tool arguments from analysis")
+            
         try:
             # Call the inner schematic tool with the built arguments
             await runtime.message(f"Executing tool '{self.inner.name}' with arguments: {tool_args}")
+            await runtime.debug(f"Built tool arguments: {tool_args}")
             result = await self.inner.call(runtime, **tool_args)
             return result
         except Exception as e:
             return self.error(f"Failed to execute schematic tool {self.inner.name}: {str(e)}")
 
-    async def _analyze_decomposition_need(self, believes: list[str], step: StepDefinition, context: dict[str, list[str]], tools: dict[str, str] | None = None) -> ToolError | None:
-        """Analyze if decomposition is needed and return ToolError with decomposition data or None"""
+    async def _prepare_execution(self, believes: list[str], step: StepDefinition, context: dict[str, list[str]], tools: dict[str, str] | None = None) -> dict[str, Any]:
+        """Prepare tool execution by determining if breakdown is needed and building arguments in a single LLM call"""
         try:
-            decomposition_json = await self.call_template(
-                "analyze_decomposition_need.jinja2",
+            analysis_json = await self.call_template(
+                "schematic_tool_preparation.jinja2",
                 tool_name=self.inner.name,
                 tool_description=self.inner.description or "No description available",
                 output_description=self.inner.output_description or "",
@@ -279,46 +277,23 @@ class SchematicToolAdapter(LLMToolMixin, ContextualTool):
             )
 
             # Parse the JSON response
-            decomposition_data = json.loads(decomposition_json)
-            # If should_decompose is False, return None
-            if not decomposition_data.get("should_decompose", False):
-                return None
-
-            # Create structured error message with decomposition data
-            decomposition_info = {
-                "is_decomposition": True,
-                "steps": decomposition_data.get("steps", []),
-                "rationale": decomposition_data.get("reason", "Decomposition required"),
-                "rerun": decomposition_data.get("rerun", False)
+            analysis_data = json.loads(analysis_json)
+            return analysis_data
+            
+        except (json.JSONDecodeError, Exception) as e:
+            # Fall back to error case on any parsing issues
+            return {
+                "requires_breakdown": True,
+                "breakdown": {
+                    "reason": f"Failed to prepare step: {str(e)}",
+                    "available_context": "Preparation failed due to parsing error",
+                    "missing_requirements": ["Valid preparation response"],
+                    "blocking_conditions": ["LLM response parsing failure"],
+                    "rerun": True
+                }
             }
-            error_message = f"DECOMPOSITION_REQUIRED: {json.dumps(decomposition_info)}"
-            
-            return self.error(error_message)
-            
-        except (json.JSONDecodeError, Exception):
-            # Fall back to direct execution on any error
-            return None
 
-    async def _build_tool_arguments(self, believes: list[str] | None = None, step_description: str | None = None, context: dict[str, list[str]] | None = None) -> dict[str, Any] | None:
-        """Build tool arguments from context using LLM"""
-        input_schema = self.inner.input_schema
-        
-        arguments_json = await self.call_template(
-            "build_tool_arguments.jinja2",
-            tool_name=self.inner.name,
-            tool_description=self.inner.description or "No description available",
-            step_description=step_description or "",
-            context=context or {},
-            believes=believes or [],
-            input_schema=input_schema,
-            json_format=True
-        )
-        
-        # Parse the JSON response to get arguments
-        try:
-            return json.loads(arguments_json)
-        except json.JSONDecodeError:
-            return None
+
 
 
 class LLMLogicalOperationTool(LLMToolMixin, ContextualTool):

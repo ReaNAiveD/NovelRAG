@@ -28,9 +28,9 @@ class TargetProposer:
 class ContentProposal:
     """Represents a proposed content change with reasoning."""
     
-    def __init__(self, content: str, reason: str):
+    def __init__(self, content: str, perspective: str):
         self.content = content
-        self.reason = reason
+        self.reason = perspective
 
 
 class ContentProposer:
