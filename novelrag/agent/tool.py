@@ -31,8 +31,8 @@ class LLMToolMixin:
             {'role': 'user', 'content': user_question or 'Please answer the question.'}
         ], response_format='json_object' if json_format else None)
         logger.info(f"Received response from LLM for template {template_name}")
-        logger.debug('\n' + response) 
-        logger.debug('───────────────────────────────────────────────────────────────────────────────')
+        logger.info('\n' + response) 
+        logger.info('───────────────────────────────────────────────────────────────────────────────')
         return response
 
 
@@ -243,7 +243,7 @@ class SchematicToolAdapter(LLMToolMixin, ContextualTool):
                 "missing_requirements": breakdown_info.get("missing_requirements", []),
                 "blocking_conditions": breakdown_info.get("blocking_conditions", [])
             }
-            error_message = f"DECOMPOSITION_REQUIRED: {json.dumps(error_info)}"
+            error_message = f"DECOMPOSITION_REQUIRED: {json.dumps(error_info, ensure_ascii=False)}"
             return self.error(error_message)
         
         # Extract tool arguments from analysis result

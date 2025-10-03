@@ -65,7 +65,7 @@ class ExecutionToolRuntime(ToolRuntime):
         self._triggered_actions.append(action)
 
     async def backlog(self, content: dict, priority: str | None = None):
-        self._backlog.append(json.dumps(content))
+        self._backlog.append(json.dumps(content, ensure_ascii=False))
 
 
 # Execute step function - works directly with StepDefinition
