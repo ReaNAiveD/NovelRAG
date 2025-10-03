@@ -182,11 +182,6 @@ Based on the provided action, step description, and context, generate the approp
 
 ## Input Information
 
-**Target Aspect**:
-```
-{{ aspect }}
-```
-
 **Action**:
 ```
 {{ action }}
@@ -197,6 +192,18 @@ Based on the provided action, step description, and context, generate the approp
 {{ step_description }}
 ```
 
+**Generated Content Results**:
+{% if content_results %}
+{% for result in content_results %}
+- **{{ result.description }}**{% if result.target_field %} (Target Field: {{ result.target_field }}){% endif %}:
+  ```
+  {{ result.content }}
+  ```
+{% endfor %}
+{% else %}
+No content results provided.
+{% endif %}
+
 **Context**:
 ```
 {{ context }}
@@ -205,9 +212,9 @@ Based on the provided action, step description, and context, generate the approp
 ## Instructions
 
 Analyze the above input information and generate the appropriate operations. Make sure to:
-1. Consider the target aspect when determining element URIs and operation structure
-2. Read the action carefully to understand what needs to be done
-3. Use the step description as background context to better understand the situation
+1. Read the action carefully to understand what needs to be done
+2. Use the step description as background context to better understand the situation
+3. **Use the generated content results** to populate the data fields in your operations
 4. Parse the context to identify specific elements, IDs, positions, and data requirements
 5. Choose the correct operation type (property or element) based on the action
 6. Structure the operations correctly according to the schema above

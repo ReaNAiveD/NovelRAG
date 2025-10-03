@@ -3,6 +3,7 @@
 import json
 import pydantic
 import random
+from dataclasses import dataclass, field
 from typing import Any
 
 from novelrag.llm.types import ChatLLM
@@ -17,6 +18,37 @@ from .steps import StepDefinition
 from .tool import SchematicTool, ContextualTool, LLMToolMixin, ToolRuntime
 from .types import ToolOutput
 from .proposals import ContentProposer
+
+
+@dataclass
+class ContentGenerationTask:
+    """Represents a content generation task."""
+    description: str                    # What content to generate
+    context_facets: list[str]           # Which context facets to use
+    target_field: str | None = None    # Which field this content will update
+
+
+@dataclass
+class OperationPlan:
+    """Result of operation planning phase."""
+    operation_specification: str       # Detailed natural language intent
+    content_generation_tasks: list[ContentGenerationTask]
+    missing_aspects: list[str] = field(default_factory=list)
+    missing_context: list[str] = field(default_factory=list)
+
+    @property
+    def has_prerequisites(self) -> bool:
+        """Check if there are any unmet prerequisites."""
+        return bool(self.missing_aspects or self.missing_context)
+
+    def prerequisites_error(self) -> str:
+        """Generate error message for unmet prerequisites."""
+        errors = []
+        if self.missing_aspects:
+            errors.append(f"Missing aspects: {', '.join(self.missing_aspects)}")
+        if self.missing_context:
+            errors.append(f"Missing context: {', '.join(self.missing_context)}")
+        return "; ".join(errors)
 
 
 class AspectCreateTool(LLMToolMixin, SchematicTool):
@@ -245,55 +277,104 @@ class ResourceWriteTool(LLMToolMixin, ContextualTool):
         "Always retrieve the aspect definition first, then gather any dependent resources " \
         "before attempting to write. This ensures you have a complete understanding of the resource structure and all necessary context."
 
+    async def plan_operation(self, step: StepDefinition, believes: list[str], context: dict[str, list[str]]) -> OperationPlan:
+        """Plan the operation by determining intent, content tasks, and prerequisites.
+        
+        Args:
+            step: Step definition containing the operation intent
+            context: Available context organized by facets
+            believes: Current agent beliefs
+            
+        Returns:
+            OperationPlan with operation specification, content tasks, and prerequisites
+        """
+        # Call LLM to analyze the step and generate the operation plan
+        plan_json = await self.call_template(
+            'plan_operation.jinja2',
+            json_format=True,
+            step_intent=step.intent,
+            believes=believes,
+            context=context,
+        )
+        plan_data = json.loads(plan_json)
+
+        content_tasks = []
+        for task_data in plan_data.get('content_generation_tasks', []):
+            content_tasks.append(ContentGenerationTask(
+                description=task_data['description'],
+                context_facets=task_data['context_facets'],
+                target_field=task_data.get('target_field')
+            ))
+        return OperationPlan(
+            operation_specification=plan_data['operation_specification'],
+            content_generation_tasks=content_tasks,
+            missing_aspects=plan_data.get('missing_aspects', []),
+            missing_context=plan_data.get('missing_context', [])
+        )
+
     async def call(self, runtime: ToolRuntime, believes: list[str], step: StepDefinition, context: dict[str, list[str]], tools: dict[str, str] | None = None) -> ToolOutput:
-        """Edit existing content and return the updated content."""
+        """Edit existing content using the new planning-based workflow."""
         if step.intent is None or not step.intent:
             return self.error("No step description provided. Please provide a description of the current step.")
 
-        if cached_aspect := step.progress.get("aspect"):
-            await runtime.message(f"resuming from cached proposal selection: {cached_aspect}")
-            aspect = cached_aspect[0]
-        else:
-            aspect = await self._determine_target_aspect(step, context)
-        if not aspect:
-            return self.error("Could not determine target aspect for editing. Please provide a valid aspect name in the step definition.")
-        await runtime.progress("aspect", aspect, f"Determined target aspect for editing: {aspect}")
-        if (await self.repo.get_aspect(aspect)) is None:
-            await runtime.warning("The determined aspect does not exist in the repository. Decompose the step to create it first.")
-            # Create structured error message with decomposition data
-            decomposition_info = {
-                "is_decomposition": True,
-                "steps": [{
-                    'intent': f"Create the missing aspect '{aspect}' required for this editing operation.",
-                    'tool': 'create_aspect'
-                }],
-                "rationale": f"The step '{step.intent}' requires aspect '{aspect}' which does not exist in the repository.",
-                "rerun": True
-            }
-            error_message = f"DECOMPOSITION_REQUIRED: {json.dumps(decomposition_info)}"
-            return self.error(error_message)
+        await runtime.message("Planning operation...")
+        plan = await self.plan_operation(step, believes, context)
 
-        proposal_sets = [await proposer.propose(believes, step.intent, context) for proposer in self.content_proposers]
-        proposals = [item for sublist in proposal_sets for item in sublist]
-        if not proposals:
-            return self.error("No generated proposals available.")
+        if plan.has_prerequisites:
+            error_msg = plan.prerequisites_error()
+            await runtime.error(f"Prerequisites not met: {error_msg}")
+            return self.error(f"Prerequisites not met: {error_msg}")
 
-        await runtime.message(f"Generated {len(proposals)} proposals based on current believes and context.")
-        await runtime.debug(f"Proposals: {proposals}")
-        sorted_proposals = await self._rank_proposals([p.content for p in proposals])
-        await runtime.message("Finished sorting proposals.")
+        await runtime.message(f"Operation planned: {plan.operation_specification}")
+        await runtime.message(f"Content generation tasks: {len(plan.content_generation_tasks)}")
 
-        if not sorted_proposals:
-            return self.error("No valid proposals after sort to edit.")
+        content_results = []
+        for i, task in enumerate(plan.content_generation_tasks):
+            await runtime.message(f"Generating content for task {i+1}/{len(plan.content_generation_tasks)}: {task.description}")
 
-        selected_proposal = await self.select_proposal(sorted_proposals)
-        await runtime.message(f"Selected proposal: {selected_proposal}")
-        await runtime.progress("proposal_selection", selected_proposal, "Selected proposal for editing.")
+            content_description = (
+                f"Generate content for the following task:\n"
+                f"Task: {task.description}\n\n"
+                f"This content is part of a broader operation: {plan.operation_specification}\n\n"
+                f"The operation aims to accomplish: {step.intent}\n\n"
+                f"Ensure the generated content aligns with both the specific task requirements "
+                f"and the overall operation goal."
+            )
 
-        await runtime.debug("No new write request generated from the selected proposal.")
-        operations_json = await self.build_operations(selected_proposal, step.intent, context, aspect)
+            proposals = [await proposer.propose(
+                believes=believes,
+                content_description=content_description,
+                context={facet: context.get(facet, []) for facet in task.context_facets}
+            ) for proposer in self.content_proposers]
+            proposals = [proposal for proposal_set in proposals for proposal in proposal_set]
+            if not proposals:
+                await runtime.warning(f"No content generated for task: {task.description}")
+                continue
+            ranked_proposals = await self._rank_proposals([proposal.content for proposal in proposals])
+            selected_content = await self.select_proposal(ranked_proposals)
+            await runtime.debug(f"Generated content: {selected_content}")
+            
+            content_results.append({
+                "description": task.description,
+                "target_field": task.target_field,
+                "content": selected_content
+            })
+
+        if not content_results:
+            return self.error("No content was generated for any task.")
+
+        await runtime.message(f"Generated content for {len(content_results)} tasks")
+
+        await runtime.message("Building operations from generated content...")
+        operations_json = await self.build_operations(
+            action=plan.operation_specification,
+            step_description=step.intent,
+            context=context,
+            content_results=content_results
+        )
+        
         if not operations_json:
-            return self.error("Failed to build operation from the selected proposal.")
+            return self.error("Failed to build operations from generated content.")
 
         await runtime.debug("Built operation successfully. Start Validation.")
         try:
@@ -400,13 +481,24 @@ class ResourceWriteTool(LLMToolMixin, ContextualTool):
         selected_proposal = random.choices(proposals, weights=weights, k=1)[0]
         return selected_proposal
 
-    async def build_operations(self, proposal: str, step_description: str, context: dict[str, list[str]], aspect: str) -> str:
+    async def build_operations(self, action: str, step_description: str, context: dict[str, list[str]], content_results: list[dict] | None = None) -> str:
+        """Build operations from action description and optional content results.
+        
+        Args:
+            action: Action description or operation specification
+            step_description: Step description for context
+            context: Available context for reference
+            content_results: Optional list of content generation results
+            
+        Returns:
+            JSON string containing the operations
+        """
         return await self.call_template(
             'build_operation.jinja2',
-            action=proposal,
+            action=action,
             step_description=step_description,
             context=context,
-            aspect=aspect,
+            content_results=content_results or [],
             json_format=True
         )
 

@@ -1,0 +1,124 @@
+You are an expert operation planner for story content management. Based on the provided step intent and available context, you need to analyze what operation should be performed and plan the content generation requirements.
+
+## Available Context Facets
+
+The following context facets are available for use:
+{% for facet, items in context.items() %}
+{%- if items %}
+- **{{ facet }}**: {{ items|length }} items
+{%- endif %}
+{%- endfor %}
+
+## Your Task
+
+Analyze the step intent and generate a comprehensive operation plan. Consider:
+1. **What exactly needs to be done** (operation specification) 
+2. **What content needs to be generated**
+3. **What prerequisites are missing** (aspects or context)
+
+## Response Format
+
+You must respond with a valid JSON object with this exact structure:
+
+```json
+{
+  "operation_specification": "Detailed natural language description of the operation to be performed, including target resources, specific fields to update, and any relationships to consider",
+  "content_generation_tasks": [
+    {
+      "description": "What content to generate for this specific task",
+      "context_facets": ["list", "of", "relevant", "context", "facets"],
+      "target_field": "field_name_or_null"
+    }
+  ],
+  "missing_aspects": [
+    "List of aspect names that need to exist but are missing"
+  ],
+  "missing_context": [
+    "List of descriptions of context information that is needed but not available"
+  ]
+}
+```
+
+## Guidelines
+
+### Operation Specification
+- Be specific about target resources (use URIs when mentioned)
+- Include all fields/properties that need updates
+- Mention any relationships or dependencies
+- Use natural language but be precise
+
+### Content Generation Tasks
+- Break down into focused, specific tasks
+- Each task should generate content for a clear purpose
+- Select only relevant context facets for each task
+- Use target_field when the content maps to a specific resource field
+
+### Prerequisites
+- **missing_aspects**: List aspect names that must exist (e.g., "character", "scene")
+- **missing_context**: Describe what additional information is needed (e.g., "Need character background information", "Require setting details")
+
+### Context Facet Selection
+- Only include context facets that are actually relevant to the task
+- Different tasks can use different or overlapping context facets
+- Consider what information would help generate better content
+
+## Example
+
+**Step Intent**: "Update character Sarah's appearance and add motivation for traveling with Helen"
+
+**Response**:
+```json
+{
+  "operation_specification": "Update the character resource \"/character/sarah_chen_detective\" by detailing the appearance field and developing the motivation field, specifically focusing on her reasons for traveling with Helen (/character/helen)",
+  "content_generation_tasks": [
+    {
+      "description": "Generate detailed physical appearance description for Sarah Chen that reflects her detective profession",
+      "context_facets": ["character", "profession", "setting"],
+      "target_field": "appearance"
+    },
+    {
+      "description": "Create motivation for Sarah to travel with Helen, considering their relationship and current story context",
+      "context_facets": ["character", "relationships", "plot"],
+      "target_field": "motivation"
+    }
+  ],
+  "missing_aspects": [],
+  "missing_context": []
+}
+```
+
+## Input Information
+
+**Step Intent**:
+```
+{{ step_intent }}
+```
+
+**Current Believes**:
+{% if believes %}
+{% for belief in believes %}
+- {{ belief }}
+{% endfor %}
+{% else %}
+- No current believes available
+{% endif %}
+
+**Available Context**:
+{% for facet, items in context.items() %}
+{% if items %}
+#### {{ facet }}
+{% for item in items %}
+- {{ item }}
+{%- endfor %}
+{%- endif %}
+{%- endfor %}
+
+## Instructions
+
+Analyze the step intent carefully and generate the operation plan. Make sure to:
+1. Create a detailed operation specification that captures the full intent
+2. Break down content generation into focused tasks with appropriate context
+3. Identify any missing prerequisites that would prevent successful execution
+4. Select relevant context facets for each content generation task
+
+Generate your response as a valid JSON object:
