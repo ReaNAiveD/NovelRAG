@@ -1,4 +1,5 @@
 from novelrag.agent.strategy import AspectQueryInstructions, AspectStructureKnowledge, CompositeContextStrategy, CompositePlanningStrategy, ResourceContextKnowledge, ResourceCreateInstructions, ResourceQueryInstructions, ResourceStructureKnowledge, ResourceUpdateInstructions
+from novelrag.resource.repository import ResourceRepository
 from .agent import Agent
 from .channel import SessionChannel
 from .planning import PursuitPlanner
@@ -10,8 +11,9 @@ from novelrag.template import TemplateEnvironment
 
 # TODO: Tools should be defined in config
 class AgentIntent(LLMIntent):
-    def __init__(self, *, name: str | None, chat_llm: dict | None = None, lang: str | None = None, channel: SessionChannel, **kwargs):
+    def __init__(self, *, resource_repo: ResourceRepository, name: str | None, chat_llm: dict | None = None, lang: str | None = None, channel: SessionChannel, **kwargs):
         super().__init__(name=name, chat_llm=chat_llm, lang=lang, **kwargs)
+        self.resource_repo = resource_repo
         self.template_env = TemplateEnvironment("novelrag.agent", "en")
         self.channel = channel
 
@@ -30,22 +32,22 @@ class AgentIntent(LLMIntent):
             writer_tool = ResourceWriteTool(context.resource_repository, template_env=self.template_env, chat_llm=self.chat_llm(context.chat_llm_factory))
             aspect_create_tool = AspectCreateTool(context.resource_repository, template_env=self.template_env, chat_llm=self.chat_llm(context.chat_llm_factory))
             relation_tool = ResourceRelationWriteTool(context.resource_repository, template_env=self.template_env, chat_llm=self.chat_llm(context.chat_llm_factory))
-            tools['resource_fetch'] = fetch_tool
-            tools['resource_search'] = search_tool
+            # tools['resource_fetch'] = fetch_tool
+            # tools['resource_search'] = search_tool
             tools['resource_write'] = writer_tool
             tools['aspect_create'] = aspect_create_tool
             tools['resource_relation_write'] = relation_tool
         planning_strategy = CompositePlanningStrategy([
             ResourceStructureKnowledge(),
             AspectStructureKnowledge(),
-            AspectQueryInstructions(),
-            ResourceQueryInstructions(),
-            ResourceCreateInstructions(),
-            ResourceUpdateInstructions(),
+            # AspectQueryInstructions(),
+            # ResourceQueryInstructions(),
+            # ResourceCreateInstructions(),
+            # ResourceUpdateInstructions(),
         ])
-        context_strategy = CompositeContextStrategy([
-            ResourceContextKnowledge(),
-        ])
+        # context_strategy = CompositeContextStrategy([
+        #     ResourceContextKnowledge(),
+        # ])
         planner = PursuitPlanner(template_env=self.template_env, chat_llm=self.chat_llm(context.chat_llm_factory), strategy=planning_strategy)
         summarizer = PursuitSummarizer(template_env=self.template_env, chat_llm=self.chat_llm(context.chat_llm_factory))
         agent = Agent(
@@ -53,7 +55,7 @@ class AgentIntent(LLMIntent):
             channel=self.channel,
             planner=planner,
             summarizer=summarizer,
-            context_strategy=context_strategy,
+            resource_repo=self.resource_repo,
             template_env=self.template_env,
             chat_llm=self.chat_llm(context.chat_llm_factory)
         )

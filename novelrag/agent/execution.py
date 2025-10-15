@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Any
 
 from .channel import AgentChannel
-from .context import PursuitContext
+from .workspace import ResourceContext
 from .steps import StepDefinition, StepOutcome, StepStatus
 from .tool import ContextualTool, ToolRuntime, LLMLogicalOperationTool
 from .types import ToolResult, ToolError
@@ -182,7 +182,7 @@ class ExecutionPlan:
         return "\n".join(lines)
 
     async def execute_current_step(self, tools: dict[str, ContextualTool], believes: list[str],
-                                   channel: AgentChannel, context: PursuitContext,
+                                   channel: AgentChannel, context: ResourceContext,
                                    fallback_tool: LLMLogicalOperationTool | None = None) -> 'StepOutcome | None':
         """Advance the plan by executing the next pending action."""
         if self.finished():
@@ -191,16 +191,17 @@ class ExecutionPlan:
         next_action = self.pending_steps[0]
         await channel.info(f"[{next_action.tool}]: {next_action.intent}")
 
-        # Retrieve context for this specific step using PursuitContext
-        step_context = await context.retrieve_context(next_action)
+        # Build context for this specific step using ResourceContext iterative building
+        step_context = await context.build_context_for_execution(
+            tool=next_action.tool,
+            intent=next_action.intent
+        )
         total_context_items = sum(len(items) for items in step_context.values())
-        await channel.info(f"Retrieve {total_context_items} context items from {len(step_context)} facets for step [{next_action.intent}]")
-        await channel.debug(f"Retrieved context for step [{next_action.intent}]: {step_context}")
-        # Execute the step with the retrieved context
+        await channel.info(f"Built context with {total_context_items} items across {len(step_context)} categories through iterative refinement for step [{next_action.intent}]")
+        await channel.debug(f"Built context for step [{next_action.intent}]: {step_context}")
+        # Execute the step with the built context
         outcome = await _execute_step(next_action, tools, believes, step_context, channel, fallback_tool)
 
-        # Store the outcome in context for future steps - regardless of status
-        # Key findings should be preserved even from failed or decomposed steps
-        await context.store_context(outcome, step_idx=len(self.executed_steps), future_steps=self.pending_steps[1:])
+        context.reset_workspace()
 
         return outcome

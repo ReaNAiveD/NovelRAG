@@ -4,7 +4,7 @@ import logging
 from novelrag.agent.strategy import NoOpPlanningStrategy, PlanningStrategy
 
 from .execution import ExecutionPlan
-from .context import PursuitContext
+from .workspace import ResourceContext
 from .steps import StepDefinition, StepOutcome, StepStatus
 from .tool import ContextualTool, LLMToolMixin, SchematicToolAdapter
 from novelrag.llm.types import ChatLLM
@@ -20,13 +20,14 @@ class PursuitPlanner(LLMToolMixin):
         super().__init__(chat_llm=chat_llm, template_env=template_env)
         self.strategy = strategy or NoOpPlanningStrategy()
 
-    async def create_initial_plan(self, goal: str, believes: list[str], tools: dict[str, ContextualTool]) -> list[StepDefinition]:
+    async def create_initial_plan(self, goal: str, believes: list[str], tools: dict[str, ContextualTool], context: ResourceContext) -> list[StepDefinition]:
         """
         Decompose a goal into executable steps based on available tools and beliefs.
         Args:
             goal: The goal to pursue.
             believes: Current beliefs of the agent.
             tools: Available tools for the agent.
+            context: ResourceContext for retrieving relevant historical information.
         Returns:
             A list of StepDefinition instances representing the decomposed steps.
         """
@@ -38,6 +39,15 @@ class PursuitPlanner(LLMToolMixin):
                 info["input_schema"] = tool.inner.input_schema
             tool_info[name] = info
 
+        # Build planning context for initial plan
+        planning_context = await context.build_context_for_planning(
+            goal=goal,
+            last_step=None,
+            completed_steps=[],
+            pending_steps=[]
+        )
+        planning_context = self.strategy.filter_planning_context(planning_context)
+
         planning_instructions = self.strategy.initial_planning_instructions()
 
         response = await self.call_template(
@@ -46,7 +56,8 @@ class PursuitPlanner(LLMToolMixin):
             goal=goal,
             believes=believes,
             tools=tool_info,
-            planning_instructions=planning_instructions
+            planning_instructions=planning_instructions,
+            planning_context=planning_context
         )
         steps = json.loads(response)["steps"]
         steps = [StepDefinition(**step) for step in steps]
@@ -55,7 +66,7 @@ class PursuitPlanner(LLMToolMixin):
 
     async def adapt_plan(
             self, last_step: StepOutcome, original_plan: ExecutionPlan, believes: list[str],
-            tools: dict[str, ContextualTool], context: PursuitContext) -> list[StepDefinition]:
+            tools: dict[str, ContextualTool], context: ResourceContext) -> list[StepDefinition]:
         """
         Adapt the execution plan based on the last completed step and current context.
 
@@ -71,14 +82,14 @@ class PursuitPlanner(LLMToolMixin):
             original_plan: The original execution plan with executed and pending steps
             believes: The agent's current beliefs about the world state
             tools: Dictionary mapping tool names to ContextualTool instances
-            context: PursuitContext for retrieving relevant historical information
+            context: ResourceContext for retrieving relevant historical information
 
         Returns:
             A list of updated StepDefinition instances representing the new schedule
         """
         try:
             # Retrieve relevant context for planning decisions
-            planning_context = await context.retrieve_planning_context(
+            planning_context = await context.build_context_for_planning(
                 goal=original_plan.goal,
                 last_step=last_step,
                 completed_steps=original_plan.executed_steps + [last_step],

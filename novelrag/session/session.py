@@ -63,7 +63,7 @@ class Session:
         if not intent and self.intent_registry:
             intent = await self.intent_registry.get_intent(command.intent or '_default')
         if not intent and self.enable_agent:
-            intent = AgentIntent(name="Agent", channel=ShellSessionChannel(logger))
+            intent = AgentIntent(resource_repo=self.resource_repository, name="Agent", channel=ShellSessionChannel(logger))
         if not intent:
             raise IntentNotFoundError(command.intent or '_default')
 

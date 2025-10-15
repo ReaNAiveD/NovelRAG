@@ -129,6 +129,21 @@ Create an initial plan to pursue the provided goal through a strategic sequence 
 - **{{ tool_name }}**: {{ tool_info }}
 {%- endfor %}
 
+{% if planning_context and planning_context|length > 0 %}
+**Planning Context:**
+The following context information is available to inform your planning:
+
+{%- for facet, items in planning_context.items() %}
+{%- if items %}
+### {{ facet }}
+{% for item in items %}
+- {{ item }}
+{%- endfor %}
+{%- endif %}
+{%- endfor %}
+
+{%- endif %}
+
 ## Strategic Planning Guidance
 
 {% if planning_instructions and planning_instructions|length > 0 %}

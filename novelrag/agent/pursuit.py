@@ -4,7 +4,7 @@ from datetime import datetime
 from enum import Enum
 
 from .channel import AgentChannel
-from .context import PursuitContext
+from .workspace import ResourceContext
 from .execution import ExecutionPlan
 from .planning import PursuitPlanner
 from .steps import StepDefinition, StepStatus, StepOutcome
@@ -36,11 +36,11 @@ class GoalPursuit:
     goal: str
     initial_believes: list[str]
     plan: ExecutionPlan
-    context: PursuitContext
+    context: ResourceContext
     started_at: datetime = field(default_factory=datetime.now)
 
     @classmethod
-    def new(cls, goal: str, believes: list[str], steps: list[StepDefinition], context: 'PursuitContext') -> 'GoalPursuit':
+    def new(cls, goal: str, believes: list[str], steps: list[StepDefinition], context: 'ResourceContext') -> 'GoalPursuit':
         """Create a new goal pursuit instance."""
         plan = ExecutionPlan(
             goal=goal,
@@ -60,10 +60,10 @@ class GoalPursuit:
             believes: list[str],
             planner: PursuitPlanner,
             tools: dict[str, ContextualTool],
-            context: 'PursuitContext',
+            context: 'ResourceContext',
     ):
         """Initialize a goal pursuit with a plan based on the goal and beliefs."""
-        steps = await planner.create_initial_plan(goal, believes, tools)
+        steps = await planner.create_initial_plan(goal, believes, tools, context)
         return cls.new(goal, believes, steps, context)
 
     async def execute_next_step(self, tools: dict[str, ContextualTool], channel: AgentChannel, planner: 'PursuitPlanner', fallback_tool: LLMLogicalOperationTool | None = None) -> 'GoalPursuitResult | None':

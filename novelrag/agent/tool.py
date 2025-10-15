@@ -19,7 +19,7 @@ class LLMToolMixin:
         self.template_env = template_env
         self.chat_llm = chat_llm
     
-    async def call_template(self, template_name: str, user_question: str | None = None, json_format: bool = False, **kwargs: bool | int | float | str | list | dict) -> str:
+    async def call_template(self, template_name: str, user_question: str | None = None, json_format: bool = False, **kwargs: None | bool | int | float | str | list | dict) -> str:
         """Call an LLM with a template and return the response."""
         logger.info(f"Calling template: {template_name} with json_format={json_format} ─────────────────")
         template = self.template_env.load_template(template_name)
@@ -185,6 +185,11 @@ class SchematicTool(BaseTool):
     def input_schema(self) -> dict[str, Any]:
         """Schema for input parameters required by the tool"""
         pass
+
+    @property
+    def require_context(self) -> bool:
+        """Whether the tool requires context to operate effectively"""
+        return False
 
     @abstractmethod
     async def call(self, runtime: ToolRuntime, **kwargs) -> ToolOutput:

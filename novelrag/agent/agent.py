@@ -4,15 +4,15 @@ import logging
 from typing import Any
 
 from novelrag.agent.channel import AgentChannel
-from novelrag.agent.strategy import ContextStrategy
 from novelrag.llm.types import ChatLLM
 from novelrag.template import TemplateEnvironment
+from novelrag.resource.repository import ResourceRepository
 
 from .tool import BaseTool, ContextualTool, LLMToolMixin, SchematicTool, LLMLogicalOperationTool
 from .planning import PursuitPlanner
 from .pursuit import GoalPursuit, PursuitSummarizer
 from .proposals import TargetProposer
-from .context import LLMPursuitContext
+from .workspace import ResourceContext
 
 logger = logging.getLogger(__name__)
 
@@ -66,14 +66,16 @@ class Agent(LLMToolMixin):
     - AgentExecutor: Executes actions and tools
     """
 
-    def __init__(self, tools: dict[str, BaseTool], channel: AgentChannel, planner: PursuitPlanner, summarizer: PursuitSummarizer, context_strategy: ContextStrategy, template_env: TemplateEnvironment, chat_llm: ChatLLM):
+    def __init__(self, tools: dict[str, BaseTool], channel: AgentChannel, planner: PursuitPlanner, summarizer: PursuitSummarizer, resource_repo: ResourceRepository, template_env: TemplateEnvironment, chat_llm: ChatLLM):
         # Initialize core components
         self.mind = AgentMind()
         self.channel = channel
 
         self.planner = planner
         self.summarizer = summarizer
-        self.context_strategy = context_strategy
+        self.resource_repo = resource_repo
+        self.template_env = template_env
+        self.chat_llm = chat_llm
         self.tools: dict[str, BaseTool] = tools
         self.contextual_tools: dict[str, ContextualTool] = dict()
         for (name, tool) in self.tools.items():
@@ -111,8 +113,8 @@ class Agent(LLMToolMixin):
         pass
 
     async def pursue_goal(self, goal: str):
-        # Create a new PursuitContext for this specific goal pursuit
-        pursuit_context = LLMPursuitContext(self.context_strategy, self.template_env, self.chat_llm)
+        # Create a new ResourceContext for this specific goal pursuit
+        pursuit_context = ResourceContext(self.resource_repo, self.template_env, self.chat_llm)
 
         pursuit = await GoalPursuit.initialize_pursuit(
             goal=goal,
