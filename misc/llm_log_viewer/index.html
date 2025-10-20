@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLM Log Viewer</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>LLM Log Viewer</h1>
+            <p>View and explore LLM request/response logs from agent pursuits</p>
+        </header>
+
+        <div class="controls">
+            <div class="file-selector">
+                <input type="file" id="fileInput" accept=".yaml,.yml" webkitdirectory />
+                <label for="fileInput" class="file-label">Select Directory</label>
+                <input type="file" id="singleFileInput" accept=".yaml,.yml" style="display: none;" />
+                <label for="singleFileInput" class="file-label secondary">Select File</label>
+                <span id="fileName" class="file-name">No directory selected</span>
+            </div>
+            
+            <div class="stats" id="stats" style="display: none;">
+                <span class="stat-item">Pursuits: <span id="pursuitCount">0</span></span>
+                <span class="stat-item">Total LLM Calls: <span id="totalCalls">0</span></span>
+                <span class="stat-item">Unique Templates: <span id="uniqueTemplates">0</span></span>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="directory-panel" id="directoryPanel">
+                <div class="directory-header">
+                    <h3>YAML Files</h3>
+                    <div class="directory-path" id="directoryPath">Select a directory to browse files</div>
+                </div>
+                <div class="directory-content" id="directoryContent">
+                    <div class="directory-empty">
+                        <p>No directory selected</p>
+                        <p class="help-text">Use "Select Directory" button above to browse YAML log files</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="log-content" id="logContent">
+            <div class="welcome">
+                <h2>Welcome to LLM Log Viewer</h2>
+                <p>Select a YAML log file to view the LLM request/response history from agent pursuits.</p>
+                <ul>
+                    <li>Each pursuit shows the goal and can be expanded to view LLM calls</li>
+                    <li>Each LLM call shows the template used and can be expanded to view details</li>
+                    <li>Requests are collapsed by default, responses are expanded</li>
+                </ul>
+            </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

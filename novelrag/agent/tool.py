@@ -1,11 +1,13 @@
 from abc import ABC, abstractmethod
 import json
 import logging
+import time
 from typing import Any
 
 from novelrag.llm.types import ChatLLM
 from novelrag.template import TemplateEnvironment
 from .steps import StepDefinition
+from .llm_logger import LLMRequest, LLMResponse, log_llm_call
 
 from .types import ToolOutput, ToolResult, ToolError
 
@@ -26,10 +28,29 @@ class LLMToolMixin:
         prompt = template.render(**kwargs)
         logger.debug('\n' + prompt)
         logger.debug('───────────────────────────────────────────────────────────────────────────────')
-        response = await self.chat_llm.chat(messages=[
+        
+        # Prepare request for logging
+        messages = [
             {'role': 'system', 'content': prompt},
             {'role': 'user', 'content': user_question or 'Please answer the question.'}
-        ], response_format='json_object' if json_format else None)
+        ]
+        request = LLMRequest(
+            messages=messages,
+            response_format='json_object' if json_format else None
+        )
+        
+        # Call LLM and measure time
+        start_time = time.time()
+        response = await self.chat_llm.chat(
+            messages=messages,
+            response_format='json_object' if json_format else None
+        )
+        duration_ms = int((time.time() - start_time) * 1000)
+        
+        # Log the call
+        log_response = LLMResponse(content=response)
+        log_llm_call(template_name, request, log_response, duration_ms)
+        
         logger.info(f"Received response from LLM for template {template_name}")
         logger.info('\n' + response) 
         logger.info('───────────────────────────────────────────────────────────────────────────────')
@@ -55,18 +76,35 @@ class LLMToolMixin:
         logger.debug(f"Response schema: {json.dumps(response_schema, indent=2)}")
         logger.debug('───────────────────────────────────────────────────────────────────────────────')
         
-        # Use structured output with JSON schema
-        response = await self.chat_llm.chat(messages=[
+        # Prepare request for logging
+        messages = [
             {'role': 'system', 'content': prompt},
             {'role': 'user', 'content': user_question or 'Please provide a response that conforms to the specified JSON schema.'}
-        ], response_format={
+        ]
+        response_format_config = {
             "type": "json_schema", 
             "json_schema": {
                 "name": "structured_response",
                 "schema": response_schema,
                 "strict": True
             }
-        })
+        }
+        request = LLMRequest(
+            messages=messages,
+            response_format=json.dumps(response_format_config)  # Store as JSON string for logging
+        )
+        
+        # Call LLM and measure time
+        start_time = time.time()
+        response = await self.chat_llm.chat(
+            messages=messages,
+            response_format=response_format_config
+        )
+        duration_ms = int((time.time() - start_time) * 1000)
+        
+        # Log the call
+        log_response = LLMResponse(content=response)
+        log_llm_call(template_name, request, log_response, duration_ms)
         
         logger.info(f"Received structured response from LLM for template {template_name}")
         logger.info('\n' + response) 

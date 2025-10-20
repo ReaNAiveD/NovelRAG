@@ -9,6 +9,7 @@ from novelrag.agent.orchestrate import OrchestrationLoop, OrchestrationExecution
 from novelrag.agent.steps import StepDefinition, StepOutcome, StepStatus
 from novelrag.agent.tool import SchematicTool, ToolRuntime
 from novelrag.agent.workspace import ResourceContext
+from novelrag.agent.llm_logger import initialize_logger, get_logger
 from novelrag.llm.types import ChatLLM
 from novelrag.resource.repository import ResourceRepository
 from novelrag.template import TemplateEnvironment
@@ -82,6 +83,11 @@ class Agent:
         """
         await self.channel.info(f"Starting pursuit of goal: {goal}")
         
+        # Start LLM logging for this pursuit
+        llm_logger = get_logger()
+        if llm_logger:
+            llm_logger.start_pursuit(goal)
+        
         # Create a fresh ResourceContext for this goal
         context = ResourceContext(self.resource_repo, self.template_env, self.chat_llm)
         
@@ -134,6 +140,15 @@ class Agent:
             await self.channel.error(error_msg)
             logger.exception("Error during goal pursuit")
             return error_msg
+        finally:
+            # Complete the pursuit logging and dump to file
+            if llm_logger:
+                llm_logger.complete_pursuit()
+                try:
+                    log_file = llm_logger.dump_to_file()
+                    await self.channel.debug(f"LLM logs saved to: {log_file}")
+                except Exception as log_error:
+                    logger.warning(f"Failed to save LLM logs: {log_error}")
 
     async def _execute_tool(self, tool_name: str, params: dict[str, Any], reason: str, context: ResourceContext) -> StepOutcome:
         """Execute a single tool and return the outcome."""
@@ -210,7 +225,8 @@ def create_agent(
     chat_llm: ChatLLM,
     channel: AgentChannel,
     max_iterations: int = 5,
-    min_iterations: int | None = None
+    min_iterations: int | None = None,
+    log_directory: str = "logs"
 ) -> Agent:
     """Create a new Agent using the OrchestrationLoop approach.
     
@@ -222,10 +238,14 @@ def create_agent(
         channel: Communication channel for user interaction
         max_iterations: Maximum orchestration iterations
         min_iterations: Minimum orchestration iterations
+        log_directory: Directory to store LLM logs
         
     Returns:
         Configured Agent instance ready for goal pursuit
     """
+    # Initialize the LLM logger
+    initialize_logger(log_directory)
+    
     # Create the orchestration loop
     orchestrator = OrchestrationLoop(
         template_env=template_env,
