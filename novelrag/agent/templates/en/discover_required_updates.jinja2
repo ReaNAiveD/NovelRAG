@@ -3,14 +3,13 @@ You are analyzing an operation that was just applied to a resource repository to
 ## Context
 You have access to the following information:
 - **Step Description**: {{ step_description }}
-- **Applied Operation**: {{ operation }}
-- **Undo Operation**: {{ undo_operation }}
-- **Context Information**: 
+- **Applied Operation**: {{ operations }}
+- **Undo Operation**: {{ undo_operations }}
 {% for facet, items in context.items() %}
-{% if items %}
-  ### {{ facet }}
+{% -if items %}
+### {{ facet }}
 {% for item in items %}
-  - {{ item }}
+- {{ item }}
 {%- endfor %}
 {%- endif %}
 {%- endfor %}

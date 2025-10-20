@@ -66,6 +66,8 @@ Each resource has:
 - **Expand Tools**: Show detailed schemas when planning requires understanding tool capabilities
 - **Collapse Tools**: Hide schemas to reduce context length when basic description suffices
 - **Consider**: Tool complexity, parameter requirements, and planning sophistication needed
+
+**CRITICAL EXECUTION RULE**: You MUST expand any tool before executing it. Tools can only be executed if their detailed input schema has been explicitly shown in the current iteration or a previous iteration within this goal pursuit. This ensures you understand the tool's capabilities and can construct proper parameters.
 {%- endif %}
 
 ## Current Workspace State
@@ -166,6 +168,7 @@ Execute tools when:
 - Goal requires repository modifications to be achieved
 - Current context provides sufficient information for reliable tool parameters
 - Goal has not been achieved through context alone
+- **MANDATORY**: The tool to be executed has been explicitly expanded with its detailed schema visible in the available tools section
 
 ## Core Guidelines
 
