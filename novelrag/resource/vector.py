@@ -2,6 +2,7 @@ import abc
 import hashlib
 import json
 from dataclasses import dataclass
+import logging
 from typing import Optional
 
 import lancedb
@@ -10,6 +11,8 @@ from lancedb.pydantic import LanceModel, Vector
 
 from novelrag.llm import EmbeddingLLM
 from novelrag.resource import Element
+
+logger = logging.getLogger(__name__)
 
 
 class Hasher(abc.ABC):
@@ -178,6 +181,46 @@ class LanceDBStore:
             element_uri: Unique identifier of the element to remove
         """
         return await self.table.delete(where=f'element_uri = "{element_uri}"')
+
+    async def get_all_element_uris(self) -> list[str]:
+        """Retrieve all element URIs currently stored in the vector database.
+        
+        Returns:
+            List of all element URIs in the vector store
+        """
+        results = await self.table.query().select(["element_uri"]).to_list()
+        return [item["element_uri"] for item in results]
+
+    async def batch_delete_by_uris(self, element_uris: list[str]):
+        """Batch delete multiple elements by their URIs.
+        
+        Args:
+            element_uris: List of element URIs to delete from the vector store
+        """
+        if not element_uris:
+            return
+        
+        # Build WHERE clause for batch deletion
+        uri_conditions = " OR ".join([f'element_uri = "{uri}"' for uri in element_uris])
+        await self.table.delete(where=uri_conditions)
+
+    async def cleanup_invalid_elements(self, valid_element_uris: set[str]) -> int:
+        """Remove all elements from vector store that are not in the valid set.
+        
+        Args:
+            valid_element_uris: Set of URIs that should remain in the vector store
+            
+        Returns:
+            Number of invalid elements that were removed
+        """
+        all_stored_uris = await self.get_all_element_uris()
+        invalid_uris = [uri for uri in all_stored_uris if uri not in valid_element_uris]
+        
+        if invalid_uris:
+            await self.batch_delete_by_uris(invalid_uris)
+            logger.info(f"Deleted {len(invalid_uris)} invalid elements from vector store: " + ", ".join(invalid_uris))
+        
+        return len(invalid_uris)
 
     # Implementation details below
     async def _is_table_empty(self) -> bool:

@@ -1,9 +1,6 @@
-from novelrag.agent.strategy import AspectQueryInstructions, AspectStructureKnowledge, CompositeContextStrategy, CompositePlanningStrategy, ResourceContextKnowledge, ResourceCreateInstructions, ResourceQueryInstructions, ResourceStructureKnowledge, ResourceUpdateInstructions
 from novelrag.resource.repository import ResourceRepository
-from .agent import Agent
+from .agent import create_agent
 from .channel import SessionChannel
-from .planning import PursuitPlanner
-from .pursuit import PursuitSummarizer
 from .resource_tools import ResourceFetchTool, ResourceSearchTool, ResourceWriteTool, AspectCreateTool, ResourceRelationWriteTool
 from novelrag.intent import LLMIntent, IntentContext, Action
 from novelrag.template import TemplateEnvironment
@@ -25,6 +22,7 @@ class AgentIntent(LLMIntent):
         if message is None:
             raise ValueError("Message cannot be None for AgentIntent")
 
+        # Set up tools for the agent (using SchematicTool interface)
         tools = {}
         if context.resource_repository:
             fetch_tool = ResourceFetchTool(context.resource_repository)
@@ -32,36 +30,38 @@ class AgentIntent(LLMIntent):
             writer_tool = ResourceWriteTool(context.resource_repository, template_env=self.template_env, chat_llm=self.chat_llm(context.chat_llm_factory))
             aspect_create_tool = AspectCreateTool(context.resource_repository, template_env=self.template_env, chat_llm=self.chat_llm(context.chat_llm_factory))
             relation_tool = ResourceRelationWriteTool(context.resource_repository, template_env=self.template_env, chat_llm=self.chat_llm(context.chat_llm_factory))
-            # tools['resource_fetch'] = fetch_tool
-            # tools['resource_search'] = search_tool
+            
+            # Only include SchematicTool instances
             tools['resource_write'] = writer_tool
             tools['aspect_create'] = aspect_create_tool
             tools['resource_relation_write'] = relation_tool
-        planning_strategy = CompositePlanningStrategy([
-            ResourceStructureKnowledge(),
-            AspectStructureKnowledge(),
-            # AspectQueryInstructions(),
-            # ResourceQueryInstructions(),
-            # ResourceCreateInstructions(),
-            # ResourceUpdateInstructions(),
-        ])
-        # context_strategy = CompositeContextStrategy([
-        #     ResourceContextKnowledge(),
-        # ])
-        planner = PursuitPlanner(template_env=self.template_env, chat_llm=self.chat_llm(context.chat_llm_factory), strategy=planning_strategy)
-        summarizer = PursuitSummarizer(template_env=self.template_env, chat_llm=self.chat_llm(context.chat_llm_factory))
-        agent = Agent(
+
+        # Create agent using the new OrchestrationLoop approach
+        agent = create_agent(
             tools=tools,
-            channel=self.channel,
-            planner=planner,
-            summarizer=summarizer,
             resource_repo=self.resource_repo,
             template_env=self.template_env,
-            chat_llm=self.chat_llm(context.chat_llm_factory)
+            chat_llm=self.chat_llm(context.chat_llm_factory),
+            channel=self.channel
         )
 
-        await agent.pursue_goal(message)
-        output = self.channel.get_output()
+        # Execute the goal pursuit
+        result = await agent.pursue_goal(message)
+        
+        # Get any accumulated output from the channel
+        channel_output = self.channel.get_output()
+        
+        # Combine agent result with channel output, ensuring list format
+        messages = []
+        if channel_output:
+            if isinstance(channel_output, list):
+                messages.extend(channel_output)
+            else:
+                messages.append(channel_output)
+        
+        if result:
+            messages.append(result)
+        
         return Action(
-            message=output,
+            message=messages if messages else None,
         )

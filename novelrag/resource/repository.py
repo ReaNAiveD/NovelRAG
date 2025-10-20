@@ -111,17 +111,21 @@ class LanceDBResourceRepository(ResourceRepository):
             vector_store_config: VectorStoreConfig,
             embedder: EmbeddingLLM,
             default_resource_dir: str = '.',
+            cleanup_invalid_vectors: bool | None = None,
     ) -> 'LanceDBResourceRepository':
         """Build a LanceDBResourceRepository from a YAML configuration file.
 
         This method loads resource aspects from a YAML configuration file, creates
         a vector store, and populates it with all elements from the loaded aspects.
+        It also cleans up any invalid vectors that no longer exist in the configuration.
 
         Args:
             config_path: Path to the YAML configuration file containing aspect definitions
             vector_store_config: Configuration object for the LanceDB vector store
             embedder: Embedding LLM instance used for generating vector embeddings
             default_resource_dir: Default directory for resource files (defaults to '.')
+            cleanup_invalid_vectors: Whether to remove invalid vectors during initialization.
+                                   If None, uses vector_store_config.cleanup_invalid_on_init
 
         Returns:
             A new LanceDBResourceRepository instance initialized with the configured
@@ -134,8 +138,11 @@ class LanceDBResourceRepository(ResourceRepository):
         """
         aspects = {}
         elements = []
+        
+        # Load aspects and collect valid elements
         with open(config_path, 'r', encoding='utf-8') as f:
             resource_config: dict = yaml.safe_load(f) or {}
+        
         for aspect_name, aspect_config in resource_config.items():
             aspect_config = AspectConfig.model_validate(aspect_config)
             aspect = ResourceAspect.from_config(aspect_name, aspect_config)
@@ -143,11 +150,27 @@ class LanceDBResourceRepository(ResourceRepository):
             aspects[aspect_name] = aspect
             for element in aspect.iter_elements():
                 elements.append(element.inner)
+        
+        # Create vector store
         vector_store = await LanceDBStore.create(
             uri=vector_store_config.lancedb_uri,
             table_name=vector_store_config.table_name,
             embedder=embedder,
         )
+        
+        # Determine if cleanup should be performed
+        should_cleanup = cleanup_invalid_vectors if cleanup_invalid_vectors is not None else vector_store_config.cleanup_invalid_on_init
+
+        # Clean up invalid vectors if requested
+        if should_cleanup:
+            valid_element_uris = {element.uri for element in elements}
+            invalid_count = await vector_store.cleanup_invalid_elements(valid_element_uris)
+            if invalid_count > 0:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.info(f"Cleaned up {invalid_count} invalid vectors from database")
+        
+        # Add current elements to vector store
         await vector_store.batch_add(elements)
 
         return cls(config_path, aspects, vector_store, embedder, default_resource_dir)

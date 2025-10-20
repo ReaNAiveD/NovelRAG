@@ -2,7 +2,7 @@ import os
 import shutil
 import unittest
 from typing import Any
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 import yaml
 
 from novelrag.config.llm import AzureOpenAIEmbeddingConfig, EmbeddingLLMType
@@ -92,6 +92,23 @@ class DummyVectorStore:
     async def delete(self, element_uri: str):
         self._store.pop(element_uri, None)
 
+    async def get_all_element_uris(self) -> list[str]:
+        """Return all element URIs currently in the store."""
+        return list(self._store.keys())
+
+    async def batch_delete_by_uris(self, element_uris: list[str]):
+        """Delete multiple elements by their URIs."""
+        for uri in element_uris:
+            self._store.pop(uri, None)
+
+    async def cleanup_invalid_elements(self, valid_element_uris: set[str]) -> int:
+        """Remove elements not in the valid set and return count removed."""
+        all_uris = list(self._store.keys())
+        invalid_uris = [uri for uri in all_uris if uri not in valid_element_uris]
+        for uri in invalid_uris:
+            self._store.pop(uri, None)
+        return len(invalid_uris)
+
 
 async def create_test_repository(*, use_mock: bool = True):
     """Helper to create a test repository with standard config"""
@@ -111,6 +128,7 @@ async def create_test_repository(*, use_mock: bool = True):
         lancedb_uri='resource/lancedb',
         table_name='test_vectors',
         overwrite=True,  # Clean state for tests
+        cleanup_invalid_on_init=True,  # Enable cleanup for tests
     )
 
     if use_mock:
@@ -145,7 +163,7 @@ async def create_test_repository(*, use_mock: bool = True):
         }, f, allow_unicode=True)
 
     # Patch LanceDBStore.create to return our dummy store
-    with unittest.mock.patch('novelrag.resource.repository.LanceDBStore.create', new=AsyncMock(side_effect=lambda **kwargs: DummyVectorStore(embedder))):
+    with patch('novelrag.resource.repository.LanceDBStore.create', new=AsyncMock(side_effect=lambda **kwargs: DummyVectorStore(embedder))):
         return await LanceDBResourceRepository.from_config(
             cfg_path,
             vector_store_config,

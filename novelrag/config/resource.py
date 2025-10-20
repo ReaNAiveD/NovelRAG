@@ -14,3 +14,4 @@ class VectorStoreConfig(BaseModel):
     lancedb_uri: Annotated[str, Field()]
     table_name: Annotated[str, Field()]
     overwrite: Annotated[bool, Field(description='Whether the vector table collected from YAML would overwrite the database.', default=True)]
+    cleanup_invalid_on_init: Annotated[bool, Field(description='Whether to clean up invalid vectors during repository initialization.', default=True)]

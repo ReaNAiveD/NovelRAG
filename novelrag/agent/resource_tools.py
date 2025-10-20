@@ -13,9 +13,8 @@ from novelrag.resource.repository import ResourceRepository
 from novelrag.template import TemplateEnvironment
 from novelrag.resource.operation import validate_op
 from .llm_content_proposer import LLMContentProposer
-from .steps import StepDefinition
 
-from .tool import SchematicTool, ContextualTool, LLMToolMixin, ToolRuntime
+from .tool import SchematicTool, LLMToolMixin, ToolRuntime
 from .types import ToolOutput
 from .proposals import ContentProposer
 
@@ -267,9 +266,8 @@ class ResourceWriteTool(LLMToolMixin, SchematicTool):
     
     @property
     def description(self):
-        return "Use this tool when you need to modify content in the resource repository. " \
-        "Provide your intent and this tool will plan the operation, generate appropriate content " \
-        "based on your current beliefs and available context, then apply the changes. " \
+        return "Use this tool to modify resources in the repository when changes are needed to achieve your goals. " \
+        "This tool plans and executes repository operations based on your specified intent. " \
         "Supports comprehensive operations including creating/updating/deleting elements, " \
         "modifying properties, splicing element lists (insert/remove/replace), " \
         "flattening hierarchies, and merging resources. " \
@@ -432,20 +430,6 @@ class ResourceWriteTool(LLMToolMixin, SchematicTool):
 
         # Return the operations JSON that was applied as the result
         return self.result(json.dumps([op.model_dump() for op in operations], ensure_ascii=False))
-
-    async def _determine_target_aspect(self, step: StepDefinition, context: dict[str, list[str]]) -> str:
-        aspects = await self.repo.all_aspects()
-
-        response = await self.call_template(
-            'determine_suitable_aspect.jinja2',
-            json_format=True,
-            step_intent=step.intent,
-            context=context,
-            aspects=[aspect.context_dict for aspect in aspects]
-        )
-
-        result = json.loads(response)
-        return result.get('selected_aspect')
 
     async def _rank_proposals(self, proposals: list[str]) -> list[str]:
         response = await self.call_template(
