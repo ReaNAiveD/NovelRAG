@@ -22,6 +22,7 @@ Each resource has:
 - **Children**: Nested sub-resources organized by keys (values are child IDs to append to parent URI)
 
 ## Current Planning Context
+**User Request**: {{ user_request }}
 **User Goal**: {{ goal }}
 **System Objective**: Achieve the user's goal through optimal context building, tool execution, and completion assessment
 
@@ -53,7 +54,7 @@ Each resource has:
 
 ### Tool Inventory
 {%- for tool_name, tool_info in available_tools.items() %}
-- **{{ tool_name }}**: {{ tool_info.description }}
+- **{{ tool_name }}**{% if tool_info.input_schema %} *[EXPANDED]*{% else %} *[COLLAPSED]*{% endif %}: {{ tool_info.description }}
 {%- if tool_info.input_schema %}
   - **Input Schema**: {{ tool_info.input_schema }}
 {%- endif %}
@@ -67,7 +68,7 @@ Each resource has:
 - **Collapse Tools**: Hide schemas to reduce context length when basic description suffices
 - **Consider**: Tool complexity, parameter requirements, and planning sophistication needed
 
-**CRITICAL EXECUTION RULE**: You MUST expand any tool before executing it. Tools can only be executed if their detailed input schema has been explicitly shown in the current iteration or a previous iteration within this goal pursuit. This ensures you understand the tool's capabilities and can construct proper parameters.
+**CRITICAL EXECUTION RULE**: You MUST expand any tool before executing it. Tools can only be executed if their detailed input schema has been explicitly shown within this goal pursuit. This ensures you understand the tool's capabilities and can construct proper parameters.
 {%- endif %}
 
 ## Current Workspace State

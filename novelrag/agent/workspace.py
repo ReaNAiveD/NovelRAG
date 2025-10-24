@@ -34,7 +34,7 @@ class ContextWorkspace:
     
     def sorted_segments(self) -> list[ResourceSegment]:
         """Get the list of resource segments in sorted order."""
-        return [self.segments[uri] for uri in self.sorted_uris if uri in self.segments]
+        return [self.segments[uri] for uri in self.sorted_uris if uri in self.segments and uri not in self.excluded_uris]
     
     def ensure_segment(self, uri: str) -> ResourceSegment:
         """Ensure a resource segment exists for the given URI."""

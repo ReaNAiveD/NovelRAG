@@ -46,7 +46,7 @@ class AgentIntent(LLMIntent):
         )
 
         # Execute the goal pursuit
-        result = await agent.pursue_goal(message)
+        result = await agent.handle_request(message)
         
         # Get any accumulated output from the channel
         channel_output = self.channel.get_output()

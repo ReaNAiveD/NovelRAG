@@ -45,6 +45,7 @@ class OrchestrationLoop(LLMToolMixin):
 
     async def execution_advance(
             self,
+            user_request: str,
             goal: str,
             completed_steps: list[StepOutcome],
             pending_steps: list[str],
@@ -72,7 +73,9 @@ class OrchestrationLoop(LLMToolMixin):
                 "description": available_tools[name].description,
             } for name in available_tools if name not in expanded_tools}
             orchestration_result = await self._context_advance(
+                user_request,
                 goal,
+                iter_num,
                 completed_steps,
                 pending_steps,
                 {
@@ -113,7 +116,9 @@ class OrchestrationLoop(LLMToolMixin):
 
     async def _context_advance(
             self,
+            user_request: str,
             goal: str,
+            iter_num: int,
             completed_steps: list[StepOutcome],
             pending_steps: list[str],
             available_tools: dict[str, dict],
@@ -304,7 +309,10 @@ class OrchestrationLoop(LLMToolMixin):
             "strategic_context_orchestrator.jinja2",
             # response_schema=response_schema,
             json_format=True,
+            user_request=user_request,
             goal=goal,
+            iter_num=iter_num,
+            max_iter=self.max_iter,
             last_step=last_step,
             completed_steps=[{
                 "tool": step.action.tool,

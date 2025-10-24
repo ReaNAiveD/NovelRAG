@@ -509,12 +509,31 @@ class LLMLogViewer {
     }
     
     showCopyFeedback(element) {
+        // Create a "Copied!" notification
+        const copyNotification = document.createElement('div');
+        copyNotification.className = 'copy-notification';
+        copyNotification.textContent = '✓ Copied!';
+        
+        // Position the notification at fixed position in upper right
+        copyNotification.style.position = 'fixed';
+        copyNotification.style.top = '20px';
+        copyNotification.style.right = '20px';
+        copyNotification.style.zIndex = '1000';
+        
+        document.body.appendChild(copyNotification);
+        
+        // Also add background color feedback
         const originalBg = element.style.backgroundColor;
         element.style.backgroundColor = '#d4edda';
         element.style.transition = 'background-color 0.3s ease';
+        
+        // Remove notification and reset background after delay
         setTimeout(() => {
             element.style.backgroundColor = originalBg;
-        }, 300);
+            if (copyNotification.parentNode) {
+                copyNotification.parentNode.removeChild(copyNotification);
+            }
+        }, 1500);
     }
 }
 

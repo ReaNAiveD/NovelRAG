@@ -6,6 +6,7 @@ from typing import Any
 
 from novelrag.agent.channel import AgentChannel
 from novelrag.agent.orchestrate import OrchestrationLoop, OrchestrationExecutionPlan, OrchestrationFinalization
+from novelrag.agent.pursuit_types import GoalBuilder
 from novelrag.agent.steps import StepDefinition, StepOutcome, StepStatus
 from novelrag.agent.tool import SchematicTool, ToolRuntime
 from novelrag.agent.workspace import ResourceContext
@@ -75,22 +76,26 @@ class Agent:
         self.chat_llm = chat_llm
         self.channel = channel
 
-    async def pursue_goal(self, goal: str) -> str:
+    async def handle_request(self, request: str) -> str:
         """Pursue a goal using the OrchestrationLoop approach.
         
         Returns:
             Final response message for the user
         """
-        await self.channel.info(f"Starting pursuit of goal: {goal}")
+        await self.channel.info(f"Starting handle request: {request}")
         
         # Start LLM logging for this pursuit
         llm_logger = get_logger()
         if llm_logger:
-            llm_logger.start_pursuit(goal)
+            llm_logger.start_pursuit(request)
         
         # Create a fresh ResourceContext for this goal
         context = ResourceContext(self.resource_repo, self.template_env, self.chat_llm)
-        
+        goal_builder = GoalBuilder(template_env=self.template_env, chat_llm=self.chat_llm)
+        goal = await goal_builder.build_goal(request)
+
+        await self.channel.info(f"Pursuing Goal: {goal}")
+
         # Track execution state
         completed_steps: list[StepOutcome] = []
         pending_steps: list[str] = []
@@ -99,6 +104,7 @@ class Agent:
             while True:
                 # Let orchestrator decide next action (execution or finalization)
                 decision = await self.orchestrator.execution_advance(
+                    user_request=request,
                     goal=goal,
                     completed_steps=completed_steps,
                     pending_steps=pending_steps,
@@ -109,12 +115,13 @@ class Agent:
                 if isinstance(decision, OrchestrationFinalization):
                     # Goal pursuit is complete
                     await self.channel.info(f"Goal pursuit finalized: {decision.reason}")
-                    return decision.response
-                
+                    return decision.response                
                 elif isinstance(decision, OrchestrationExecutionPlan):
                     # Execute the recommended tool
                     await self.channel.info(f"Executing: {decision.reason}")
-                    
+                else:
+                    raise RuntimeError("Unknown orchestration decision type")
+
                 outcome = await self._execute_tool(
                     tool_name=decision.tool,
                     params=decision.params,
@@ -131,9 +138,6 @@ class Agent:
                         await self.channel.output(result)
                 else:
                     await self.channel.error(f"✗ Failed: {outcome.action.reason} - {outcome.error_message}")
-            
-            else:
-                raise ValueError(f"Unknown orchestration decision type: {type(decision)}")
                     
         except Exception as e:
             error_msg = f"Goal pursuit failed with error: {str(e)}"
@@ -224,8 +228,8 @@ def create_agent(
     template_env: TemplateEnvironment,
     chat_llm: ChatLLM,
     channel: AgentChannel,
-    max_iterations: int = 5,
-    min_iterations: int | None = None,
+    max_iterations: int = 10,
+    min_iterations: int | None = 2,
     log_directory: str = "logs"
 ) -> Agent:
     """Create a new Agent using the OrchestrationLoop approach.
