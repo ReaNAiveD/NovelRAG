@@ -24,7 +24,7 @@ class ContentGenerationTask:
     """Represents a content generation task."""
     description: str                    # What content to generate
     context_facets: list[str]           # Which context facets to use
-    target_field: str | None = None    # Which field this content will update
+    content_key: str | None = None    # Which field this content will update
 
 
 @dataclass
@@ -266,12 +266,13 @@ class ResourceWriteTool(LLMToolMixin, SchematicTool):
     
     @property
     def description(self):
-        return "Use this tool to modify resources in the repository when changes are needed to achieve your goals. " \
+        return "Use this tool to modify existing resources within established aspects. " \
         "This tool plans and executes repository operations based on your specified intent. " \
-        "Supports comprehensive operations including creating/updating/deleting elements, " \
+        "Supports comprehensive operations including creating/updating/deleting resources, " \
         "modifying properties, splicing element lists (insert/remove/replace), " \
         "flattening hierarchies, and merging resources. " \
-        "Automatically handles cascading updates to related resources and discovers follow-up work for your backlog."
+        "Automatically handles cascading updates to related resources and discovers follow-up work for your backlog. " \
+        "Note: Requires target aspect to exist - use AspectCreateTool first if aspect is missing."
     
     @property
     def input_schema(self) -> dict[str, Any]:
@@ -280,11 +281,11 @@ class ResourceWriteTool(LLMToolMixin, SchematicTool):
             "properties": {
                 "operation_specification": {
                     "type": "string",
-                    "description": "Detailed natural language description of the operation to be performed, including target resources (use URIs when mentioned), specific fields to update, and any relationships to consider. Be specific about what exactly needs to be done, include all fields/properties that need updates, mention any relationships or dependencies, and use natural language but be precise."
+                    "description": "Detailed natural language description of the operation to be performed on existing aspects. Include target resource URIs (e.g., /character/john), specific fields to update, and any relationships to consider. The aspect portion of any URI must already exist in the repository. Be specific about what exactly needs to be done, include all fields/properties that need updates, mention any relationships or dependencies, and use natural language but be precise."
                 },
                 "content_generation_tasks": {
                     "type": "array",
-                    "description": "List of content generation tasks to perform as part of the operation. Break down into focused, specific tasks where each task should generate content for a clear purpose. Select only relevant context facets for each task and use target_field when the content maps to a specific resource field.",
+                    "description": "List of content generation tasks to perform as part of the operation. Break down into focused, specific tasks where each task should generate content for a clear purpose. Select only relevant context facets for each task and use content_key when organizing the generated content into the resource structure.",
                     "items": {
                         "type": "object",
                         "properties": {
@@ -299,9 +300,9 @@ class ResourceWriteTool(LLMToolMixin, SchematicTool):
                                     "type": "string"
                                 }
                             },
-                            "target_field": {
-                                "type": "string",
-                                "description": "Which field this content will update (optional). Use when the content maps to a specific resource field, otherwise can be null."
+                            'content_key': {
+                                'type': 'string',
+                                'description': 'Key identifier for organizing this content in the resource structure (optional). Used when building the final resource object from multiple generated content pieces.'
                             }
                         },
                         "required": ["description", "context_facets"]
@@ -357,7 +358,7 @@ class ResourceWriteTool(LLMToolMixin, SchematicTool):
             
             content_results.append({
                 "description": task.description,
-                "target_field": task.target_field,
+                "content_key": task.content_key,
                 "content": selected_content
             })
 

@@ -190,7 +190,7 @@ Based on the provided action, step description, and context, generate the approp
 **Generated Content Results**:
 {% if content_results %}
 {% for result in content_results %}
-- **{{ result.description }}**{% if result.target_field %} (Target Field: {{ result.target_field }}){% endif %}:
+- **{{ result.description }}**{% if result.content_key %} (Content Key: {{ result.content_key }}){% endif %}:
   ```
   {{ result.content }}
   ```
