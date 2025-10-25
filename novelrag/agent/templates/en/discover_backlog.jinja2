@@ -6,7 +6,7 @@ You have access to the following information:
 - **Applied Operation**: {{ operations }}
 - **Undo Operation**: {{ undo_operations }}
 {% for facet, items in context.items() %}
-{% -if items %}
+{%- if items %}
 ### {{ facet }}
 {% for item in items %}
 - {{ item }}

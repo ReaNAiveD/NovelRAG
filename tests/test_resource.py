@@ -8,7 +8,7 @@ import yaml
 from novelrag.config.llm import AzureOpenAIEmbeddingConfig, EmbeddingLLMType
 from novelrag.config.resource import AspectConfig, VectorStoreConfig
 from novelrag.resource import LanceDBResourceRepository
-from novelrag.resource.operation import ElementOperation, PropertyOperation, AspectLocation, OperationTarget
+from novelrag.resource.operation import ResourceOperation, PropertyOperation, ResourceLocation, OperationTarget
 from novelrag.llm import EmbeddingLLM
 from novelrag.resource.element import Element, DirectiveElement, DirectiveElementList
 
@@ -68,12 +68,12 @@ class DummyVectorStore:
         if limit is not None:
             items = items[:limit]
         class Result:
-            def __init__(self, element_uri: str, distance: float):
-                self.element_uri = element_uri
+            def __init__(self, resource_uri: str, distance: float):
+                self.resource_uri = resource_uri
                 self.distance = distance
         return [Result(uri, dist) for dist, uri in [(s, u) for (s, u) in items]]
 
-    async def get(self, element_uri: str):
+    async def get(self, resource_uri: str):
         return None
 
     async def batch_add(self, elements: list[Element]):
@@ -89,22 +89,22 @@ class DummyVectorStore:
     async def update(self, element: Element):
         await self.add(element)
 
-    async def delete(self, element_uri: str):
-        self._store.pop(element_uri, None)
+    async def delete(self, resource_uri: str):
+        self._store.pop(resource_uri, None)
 
-    async def get_all_element_uris(self) -> list[str]:
-        """Return all element URIs currently in the store."""
+    async def get_all_resource_uris(self) -> list[str]:
+        """Return all resource URIs currently in the store."""
         return list(self._store.keys())
 
-    async def batch_delete_by_uris(self, element_uris: list[str]):
-        """Delete multiple elements by their URIs."""
-        for uri in element_uris:
+    async def batch_delete_by_uris(self, resource_uris: list[str]):
+        """Delete multiple resources by their URIs."""
+        for uri in resource_uris:
             self._store.pop(uri, None)
 
-    async def cleanup_invalid_elements(self, valid_element_uris: set[str]) -> int:
-        """Remove elements not in the valid set and return count removed."""
+    async def cleanup_invalid_resources(self, valid_resource_uris: set[str]) -> int:
+        """Remove resources not in the valid set and return count removed."""
         all_uris = list(self._store.keys())
-        invalid_uris = [uri for uri in all_uris if uri not in valid_element_uris]
+        invalid_uris = [uri for uri in all_uris if uri not in valid_resource_uris]
         for uri in invalid_uris:
             self._store.pop(uri, None)
         return len(invalid_uris)
@@ -179,8 +179,8 @@ class RepositoryTestCase(unittest.IsolatedAsyncioTestCase):
     async def test_add_elements(self):
         """Test adding elements to an aspect"""
         # Add characters
-        await self.repository.apply(ElementOperation.new(
-            location=AspectLocation.new(aspect='character'),
+        await self.repository.apply(ResourceOperation.new(
+            location=ResourceLocation.aspect('character'),
             data=[
                 self.test_data.create_character("Alice", 25),
                 self.test_data.create_character("Bob", 30)
@@ -197,23 +197,23 @@ class RepositoryTestCase(unittest.IsolatedAsyncioTestCase):
     async def test_modify_element(self):
         """Test modifying an existing element"""
         # First add an element
-        await self.repository.apply(ElementOperation.new(
-            location=AspectLocation.new(aspect='character'),
+        await self.repository.apply(ResourceOperation.new(
+            location=ResourceLocation.aspect('character'),
             data=[self.test_data.create_character("Alice", 25)]
         ))
 
         # Get the element's ID
-        element_uri = str(self.repository.resource_aspects['character'].root_elements[0].uri)
+        resource_uri = str(self.repository.resource_aspects['character'].root_elements[0].uri)
 
         # Modify the element
         await self.repository.apply(PropertyOperation(
             target=OperationTarget.PROPERTY,
-            element_uri=element_uri,
+            resource_uri=resource_uri,
             data={'age': 26, 'description': 'Updated description'}
         ))
 
         # Verify changes
-        modified_element = self.repository.lut.find_by_uri(element_uri)
+        modified_element = self.repository.lut.find_by_uri(resource_uri)
         self.assertIsNotNone(modified_element)
         self.assertEqual(modified_element['age'], 26) # type: ignore
         self.assertEqual(modified_element['description'], 'Updated description') # type: ignore
@@ -221,8 +221,8 @@ class RepositoryTestCase(unittest.IsolatedAsyncioTestCase):
     async def test_vector_search(self):
         """Test vector search functionality"""
         # Add test data
-        await self.repository.apply(ElementOperation.new(
-            location=AspectLocation.new(aspect='event'),
+        await self.repository.apply(ResourceOperation.new(
+            location=ResourceLocation.aspect('event'),
             data=[
                 self.test_data.create_event("Birthday Party", ["Alice", "Bob"]),
                 self.test_data.create_event("Wedding", ["Charlie", "Diana"]),
@@ -250,8 +250,8 @@ class RepositoryTestCase(unittest.IsolatedAsyncioTestCase):
         sub_event2 = self.test_data.create_event("Sub Event 2", ["Charlie"])
         main_event['subEvents'] = [sub_event1, sub_event2]
 
-        await self.repository.apply(ElementOperation.new(
-            location=AspectLocation.new(aspect='event'),
+        await self.repository.apply(ResourceOperation.new(
+            location=ResourceLocation.aspect('event'),
             data=[main_event]
         ))
 
@@ -266,8 +266,8 @@ class RepositoryTestCase(unittest.IsolatedAsyncioTestCase):
     async def test_lookup_table(self):
         """Test lookup table functionality"""
         # Add elements
-        await self.repository.apply(ElementOperation.new(
-            location=AspectLocation.new(aspect='character'),
+        await self.repository.apply(ResourceOperation.new(
+            location=ResourceLocation.aspect('character'),
             data=[
                 self.test_data.create_character("Alice", 25),
                 self.test_data.create_character("Bob", 30)

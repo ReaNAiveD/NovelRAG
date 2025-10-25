@@ -4,7 +4,7 @@ import logging
 from novelrag.intent import IntentContext, Action, UpdateAction, Intent
 from novelrag.exceptions import InvalidIndexError, InvalidMessageFormatError
 from novelrag.pending_queue import PendingUpdateItem
-from novelrag.resource.operation import ElementOperation, AspectLocation
+from novelrag.resource.operation import ResourceOperation, ResourceLocation
 
 logger = logging.getLogger(__name__)
 
@@ -28,11 +28,11 @@ class Delete(Intent):
             message=[message],
             update=UpdateAction(
                 item=PendingUpdateItem(
-                    ops=ElementOperation.new(
-                        location=AspectLocation.new('cne'),
+                    ops=[ResourceOperation.new(
+                        location=ResourceLocation.aspect('cne'),
                         start=idx,
                         end=idx+1,
-                    )
+                    )]
                 )
             )
         )
