@@ -36,6 +36,14 @@ class OrchestrationResult:
     execution: OrchestrationExecutionPlan | None = None
     finalize: OrchestrationFinalization | None = None
 
+    @property
+    def refinement_needed(self) -> bool:
+        return bool(
+            self.query_resources or
+            self.include_properties or
+            self.search_queries
+        )
+
 
 class OrchestrationLoop(LLMToolMixin):
     def __init__(self, template_env: TemplateEnvironment, chat_llm: ChatLLM, max_iter: int | None = 5, min_iter: int | None = None):
@@ -66,6 +74,7 @@ class OrchestrationLoop(LLMToolMixin):
             iter_num += 1
             expanded_tool_dict = {name: {
                 "description": available_tools[name].description,
+                "prerequisites": available_tools[name].prerequisites,
                 "input_schema": available_tools[name].input_schema,
                 "output_description": available_tools[name].output_description,
             } for name in expanded_tools if name in available_tools}
@@ -85,20 +94,6 @@ class OrchestrationLoop(LLMToolMixin):
                 context
             )
 
-            if orchestration_result.execution:
-                last_result = orchestration_result.execution
-                if iter_num >= self.min_iter:
-                    break
-            elif orchestration_result.finalize:
-                last_result = orchestration_result.finalize
-                if iter_num >= self.min_iter:
-                    break
-            if iter_num == self.max_iter and orchestration_result.finalize:
-                last_result = orchestration_result.finalize
-                break
-            if self.max_iter and iter_num >= self.max_iter:
-                break
-
             await context.refine(
                 orchestration_result.sorted_segments,
                 orchestration_result.query_resources,
@@ -109,6 +104,15 @@ class OrchestrationLoop(LLMToolMixin):
             )
             expanded_tools.update(orchestration_result.expand_tools)
             expanded_tools.difference_update(orchestration_result.collapse_tools)
+
+            if orchestration_result.execution:
+                last_result = orchestration_result.execution
+            elif orchestration_result.finalize:
+                last_result = orchestration_result.finalize
+            if not orchestration_result.refinement_needed and (last_result is not None) and (iter_num >= self.min_iter):
+                break
+            if self.max_iter and iter_num >= self.max_iter:
+                break
         if not last_result:
             raise ValueError("Orchestration did not produce any execution or finalization result.")
         return last_result

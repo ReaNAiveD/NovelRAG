@@ -243,6 +243,11 @@ class BaseTool(ABC):
     def output_description(self) -> str | None:
         """Description of the output format"""
         return None
+    
+    @property
+    def prerequisites(self) -> str | None:
+        """Any prerequisites or setup required before using the tool"""
+        return None
 
     @staticmethod
     def result(result: str) -> ToolResult:

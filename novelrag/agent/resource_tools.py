@@ -23,7 +23,6 @@ from .proposals import ContentProposer
 class ContentGenerationTask:
     """Represents a content generation task."""
     description: str                    # What content to generate
-    context_facets: list[str]           # Which context facets to use
     content_key: str | None = None    # Which field this content will update
 
 
@@ -105,8 +104,8 @@ class AspectCreateTool(LLMToolMixin, SchematicTool):
         return json.loads(await self.call_template(
             'initialize_aspect_metadata.jinja2',
             json_format=True,
-            name=name,
-            description=description,
+            aspect_name=name,
+            aspect_description=description,
         ))
 
 
@@ -265,14 +264,17 @@ class ResourceWriteTool(LLMToolMixin, SchematicTool):
         return self.__class__.__name__
     
     @property
+    def prerequisites(self) -> str | None:
+        return "Requires the target aspect to already exist in the repository. Use AspectCreateTool first if the aspect is missing."
+    
+    @property
     def description(self):
         return "Use this tool to modify existing resources within established aspects. " \
         "This tool plans and executes repository operations based on your specified intent. " \
         "Supports comprehensive operations including creating/updating/deleting resources, " \
         "modifying properties, splicing element lists (insert/remove/replace), " \
         "flattening hierarchies, and merging resources. " \
-        "Automatically handles cascading updates to related resources and discovers follow-up work for your backlog. " \
-        "Note: Requires target aspect to exist - use AspectCreateTool first if aspect is missing."
+        "Automatically handles cascading updates to related resources and discovers follow-up work for your backlog."
     
     @property
     def input_schema(self) -> dict[str, Any]:
@@ -281,11 +283,11 @@ class ResourceWriteTool(LLMToolMixin, SchematicTool):
             "properties": {
                 "operation_specification": {
                     "type": "string",
-                    "description": "Detailed natural language description of the operation to be performed on existing aspects. Include target resource URIs (e.g., /character/john), specific fields to update, and any relationships to consider. The aspect portion of any URI must already exist in the repository. Be specific about what exactly needs to be done, include all fields/properties that need updates, mention any relationships or dependencies, and use natural language but be precise."
+                    "description": "Detailed natural language description of the operation to be performed on existing aspects. Include target resource URIs (e.g., /character/john), specific fields to update, and any relationships to consider. Be specific about what exactly needs to be done, include all fields/properties that need updates, mention any relationships or dependencies, and use natural language but be precise."
                 },
                 "content_generation_tasks": {
                     "type": "array",
-                    "description": "List of content generation tasks to perform as part of the operation. Break down into focused, specific tasks where each task should generate content for a clear purpose. Select only relevant context facets for each task and use content_key when organizing the generated content into the resource structure.",
+                    "description": "List of content generation tasks to perform as part of the operation. Break down into focused, specific tasks where each task should generate content for a clear purpose. All available context will be used for content generation.",
                     "items": {
                         "type": "object",
                         "properties": {
@@ -293,19 +295,12 @@ class ResourceWriteTool(LLMToolMixin, SchematicTool):
                                 "type": "string",
                                 "description": "What content to generate for this specific task. Should be focused and specific, generating content for a clear purpose."
                             },
-                            "context_facets": {
-                                "type": "array",
-                                "description": "Which context facets to use for generating this content. Only include context facets that are actually relevant to the task. Different tasks can use different or overlapping context facets. Consider what information would help generate better content.",
-                                "items": {
-                                    "type": "string"
-                                }
-                            },
                             'content_key': {
                                 'type': 'string',
                                 'description': 'Key identifier for organizing this content in the resource structure (optional). Used when building the final resource object from multiple generated content pieces.'
                             }
                         },
-                        "required": ["description", "context_facets"]
+                        "required": ["description"]
                     }
                 }
             },
@@ -346,7 +341,7 @@ class ResourceWriteTool(LLMToolMixin, SchematicTool):
             proposals = [await proposer.propose(
                 believes=[],
                 content_description=content_description,
-                context={facet: context.get(facet, []) for facet in task.context_facets}
+                context=context  # Use all available context
             ) for proposer in self.content_proposers]
             proposals = [proposal for proposal_set in proposals for proposal in proposal_set]
             if not proposals:
