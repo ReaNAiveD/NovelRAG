@@ -1,10 +1,19 @@
-# NovelRAG Resource System Terminology
+# NovelRAG System Terminology
 
-This document defines the core terminology used throughout the NovelRAG resource system to ensure consistent understanding and usage.
+This document defines the core terminology used throughout the NovelRAG system to ensure consistent understanding and usage across both the Resource System and Agent System.
 
 ---
 
-## Core Concepts
+## Table of Contents
+
+1. [Resource System Terminology](#resource-system-terminology)
+2. [Agent System Terminology](#agent-system-terminology)
+
+---
+
+## Resource System Terminology
+
+Core concepts related to the hierarchical data management system for organizing and managing narrative content.
 
 ### Resource System
 The entire hierarchical data management system for organizing and managing narrative content. It provides a unified interface for storing, querying, and manipulating story-related data.
@@ -402,3 +411,319 @@ Resource (Concept) ←─[identified by]─← URI ─[used to lookup]→ Elemen
 ```
 
 This distinction enables clear communication and consistent implementation throughout the NovelRAG resource system.
+
+---
+
+## Agent System Terminology
+
+Core concepts related to the multi-phase orchestration system for goal pursuit and tool execution.
+
+### Agent
+The main controller for **goal pursuit** and **user interaction**. The Agent receives user requests, coordinates the orchestration process, executes tools, and returns final responses.
+
+**Key Responsibilities:**
+- Convert user requests into structured goals
+- Create and manage OrchestrationLoop instances
+- Execute tools based on orchestration decisions
+- Track execution history (completed steps, pending steps)
+- Handle errors and communicate with users
+
+**Main Method:** `handle_request(request: str) -> str`
+
+### OrchestrationLoop
+The **multi-phase strategic decision engine** that determines what action to take next. Uses a sophisticated four-phase architecture to discover context, refine it, make decisions, and validate those decisions.
+
+**Four Phases:**
+1. **Context Discovery** - Identify and load relevant resources and tools
+2. **Context Refinement** - Filter and prioritize discovered context
+3. **Action Decision** - Choose to execute a tool or finalize
+4. **Refinement Analysis** - Validate decision or refine goal
+
+**Returns:**
+- `OrchestrationExecutionPlan` - Execute a specific tool
+- `OrchestrationFinalization` - Complete goal pursuit with response
+
+**Main Method:** `execution_advance(...) -> OrchestrationExecutionPlan | OrchestrationFinalization`
+
+### Goal
+A **refined statement of intent** that evolves across iterations. Goals accumulate discovered prerequisites and context requirements through the refinement process.
+
+**Evolution Example:**
+```
+Iteration 1: "Create protagonist named 余归"
+Iteration 2: "Create protagonist named 余归 (Prerequisites: Check if character aspect exists)"
+Iteration 3: "Create protagonist named 余归 (Prerequisites: 1. Verify character aspect, 2. Check for existing character...)"
+```
+
+**Built by:** `GoalBuilder` from user request
+
+### Tool
+An **executable unit** that performs a specific action. Tools are atomic, composable functions with well-defined schemas.
+
+**Types:**
+- `BaseTool` - Abstract base interface
+- `SchematicTool` - Tools with JSON schema for parameters
+- Tool has `name`, `description`, `input_schema`, `prerequisites`, `output_description`
+
+**Execution:** `await tool.call(runtime, **params) -> ToolOutput`
+
+### Tool State
+Tools can be in two states within orchestration:
+
+**Collapsed State:**
+- Only name and description visible to LLM
+- Minimal context consumption
+- Default state for all tools
+
+**Expanded State:**
+- Full schema with parameters, types, descriptions visible
+- Higher context consumption but necessary for execution planning
+- Dynamically expanded/collapsed by orchestration phases
+
+**Managed by:** `OrchestrationLoop.expanded_tools` set
+
+### Phase
+A distinct stage in the orchestration process, each with specific responsibility and dedicated LLM template.
+
+**Phase 1: Context Discovery**
+- **Template:** `context_discovery.jinja2`
+- **Returns:** `DiscoveryPlan`
+- **Purpose:** Aggressively explore and identify relevant context
+- **Outputs:** search queries, resource URIs, tools to expand
+
+**Phase 2: Context Refinement**
+- **Template:** `refine_context_for_execution.jinja2` (via `context_relevance.jinja2`)
+- **Returns:** `RefinementPlan`
+- **Purpose:** Filter and prioritize discovered context
+- **Outputs:** exclusions, collapses, sorted segments
+
+**Phase 3: Action Decision**
+- **Template:** `action_decision.jinja2`
+- **Returns:** `ActionDecision`
+- **Purpose:** Make decisive action choice (execute or finalize)
+- **Outputs:** situation analysis, execution plan OR finalization
+
+**Phase 4: Refinement Analysis**
+- **Template:** `refinement_analysis.jinja2`
+- **Returns:** `RefinementDecision`
+- **Purpose:** Strategic oversight and goal evolution
+- **Outputs:** approval OR refined goal with exploration hints
+
+### Iteration
+A **complete cycle** through the orchestration loop. Each iteration may contain:
+- Multiple context discovery/refinement cycles (inner loop)
+- One action decision
+- One refinement analysis
+- Goal refinement if needed
+
+**Controlled by:**
+- `min_iter` - Minimum iterations before allowing execution
+- `max_iter` - Maximum iterations to prevent infinite loops
+
+### Context Loop
+The **inner loop** within an iteration that repeatedly discovers and refines context until adequate. Allows multiple discovery/refinement cycles before making an action decision.
+
+**Pattern:**
+```
+while True:
+    discovery = discover_context()
+    apply(discovery)
+    if not discovery.refinement_needed:
+        break
+    refinement = refine_context()
+    apply(refinement)
+```
+
+### StepOutcome
+The **result of tool execution**, tracking success/failure and metadata.
+
+**Contains:**
+- `action`: StepDefinition (tool name, parameters, reason)
+- `status`: StepStatus (SUCCESS, FAILED, SKIPPED)
+- `results`: List of result strings
+- `error_message`: Error details if failed
+- `started_at`, `completed_at`: Timestamps
+- `triggered_actions`: Actions triggered during execution
+- `backlog_items`: Items added to backlog
+- `progress`: Progress tracking information
+
+### Exploration Hints
+**Guidance provided by Refinement Analysis** when refining goals. Helps the next iteration focus on relevant areas.
+
+**Components:**
+- `search_terms` - Keywords to search for
+- `resource_paths` - Specific resource URIs to load
+- `tools_to_expand` - Additional tools that might be needed
+- `focus_areas` - Conceptual areas to explore
+
+### Last Planned Action
+A **fallback mechanism** ensuring graceful degradation. The system tracks the most recent planned action throughout execution.
+
+**Purpose:**
+- Provides meaningful response if max iterations reached
+- Can be either `OrchestrationExecutionPlan` or `OrchestrationFinalization`
+- Updated with every action decision
+- Never leaves user without response
+
+### ResourceContext
+The **context builder** that manages workspace state during orchestration. Handles resource loading, filtering, and search.
+
+**Key Operations:**
+- `search_resources(query)` - Semantic search
+- `query_resource(uri)` - Load specific resource
+- `exclude_resource(uri)` - Remove from context
+- `exclude_property(uri, property)` - Filter property
+- `sort_resources(uris)` - Reorder by priority
+- `build_segment_data(segment)` - Generate context data
+
+### ToolRuntime
+The **interface provided to tools during execution**. Enables tools to interact with users and track state.
+
+**Methods:**
+- `debug(content)`, `message(content)` - Output messages
+- `warning(content)`, `error(content)` - Error messages
+- `confirmation(prompt)` - Ask yes/no question
+- `user_input(prompt)` - Request input from user
+- `progress(key, value, description)` - Track progress
+- `trigger_action(action)` - Trigger future actions
+- `backlog(content, priority)` - Add to backlog
+
+**Implementation:** `AgentToolRuntime` routes to `AgentChannel`
+
+### AgentChannel
+The **communication interface** between Agent and user. Abstracts different interaction modes (session, shell, etc.).
+
+**Methods:**
+- `info(message)` - Informational message
+- `error(message)` - Error message
+- `debug(message)` - Debug output
+- `confirm(prompt)` - Boolean confirmation
+- `request(prompt)` - String input
+
+**Implementations:**
+- `SessionChannel` - Session-based communication
+- `ShellSessionChannel` - Shell environment interaction
+
+---
+
+## Agent System Decision Matrix
+
+Use this table to choose the correct term:
+
+| Scenario | Use Term | Example |
+|----------|----------|---------|
+| Main controller | **Agent** | "Agent receives user request" |
+| Decision-making engine | **OrchestrationLoop** | "OrchestrationLoop determines next action" |
+| User's intent | **Goal** | "Goal evolves with discovered prerequisites" |
+| Executable action | **Tool** | "Tool performs resource creation" |
+| Tool visibility state | **Expanded/Collapsed** | "Tool is expanded to show full schema" |
+| Orchestration stage | **Phase** | "Phase 3 makes action decision" |
+| Complete orchestration cycle | **Iteration** | "After 3 iterations, goal is achieved" |
+| Context discovery cycle | **Context Loop** | "Context loop runs until refinement not needed" |
+| Tool execution result | **StepOutcome** | "StepOutcome tracks execution success" |
+| Refinement guidance | **Exploration Hints** | "Exploration hints suggest resources to load" |
+| Graceful degradation | **Last Planned Action** | "Return last planned action if max_iter reached" |
+| Workspace state | **ResourceContext** | "ResourceContext manages loaded resources" |
+| Tool interaction interface | **ToolRuntime** | "Tool receives ToolRuntime for user communication" |
+| User communication | **AgentChannel** | "AgentChannel abstracts communication mode" |
+
+---
+
+## Agent System Naming Conventions
+
+### Class Names
+- `Agent` - Main goal pursuit controller
+- `OrchestrationLoop` - Multi-phase decision engine
+- `GoalBuilder` - Converts requests to goals
+- `SchematicTool` - Tool with JSON schema
+- `ToolRuntime` - Tool execution interface
+- `AgentToolRuntime` - Agent's ToolRuntime implementation
+- `AgentChannel` - Communication interface
+- `ResourceContext` - Context management
+- `StepDefinition` - Action specification
+- `StepOutcome` - Execution result
+- `OrchestrationExecutionPlan` - Tool execution decision
+- `OrchestrationFinalization` - Completion decision
+- `DiscoveryPlan` - Phase 1 output
+- `RefinementPlan` - Phase 2 output
+- `ActionDecision` - Phase 3 output
+- `RefinementDecision` - Phase 4 output
+
+### Method Names
+- `handle_request(request)` - Agent's main entry point
+- `execution_advance(...)` - OrchestrationLoop main method
+- `build_goal(request)` - GoalBuilder creates goal
+- `call(runtime, **params)` - Tool execution
+- `_discover_and_expand_context()` - Phase 1 method
+- `_filter_and_refine_context()` - Phase 2 method
+- `_make_action_decision()` - Phase 3 method
+- `_analyze_and_refine()` - Phase 4 method
+
+### Variable Names
+```python
+# Good - Clear semantic meaning
+agent: Agent = create_agent(...)
+orchestrator: OrchestrationLoop = OrchestrationLoop(...)
+goal: str = "Create protagonist named 余归"
+tool: SchematicTool = tools["create_aspect"]
+runtime: ToolRuntime = AgentToolRuntime(channel)
+outcome: StepOutcome = await execute_tool(...)
+
+# Good - Phase outputs
+discovery_plan: DiscoveryPlan = await discover_context()
+refinement_plan: RefinementPlan = await refine_context()
+action_decision: ActionDecision = await make_decision()
+refinement_decision: RefinementDecision = await analyze()
+
+# Good - Orchestration state
+completed_steps: list[StepOutcome] = []
+pending_steps: list[str] = []
+expanded_tools: set[str] = set()
+last_planned_action: OrchestrationExecutionPlan | OrchestrationFinalization
+```
+
+---
+
+## Integrated Conceptual Model
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    NovelRAG System                          │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  ┌──────────────────────────────────────────────────────┐  │
+│  │              Agent System                            │  │
+│  │  ┌────────┐    ┌──────────────────┐   ┌──────────┐ │  │
+│  │  │ Agent  │───→│OrchestrationLoop │──→│  Tools   │ │  │
+│  │  │        │    │  (4 Phases)      │   │          │ │  │
+│  │  └────┬───┘    └────────┬─────────┘   └────┬─────┘ │  │
+│  │       │                 │                    │       │  │
+│  │       │      ┌──────────▼──────────┐        │       │  │
+│  │       │      │  ResourceContext    │        │       │  │
+│  │       │      │  (Context Builder)  │        │       │  │
+│  │       │      └──────────┬──────────┘        │       │  │
+│  └───────┼─────────────────┼───────────────────┼───────┘  │
+│          │                 │                    │          │
+│  ┌───────▼─────────────────▼────────────────────▼───────┐ │
+│  │              Resource System                         │ │
+│  │  ┌─────────┐   ┌──────────────┐   ┌─────────────┐  │ │
+│  │  │ Aspects │──→│  Resources   │──→│  Elements   │  │ │
+│  │  │         │   │  (Entities)  │   │  (Data)     │  │ │
+│  │  └─────────┘   └──────────────┘   └─────────────┘  │ │
+│  └──────────────────────────────────────────────────────┘ │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+
+Execution Flow:
+  User Request → Agent → OrchestrationLoop → [4 Phases] → Decision
+                   ↓                             ↓
+             Execute Tool ←──────────────── Execute/Finalize
+                   ↓
+         Modify Resources in Resource System
+                   ↓
+             Return Response to User
+```
+
+---
+
+This terminology guide ensures consistent understanding across both the Resource System (data management) and Agent System (orchestration and execution) components of NovelRAG.

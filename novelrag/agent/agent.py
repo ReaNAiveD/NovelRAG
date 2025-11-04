@@ -63,18 +63,21 @@ class Agent:
     def __init__(
         self,
         tools: dict[str, SchematicTool],
-        orchestrator: OrchestrationLoop,
         resource_repo: ResourceRepository,
         template_env: TemplateEnvironment,
         chat_llm: ChatLLM,
-        channel: AgentChannel
+        channel: AgentChannel,
+        max_iterations: int = 10,
+        min_iterations: int | None = 2
     ):
         self.tools = tools
-        self.orchestrator = orchestrator
         self.resource_repo = resource_repo
         self.template_env = template_env
         self.chat_llm = chat_llm
         self.channel = channel
+        self.max_iterations = max_iterations
+        self.min_iterations = min_iterations or 0
+        self.context = ResourceContext(self.resource_repo, self.template_env, self.chat_llm)
 
     async def handle_request(self, request: str) -> str:
         """Pursue a goal using the OrchestrationLoop approach.
@@ -89,8 +92,15 @@ class Agent:
         if llm_logger:
             llm_logger.start_pursuit(request)
         
-        # Create a fresh ResourceContext for this goal
-        context = ResourceContext(self.resource_repo, self.template_env, self.chat_llm)
+        # Create a fresh OrchestrationLoop for this request
+        orchestrator = OrchestrationLoop(
+            context=self.context,
+            template_env=self.template_env,
+            chat_llm=self.chat_llm,
+            max_iter=self.max_iterations,
+            min_iter=self.min_iterations
+        )
+        
         goal_builder = GoalBuilder(template_env=self.template_env, chat_llm=self.chat_llm)
         goal = await goal_builder.build_goal(request)
 
@@ -103,13 +113,12 @@ class Agent:
         try:
             while True:
                 # Let orchestrator decide next action (execution or finalization)
-                decision = await self.orchestrator.execution_advance(
+                decision = await orchestrator.execution_advance(
                     user_request=request,
                     goal=goal,
                     completed_steps=completed_steps,
                     pending_steps=pending_steps,
                     available_tools=self.tools,
-                    context=context
                 )
                 
                 if isinstance(decision, OrchestrationFinalization):
@@ -126,7 +135,7 @@ class Agent:
                     tool_name=decision.tool,
                     params=decision.params,
                     reason=decision.reason,
-                    context=context
+                    context=self.context
                 )
                 completed_steps.append(outcome)
                 pending_steps = decision.future_steps
@@ -240,8 +249,8 @@ def create_agent(
         template_env: Template environment for LLM calls
         chat_llm: Chat LLM interface
         channel: Communication channel for user interaction
-        max_iterations: Maximum orchestration iterations
-        min_iterations: Minimum orchestration iterations
+        max_iterations: Maximum orchestration iterations per request
+        min_iterations: Minimum orchestration iterations per request
         log_directory: Directory to store LLM logs
         
     Returns:
@@ -250,20 +259,15 @@ def create_agent(
     # Initialize the LLM logger
     initialize_logger(log_directory)
     
-    # Create the orchestration loop
-    orchestrator = OrchestrationLoop(
-        template_env=template_env,
-        chat_llm=chat_llm,
-        max_iter=max_iterations,
-        min_iter=min_iterations
-    )
-    
     # Create and return the agent
+    # Note: OrchestrationLoop is created fresh for each request in handle_request
+    # ResourceContext is shared across the agent's lifecycle
     return Agent(
         tools=tools,
-        orchestrator=orchestrator,
         resource_repo=resource_repo,
         template_env=template_env,
         chat_llm=chat_llm,
-        channel=channel
+        channel=channel,
+        max_iterations=max_iterations,
+        min_iterations=min_iterations
     )

@@ -8,6 +8,60 @@ from novelrag.template import TemplateEnvironment
 
 
 @dataclass(frozen=True)
+class DiscoveryPlan:
+    """Result from context discovery phase."""
+    discovery_analysis: str = field(default="")
+    search_queries: list[str] = field(default_factory=list)
+    query_resources: list[str] = field(default_factory=list)
+    expand_tools: list[str] = field(default_factory=list)
+
+    @property
+    def refinement_needed(self) -> bool:
+        return bool(
+            self.search_queries or
+            self.query_resources
+        )
+
+
+@dataclass(frozen=True)
+class RefinementPlan:
+    """Result from context refinement phase."""
+    exclude_resources: list[str] = field(default_factory=list)
+    exclude_properties: list[dict] = field(default_factory=list)  # [{"uri": str, "property": str}]
+    collapse_tools: list[str] = field(default_factory=list)
+    sorted_segments: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class ActionDecision:
+    """Result from Phase 1: Action Decision."""
+    situation_analysis: str
+    decision_type: str  # "execute" or "finalize"
+    
+    # For execute decision
+    execution: dict | None = None  # {"tool": str, "params": dict, "confidence": str}
+    
+    # For finalize decision  
+    finalization: dict | None = None  # {"status": str, "response": str, "evidence": list, "gaps": list}
+    
+    # Analysis details for refinement phase
+    context_verification: dict = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class RefinementDecision:
+    """Result from Phase 2: Refinement Analysis."""
+    analysis: dict  # Quality assessment and discovered issues
+    verdict: str  # "approve" or "refine"
+    
+    # For approval
+    approval: dict | None = None  # {"ready": bool, "confidence": str, "notes": str}
+    
+    # For refinement
+    refinement: dict | None = None  # {"refined_goal": str, "additions": list, "exploration_hints": dict, "rationale": str}
+
+
+@dataclass(frozen=True)
 class OrchestrationExecutionPlan:
     reason: str
     tool: str
@@ -22,34 +76,217 @@ class OrchestrationFinalization:
     status: str  # success, failed, abandoned
 
 
-@dataclass(frozen=True)
-class OrchestrationResult:
-    analysis: str
-    query_resources: list[str] = field(default_factory=list)
-    exclude_resources: list[str] = field(default_factory=list)
-    include_properties: list[dict[str, str]] = field(default_factory=list)
-    exclude_properties: list[dict[str, str]] = field(default_factory=list)
-    search_queries: list[str] = field(default_factory=list)
-    sorted_segments: list[str] = field(default_factory=list)
-    expand_tools: list[str] = field(default_factory=list)
-    collapse_tools: list[str] = field(default_factory=list)
-    execution: OrchestrationExecutionPlan | None = None
-    finalize: OrchestrationFinalization | None = None
-
-    @property
-    def refinement_needed(self) -> bool:
-        return bool(
-            self.query_resources or
-            self.include_properties or
-            self.search_queries
-        )
-
-
 class OrchestrationLoop(LLMToolMixin):
-    def __init__(self, template_env: TemplateEnvironment, chat_llm: ChatLLM, max_iter: int | None = 5, min_iter: int | None = None):
+    def __init__(self, context: ResourceContext, template_env: TemplateEnvironment, chat_llm: ChatLLM, max_iter: int | None = 5, min_iter: int | None = None):
         super().__init__(template_env, chat_llm)
         self.max_iter = max_iter
         self.min_iter: int = min_iter or 0
+        self.context = context
+        self.expanded_tools: set[str] = set()
+
+    async def _discover_and_expand_context(
+            self,
+            user_request: str,
+            goal: str,
+            available_tools: dict[str, SchematicTool],
+    ) -> DiscoveryPlan:
+        segments, nonexisted = await self._get_workspace_segments()
+        expanded_tool_info = self._get_expanded_tools(available_tools)
+        collapsed_tool_names = list(set(available_tools.keys()) - self.expanded_tools)
+        
+        discovery_json = await self.call_template(
+            "context_discovery.jinja2",
+            json_format=True,
+            user_request=user_request,
+            goal=goal,
+            workspace_segments=segments,
+            search_history=self.context.search_history[-10:],  # Last 10 searches
+            nonexisted_uris=nonexisted,
+            expanded_tools=expanded_tool_info,
+            collapsed_tools=collapsed_tool_names
+        )
+        discovery_result = json.loads(discovery_json)
+        
+        return DiscoveryPlan(
+            discovery_analysis=discovery_result.get("discovery_analysis", ""),
+            search_queries=discovery_result.get("search_queries", []),
+            query_resources=discovery_result.get("query_resources", []),
+            expand_tools=discovery_result.get("expand_tools", [])
+        )
+    
+    async def _apply_discovery_plan(self, plan: DiscoveryPlan):
+        for query in plan.search_queries:
+            await self.context.search_resources(query)
+        
+        for uri in plan.query_resources:
+            await self.context.query_resource(uri)
+        
+        self.expanded_tools.update(plan.expand_tools)
+    
+    async def _filter_and_refine_context(
+            self,
+            goal: str,
+            available_tools: dict[str, SchematicTool],
+            discovery_analysis: str = "",
+    ) -> RefinementPlan:
+        segments, _ = await self._get_workspace_segments()
+        expanded_tool_info = self._get_expanded_tools(available_tools)
+        collapsed_tool_names = list(set(available_tools.keys()) - self.expanded_tools)
+        
+        relevance_json = await self.call_template(
+            "context_relevance.jinja2",
+            json_format=True,
+            goal=goal,
+            discovery_analysis=discovery_analysis,
+            workspace_segments=segments,
+            expanded_tools=expanded_tool_info,
+            collapsed_tools=collapsed_tool_names
+        )
+        relevance_result = json.loads(relevance_json)
+        
+        return RefinementPlan(
+            exclude_resources=relevance_result.get("exclude_resources", []),
+            exclude_properties=relevance_result.get("exclude_properties", []),
+            collapse_tools=relevance_result.get("collapse_tools", []),
+            sorted_segments=relevance_result.get("sorted_segments", [])
+        )
+    
+    async def _apply_refinement_plan(self, plan: RefinementPlan):
+        for uri in plan.exclude_resources:
+            await self.context.exclude_resource(uri)
+        
+        for item in plan.exclude_properties:
+            await self.context.exclude_property(item["uri"], item["property"])
+        
+        self.expanded_tools.difference_update(plan.collapse_tools)
+        
+        if plan.sorted_segments:
+            await self.context.sort_resources(plan.sorted_segments)
+    
+    async def _make_action_decision(
+            self,
+            user_request: str,
+            goal: str,
+            completed_steps: list[StepOutcome],
+            available_tools: dict[str, SchematicTool],
+    ) -> ActionDecision:
+        """
+        Determine whether to execute a tool or finalize.
+        Always returns a decisive action (execute or finalize).
+        """
+        segments, _ = await self._get_workspace_segments()
+        expanded_tool_info = self._get_expanded_tools(available_tools)
+        
+        decision_json = await self.call_template(
+            "action_decision.jinja2",
+            json_format=True,
+            user_request=user_request,
+            goal=goal,
+            completed_steps=[{
+                "tool": step.action.tool,
+                "intent": step.action.reason,
+                "status": step.status.value,
+                "results": step.results
+            } for step in completed_steps],
+            workspace_segments=segments,
+            available_tools=expanded_tool_info
+        )
+        result = json.loads(decision_json)
+        
+        return ActionDecision(
+            situation_analysis=result.get("situation_analysis", ""),
+            decision_type=result.get("decision", "finalize"),
+            execution=result.get("execution"),
+            finalization=result.get("finalization"),
+            context_verification=result.get("context_verification", {})
+        )
+
+    async def _analyze_and_refine(
+            self,
+            user_request: str,
+            original_goal: str,
+            action_decision: ActionDecision,
+            completed_steps: list[StepOutcome],
+            available_tools: dict[str, SchematicTool],
+    ) -> RefinementDecision:
+        """
+        Analyze the action decision and determine if refinement is needed.
+        Either approves execution or generates refined goal for next iteration.
+        """
+        segments, _ = await self._get_workspace_segments()
+        expanded_tool_info = self._get_expanded_tools(available_tools)
+        collapsed_tool_names = list(set(available_tools.keys()) - self.expanded_tools)
+        
+        refinement_json = await self.call_template(
+            "refinement_analysis.jinja2",
+            json_format=True,
+            user_request=user_request,
+            original_goal=original_goal,
+            action_decision={
+                "situation_analysis": action_decision.situation_analysis,
+                "decision": action_decision.decision_type,
+                "execution": action_decision.execution,
+                "finalization": action_decision.finalization,
+                "context_verification": action_decision.context_verification
+            },
+            completed_steps=[{
+                "tool": step.action.tool,
+                "intent": step.action.reason,
+                "status": step.status.value,
+                "results": step.results
+            } for step in completed_steps],
+            workspace_segments=segments,
+            available_tools=expanded_tool_info,
+            collapsed_tools=collapsed_tool_names
+        )
+        result = json.loads(refinement_json)
+        
+        return RefinementDecision(
+            analysis=result.get("analysis", {}),
+            verdict=result.get("verdict", "approve"),
+            approval=result.get("approval"),
+            refinement=result.get("refinement")
+        )
+    
+    async def _apply_context_gap_suggestions(self, suggestions: dict):
+        """Apply suggested actions from refinement exploration hints."""
+        for query in suggestions.get("search_terms", []):
+            await self.context.search_resources(query)
+        
+        for uri in suggestions.get("resource_paths", []):
+            await self.context.query_resource(uri)
+        
+        # Add support for tool expansion suggestions
+        for tool_name in suggestions.get("tools_to_expand", []):
+            self.expanded_tools.add(tool_name)
+    
+    def _convert_to_orchestration_action(
+            self, 
+            action_decision: ActionDecision
+    ) -> OrchestrationExecutionPlan | OrchestrationFinalization:
+        """Convert ActionDecision to orchestration type."""
+        if action_decision.decision_type == "execute" and action_decision.execution:
+            exec_data = action_decision.execution
+            return OrchestrationExecutionPlan(
+                reason=action_decision.situation_analysis,
+                tool=exec_data["tool"],
+                params=exec_data["params"],
+                future_steps=[]
+            )
+        elif action_decision.decision_type == "finalize" and action_decision.finalization:
+            final_data = action_decision.finalization
+            return OrchestrationFinalization(
+                reason=action_decision.situation_analysis,
+                response=final_data.get("response", ""),
+                status=final_data.get("status", "success")
+            )
+        else:
+            # Fallback for malformed decision
+            return OrchestrationFinalization(
+                reason="Invalid action decision",
+                response="Unable to process the action decision.",
+                status="failed"
+            )
 
     async def execution_advance(
             self,
@@ -58,324 +295,141 @@ class OrchestrationLoop(LLMToolMixin):
             completed_steps: list[StepOutcome],
             pending_steps: list[str],
             available_tools: dict[str, SchematicTool],
-            context: ResourceContext,
     ) -> OrchestrationExecutionPlan | OrchestrationFinalization:
         """
-        Advance the execution orchestration by determining the next tool to execute
-        or finalizing the goal pursuit.
-
-        Uses the execution orchestrator template with structured JSON schema
-        to ensure consistent response format for execution decisions.
-        """
-        last_result: OrchestrationExecutionPlan | OrchestrationFinalization | None = None
+        Advance execution through phased context refinement and planning.
+        
+        Uses a two-phase decision architecture:
+        1. Action Decision - Decides to execute tool or finalize
+        2. Refinement Analysis - Approves action or refines goal for next iteration
+        
+        The goal evolves through iterations to incorporate discovered requirements.
+        """        
         iter_num = 0
-        expanded_tools = set()
+        current_goal = goal
+        last_planned_action: OrchestrationExecutionPlan | OrchestrationFinalization = OrchestrationFinalization(
+            reason="Maximum iterations reached without achieving goal",
+            response="I was unable to complete your request within the iteration limit.",
+            status="abandoned"
+        )
+        
         while True:
-            iter_num += 1
-            expanded_tool_dict = {name: {
-                "description": available_tools[name].description,
-                "prerequisites": available_tools[name].prerequisites,
-                "input_schema": available_tools[name].input_schema,
-                "output_description": available_tools[name].output_description,
-            } for name in expanded_tools if name in available_tools}
-            collapsed_tool_dict = {name: {
-                "description": available_tools[name].description,
-            } for name in available_tools if name not in expanded_tools}
-            orchestration_result = await self._context_advance(
-                user_request,
-                goal,
-                iter_num,
-                completed_steps,
-                pending_steps,
-                {
-                    **expanded_tool_dict,
-                    **collapsed_tool_dict
-                },
-                context
+            # Context discovery and refinement loop
+            while True:
+                iter_num += 1
+                discovery_plan = await self._discover_and_expand_context(
+                    user_request, current_goal, available_tools
+                )
+                await self._apply_discovery_plan(discovery_plan)
+
+                if not discovery_plan.refinement_needed:
+                    break
+                if self.max_iter is not None and iter_num >= self.max_iter:
+                    break
+                
+                refinement_plan = await self._filter_and_refine_context(
+                    current_goal, available_tools, discovery_plan.discovery_analysis
+                )
+                await self._apply_refinement_plan(refinement_plan)
+            
+            action_decision = await self._make_action_decision(
+                user_request, current_goal, completed_steps, available_tools
             )
 
-            await context.refine(
-                orchestration_result.sorted_segments,
-                orchestration_result.query_resources,
-                orchestration_result.exclude_resources,
-                orchestration_result.include_properties,
-                orchestration_result.exclude_properties,
-                orchestration_result.search_queries,
+            refinement_decision = await self._analyze_and_refine(
+                user_request, current_goal, action_decision, completed_steps, available_tools
             )
-            expanded_tools.update(orchestration_result.expand_tools)
-            expanded_tools.difference_update(orchestration_result.collapse_tools)
-
-            if orchestration_result.execution:
-                last_result = orchestration_result.execution
-            elif orchestration_result.finalize:
-                last_result = orchestration_result.finalize
-            if not orchestration_result.refinement_needed and (last_result is not None) and (iter_num >= self.min_iter):
-                break
-            if self.max_iter and iter_num >= self.max_iter:
-                break
-        if not last_result:
-            raise ValueError("Orchestration did not produce any execution or finalization result.")
-        return last_result
-        
-
-    async def _context_advance(
-            self,
-            user_request: str,
-            goal: str,
-            iter_num: int,
-            completed_steps: list[StepOutcome],
-            pending_steps: list[str],
-            available_tools: dict[str, dict],
-            context: ResourceContext,
-    ) -> OrchestrationResult:
-        """
-        Advance the context orchestration by determining the next strategic actions.
-        
-        Uses the strategic context orchestrator template with structured JSON schema
-        to ensure consistent response format for orchestration decisions.
-        """
-        # Build workspace segments data for the template
-        workspace_segments = []
-        nonexisted_uris = []
-        for segment in context.workspace.sorted_segments():
-            if segment_data := await context.build_segment_data(segment):
-                workspace_segments.append(segment_data)
+            
+            # Convert action decision to orchestration type
+            planned_action = self._convert_to_orchestration_action(action_decision)
+            last_planned_action = planned_action
+            
+            # Process refinement verdict
+            if refinement_decision.verdict == "approve":
+                # Return approved action if min iterations met
+                if isinstance(planned_action, OrchestrationExecutionPlan) and iter_num >= self.min_iter:
+                    return planned_action
+                elif isinstance(planned_action, OrchestrationFinalization):
+                    return planned_action
             else:
-                nonexisted_uris.append(segment.uri)
+                # Refine goal and continue iteration
+                if refinement_decision.refinement:
+                    refinement = refinement_decision.refinement
+                    current_goal = refinement.get("refined_goal", current_goal)
+                    
+                    # Apply exploration hints
+                    if exploration := refinement.get("exploration_hints"):
+                        await self._apply_context_gap_suggestions(exploration)
+            
+            # Check iteration limits
+            if self.max_iter is not None and iter_num >= self.max_iter:
+                break
         
-        # Prepare last step data if available
-        last_step = None
-        if completed_steps:
-            last_completed = completed_steps[-1]
-            last_step = {
-                "tool": last_completed.action.tool,
-                "intent": last_completed.action.reason,
-                "status": last_completed.status.value,
-                "results": last_completed.results
-            }
+        # Fallback: Return last planned action (already properly formatted)
+        return last_planned_action
+    
+    async def _get_workspace_segments(self):
+        """Prepare workspace segments with enriched property information."""
+        segments = []
+        nonexisted = []
         
-        # Define the JSON schema for structured response with comprehensive descriptions
-        # TODO: At present, the `execution.params` is not strictly defined and can be any dict. The schema cannot be accepted by LLMs
-        response_schema = {
-            "type": "object",
-            "description": "Strategic orchestration decision for context management and execution planning",
-            "properties": {
-                "analysis": {
-                    "type": "string",
-                    "description": "Comprehensive strategic analysis of the current situation, including context assessment, goal alignment, execution readiness, and reasoning for the orchestration decisions made"
-                },
-                "query_resources": {
-                    "type": "array",
-                    "description": "List of resource URIs to fetch and include in the workspace context. These should be strategically relevant resources that will help with planning or execution",
-                    "items": {
-                        "type": "string",
-                        "description": "Resource URI in the format /aspect/resource_id or nested /aspect/parent/child"
-                    }
-                },
-                "exclude_resources": {
-                    "type": "array", 
-                    "description": "List of resource URIs to remove from the workspace context to reduce noise and focus on relevant information",
-                    "items": {
-                        "type": "string",
-                        "description": "Resource URI to exclude from the context"
-                    }
-                },
-                "include_properties": {
-                    "type": "array",
-                    "description": "Specific properties to include for resources in the workspace. Use when you need specific data fields for planning or execution",
-                    "items": {
-                        "type": "object",
-                        "description": "Property inclusion specification for a specific resource",
-                        "properties": {
-                            "uri": {
-                                "type": "string",
-                                "description": "The resource URI for which to include the property"
-                            },
-                            "property": {
-                                "type": "string", 
-                                "description": "The specific property name to include (e.g., 'name', 'description', 'motivation')"
-                            }
-                        },
-                        "required": ["uri", "property"],
-                        "additionalProperties": False
-                    }
-                },
-                "exclude_properties": {
-                    "type": "array",
-                    "description": "Specific irrelated properties to exclude from resources to reduce context size while maintaining relevant information",
-                    "items": {
-                        "type": "object",
-                        "description": "Property exclusion specification for a specific resource", 
-                        "properties": {
-                            "uri": {
-                                "type": "string",
-                                "description": "The resource URI for which to exclude the property"
-                            },
-                            "property": {
-                                "type": "string",
-                                "description": "The specific property name to exclude from the context"
-                            }
-                        },
-                        "required": ["uri", "property"],
-                        "additionalProperties": False
-                    }
-                },
-                "search_queries": {
-                    "type": "array",
-                    "description": "Semantic search queries to find relevant resources not currently in the workspace. Use when you need to discover resources related to the goal",
-                    "items": {
-                        "type": "string",
-                        "description": "Natural language search query for finding semantically similar resources"
-                    }
-                },
-                "sorted_segments": {
-                    "type": "array",
-                    "description": "Ordered list of resource URIs indicating the priority/relevance for the current goal. Most important resources should be listed first",
-                    "items": {
-                        "type": "string",
-                        "description": "Resource URI in order of strategic importance"
-                    }
-                },
-                "expand_tools": {
-                    "type": "array",
-                    "description": "List of tool names to show detailed schemas for. Use when planning requires understanding specific tool capabilities and parameters",
-                    "items": {
-                        "type": "string",
-                        "description": "Tool name to expand and show detailed schema information"
-                    }
-                },
-                "collapse_tools": {
-                    "type": "array",
-                    "description": "List of tool names to hide detailed schemas for. Use to reduce context length when tool is not related to immediate execution",
-                    "items": {
-                        "type": "string",
-                        "description": "Tool name to collapse and hide detailed schema information"
-                    }
-                },
-                "execution": {
-                    "type": "object",
-                    "description": "Immediate execution plan when sufficient context is available for the task, even if additional related context could potentially be gathered. Use when current context provides enough information to proceed confidently with tool execution",
-                    "properties": {
-                        "reason": {
-                            "type": "string",
-                            "description": "Explanation of why this tool execution is recommended and how it advances toward the goal"
-                        },
-                        "tool": {
-                            "type": "string",
-                            "description": "Name of the tool to execute (must match one of the available tools)"
-                        },
-                        "params": {
-                            "type": "object",
-                            "description": "Parameters to pass to the tool. Should match the tool's expected input schema",
-                            "additionalProperties": True
-                        },
-                        "future_steps": {
-                            "type": "array",
-                            "description": "Anticipated future steps that may be needed after this execution completes",
-                            "items": {
-                                "type": "string",
-                                "description": "Description of a potential future step or action"
-                            }
-                        }
-                    },
-                    "required": ["reason", "tool", "params"],
-                    "additionalProperties": False
-                },
-                "finalize": {
-                    "type": "object",
-                    "description": "Goal completion or termination only when no further actions are needed or possible",
-                    "properties": {
-                        "reason": {
-                            "type": "string",
-                            "description": "Explanation of why the goal is being finalized (completed successfully, failed, or abandoned)"
-                        },
-                        "response": {
-                            "type": "string",
-                            "description": "Final response to provide to the user summarizing the outcome"
-                        },
-                        "status": {
-                            "type": "string",
-                            "description": "Final status of the goal pursuit",
-                            "enum": ["success", "failed", "abandoned"]
-                        }
-                    },
-                    "required": ["reason", "response", "status"],
-                    "additionalProperties": False
+        for segment in self.context.workspace.sorted_segments():
+            data = await self.context.build_segment_data(segment)
+            if data:
+                # Enrich segment data with clearer structure
+                enriched = {
+                    "uri": data["uri"],
+                    "included_data": data.get("included_data", {}),
+                    "pending_properties": data.get("pending_properties", []),
+                    "child_ids": data.get("child_ids", {}),
+                    "relations": data.get("relations", {}),
+                    # Add computed fields for easier template consumption
+                    "total_children": sum(len(ids) for ids in data.get("child_ids", {}).values()),
                 }
-            },
-            "required": ["analysis", "sorted_segments"],
-            "additionalProperties": False
-        }
+                segments.append(enriched)
+            else:
+                nonexisted.append(segment.uri)
         
-        # Call the template with structured response
-        response_json = await self.call_template(
-        # response_json = await self.call_template_structured(
-            "strategic_context_orchestrator.jinja2",
-            # response_schema=response_schema,
-            json_format=True,
-            user_request=user_request,
-            goal=goal,
-            iter_num=iter_num,
-            max_iter=self.max_iter,
-            last_step=last_step,
-            completed_steps=[{
-                "tool": step.action.tool,
-                "intent": step.action.reason,
-                "status": step.status.value,
-                "results": step.results,
-                "error": step.error_message
-            } for step in completed_steps],
-            pending_steps=pending_steps,
-            available_tools=available_tools,
-            workspace_segments=workspace_segments,
-            nonexisted_uris=nonexisted_uris,
-            search_history=[{
-                "query": item.query,
-                "aspect": item.aspect,
-                "uris": item.uris
-            } for item in context.search_history]
-        )
+        return segments, nonexisted
+    
+    def _get_expanded_tools(self, available_tools: dict[str, SchematicTool]):
+        """Prepare only expanded tools with full schema details."""
+        tools = {}
+        for name in self.expanded_tools:
+            if name not in available_tools:
+                continue
+                
+            tool = available_tools[name]
+            tools[name] = {
+                "description": tool.description,
+                "prerequisites": tool.prerequisites,
+                "output_description": tool.output_description,
+                "input_schema": tool.input_schema,
+                "required_params": tool.input_schema.get("required", []) if tool.input_schema else []
+            }
+            
+            # Add schema_params for easier template consumption
+            if tool.input_schema and "properties" in tool.input_schema:
+                tools[name]["schema_params"] = {
+                    param: {
+                        "description": details.get("description", ""),
+                        "type": details.get("type", ""),
+                        "required": param in tool.input_schema.get("required", [])
+                    }
+                    for param, details in tool.input_schema["properties"].items()
+                }
+        return tools
+    
+    def _format_response(self, response_framework: dict):
+        """Format final response from framework."""
+        parts = [response_framework.get("main_answer", "")]
         
-        # Parse the structured JSON response
-        try:
-            response_data = json.loads(response_json)
-        except json.JSONDecodeError as e:
-            raise ValueError(f"Failed to parse orchestration response: {str(e)}")
+        if points := response_framework.get("key_points"):
+            parts.append("\n\nKey Points:")
+            parts.extend(f"- {point}" for point in points)
         
-        # Convert property operations from dict format directly (no conversion needed)
-        include_properties = response_data.get("include_properties", [])
-        exclude_properties = response_data.get("exclude_properties", [])
+        if context_refs := response_framework.get("supporting_context"):
+            parts.append("\n\nSupporting Context:")
+            parts.extend(f"- {ref}" for ref in context_refs)
         
-        # Build execution plan if present
-        execution = None
-        if exec_data := response_data.get("execution"):
-            execution = OrchestrationExecutionPlan(
-                reason=exec_data["reason"],
-                tool=exec_data["tool"],
-                params=exec_data["params"],
-                future_steps=exec_data.get("future_steps", [])
-            )
-        
-        # Build finalization if present
-        finalize = None
-        if fin_data := response_data.get("finalize"):
-            finalize = OrchestrationFinalization(
-                reason=fin_data["reason"],
-                response=fin_data["response"],
-                status=fin_data["status"]
-            )
-        
-        # Return structured orchestration result
-        return OrchestrationResult(
-            analysis=response_data["analysis"],
-            query_resources=response_data.get("query_resources", []),
-            exclude_resources=response_data.get("exclude_resources", []),
-            include_properties=include_properties,
-            exclude_properties=exclude_properties,
-            search_queries=response_data.get("search_queries", []),
-            sorted_segments=response_data["sorted_segments"],
-            expand_tools=response_data.get("expand_tools", []),
-            collapse_tools=response_data.get("collapse_tools", []),
-            execution=execution,
-            finalize=finalize
-        )
+        return "\n".join(filter(None, parts))
