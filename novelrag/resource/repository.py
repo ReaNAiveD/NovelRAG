@@ -12,7 +12,7 @@ from .aspect import ResourceAspect
 from .element import DirectiveElement, Element
 from .lut import ElementLookUpTable
 from .operation import Operation, ResourceOperation, \
-    PropertyOperation, ResourceLocation
+    PropertyOperation
 from .vector import LanceDBStore
 
 

@@ -218,7 +218,7 @@ class LanceDBStore:
         
         if invalid_uris:
             await self.batch_delete_by_uris(invalid_uris)
-            logger.info(f"Deleted {len(invalid_uris)} invalid elements from vector store: " + ", ".join(invalid_uris))
+            logger.info(f"Deleted {len(invalid_uris)} invalid resources from vector store: " + ", ".join(invalid_uris))
         
         return len(invalid_uris)
 
@@ -254,7 +254,7 @@ class LanceDBStore:
         if not unchecked:
             existing = await self.get(resource_uri)
             if existing and existing.hash == hash_str:
-                return
+                return None
 
         embedding = await self.embedder.embedding(serialized_data, dimensions=3072)
         vector = embedding[0]
