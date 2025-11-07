@@ -1,0 +1,114 @@
+pursuits:
+  - goal: "Create a fantasy character named Elena"
+    started_at: "2025-10-20T14:30:15.123456"
+    completed_at: "2025-10-20T14:32:45.789012"
+    llm_calls:
+      - template_name: "character_creation.jinja2"
+        timestamp: "2025-10-20T14:30:20.456789"
+        duration_ms: 1247
+        request:
+          messages:
+            - role: "system"
+              content: "You are a creative writing assistant specializing in fantasy character creation. Create detailed, compelling characters with rich backstories. Focus on creating characters that feel authentic and have clear motivations. Include physical descriptions, personality traits, background history, and potential story hooks."
+            - role: "user"
+              content: "Please create a character."
+          response_format: "json_object"
+        response:
+          content: |
+            {
+              "name": "Elena Brightforge",
+              "age": 28,
+              "race": "Half-Elf",
+              "class": "Artificer",
+              "background": "Guild Artisan",
+              "personality": "Curious and inventive, Elena has an insatiable desire to understand how things work.",
+              "backstory": "Born to an elven mother and human father, Elena grew up in the bustling trade city of Waterdeep..."
+            }
+      - template_name: "character_validation.jinja2"  
+        timestamp: "2025-10-20T14:31:15.789012"
+        duration_ms: 892
+        request:
+          messages:
+            - role: "system"
+              content: "Review the character data for consistency and completeness. Suggest improvements if needed."
+            - role: "user"
+              content: "Validate this character data."
+        response:
+          content: "The character Elena Brightforge is well-constructed and consistent. The background aligns well with the artificer class, and the half-elf race provides interesting narrative possibilities."
+      - template_name: "build_operation.jinja2"
+        timestamp: "2025-10-20T14:32:30.123456"  
+        duration_ms: 654
+        request:
+          messages:
+            - role: "system"
+              content: "Generate the next operation to perform based on the current goal state and available tools."
+            - role: "user"
+              content: "What should we do next?"
+          response_format: |
+            {
+              "type": "json_schema",
+              "json_schema": {
+                "name": "operation_plan",
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "action": {"type": "string"},
+                    "tool": {"type": "string"},
+                    "parameters": {"type": "object"}
+                  }
+                }
+              }
+            }
+        response:
+          content: |
+            {
+              "action": "save_character",
+              "tool": "resource_write",
+              "parameters": {
+                "aspect": "character",
+                "name": "elena_brightforge",
+                "data": "..."
+              }
+            }
+  - goal: "Create an outline for Chapter 1"
+    started_at: "2025-10-20T14:45:00.000000"
+    completed_at: "2025-10-20T14:48:30.567890"
+    llm_calls:
+      - template_name: "outline_creation.jinja2"
+        timestamp: "2025-10-20T14:45:10.111111"
+        duration_ms: 2103
+        request:
+          messages:
+            - role: "system"  
+              content: "You are a skilled story structure consultant. Create detailed chapter outlines that advance the plot and develop characters."
+            - role: "user"
+              content: "Create an outline for Chapter 1 of the story."
+        response:
+          content: |
+            Chapter 1: The Forge's Last Light
+            
+            1. Opening Scene: Elena working late in her workshop
+               - Establish her dedication to her craft
+               - Show her latest invention
+               - Hint at larger mysteries
+            
+            2. Inciting Incident: Strange magical disturbance
+               - Workshop tools begin acting erratically
+               - Elena discovers unknown magical signature
+               - Sets up central mystery
+            
+            3. Character Development: Elena's decision
+               - Internal conflict about investigating vs safety
+               - Reveals her curiosity-driven nature
+               - Sets character arc in motion
+      - template_name: "analyze_failure.jinja2"
+        timestamp: "2025-10-20T14:47:45.222222"
+        duration_ms: 445
+        request:
+          messages:
+            - role: "system"
+              content: "Analyze what went wrong and suggest corrections or improvements."
+            - role: "user"  
+              content: "The outline seems generic. How can we make it more unique?"
+        response:
+          content: "The outline follows standard structure but could be enhanced by: 1) Adding more specific details about Elena's artificer abilities, 2) Creating a more unique magical disturbance tied to her background, 3) Incorporating elements from her half-elf heritage for internal conflict."

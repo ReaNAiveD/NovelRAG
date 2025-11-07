@@ -1,28 +1,4 @@
-"""Proposal classes for target and content generation."""
-
-
-class ProposalSelector:
-    """Selects proposals from a list of options."""
-    
-    async def select(self, proposals: list[str]) -> str:
-        """Select a proposal from the list."""
-        raise NotImplementedError("TODO: Implement the logic to select a proposal.")
-
-
-class TargetProposal:
-    """Represents a proposed target with reasoning."""
-    
-    def __init__(self, target: str, reason: str):
-        self.target = target
-        self.reason = reason
-
-
-class TargetProposer:
-    """Proposes targets based on current beliefs."""
-    
-    async def propose(self, believes: list[str]) -> list[TargetProposal]:
-        """Propose targets based on current beliefs."""
-        raise NotImplementedError("Subclasses should implement this method.")
+"""Content proposal classes for the agent system."""
 
 
 class ContentProposal:

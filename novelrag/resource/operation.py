@@ -6,56 +6,54 @@ from pydantic import BaseModel, Field, TypeAdapter
 
 class OperationTarget(str, Enum):
     PROPERTY = 'property'
-    ELEMENT = 'element'
+    RESOURCE = 'resource'
 
 
 class PropertyOperation(BaseModel):
     target: Literal[OperationTarget.PROPERTY]
-    element_uri: Annotated[str, Field(description='Uri of the element the operation happens on')]
-    data: Annotated[dict[str, Any], Field(description='The data that updates on the element')]
+    resource_uri: Annotated[str, Field(description='Uri of the resource the operation happens on')]
+    data: Annotated[dict[str, Any], Field(description='The data that updates on the resource')]
 
     @classmethod
-    def new(cls, element_uri: str, data: dict[str, Any]):
-        return cls(target=OperationTarget.PROPERTY, element_uri=element_uri, data=data)
+    def new(cls, resource_uri: str, data: dict[str, Any]):
+        return cls(target=OperationTarget.PROPERTY, resource_uri=resource_uri, data=data)
 
     def create_undo(self, undo_update: dict[str, Any]):
         return self.model_copy(update={'data': undo_update})
 
 
-class OperationLocationType(str, Enum):
-    ELEMENT = 'element'
-    ASPECT = 'aspect'
-
-
-class ElementLocation(BaseModel):
-    type: Literal[OperationLocationType.ELEMENT]
-    element_uri: Annotated[str, Field()]
-    children_key: Annotated[str, Field()]
-
-
-class AspectLocation(BaseModel):
-    type: Literal[OperationLocationType.ASPECT]
-    aspect: Annotated[str, Field()]
+class ResourceLocation(BaseModel):
+    """Location for resource operations using URI-based addressing.
+    
+    Can point to either:
+    - An aspect's root list: resource_uri="/character", children_key=None
+    - A resource's children list: resource_uri="/outline/chapter_1", children_key="scenes"
+    """
+    resource_uri: Annotated[str, Field(description='URI of the resource or aspect')]
+    children_key: Annotated[str | None, Field(description='Key for nested children list, None for aspect root')]
 
     @classmethod
-    def new(cls, aspect: str):
-        return cls(type=OperationLocationType.ASPECT, aspect=aspect)
+    def aspect(cls, aspect: str):
+        """Create a location pointing to an aspect's root list."""
+        return cls(resource_uri=f"/{aspect}", children_key=None)
+    
+    @classmethod
+    def resource(cls, resource_uri: str, children_key: str):
+        """Create a location pointing to a resource's children list."""
+        return cls(resource_uri=resource_uri, children_key=children_key)
 
 
-OperationLocation = ElementLocation | AspectLocation
-
-
-class ElementOperation(BaseModel):
-    target: Literal[OperationTarget.ELEMENT]
-    location: Annotated[OperationLocation, Field(discriminator='type')]
+class ResourceOperation(BaseModel):
+    target: Literal[OperationTarget.RESOURCE]
+    location: Annotated[ResourceLocation, Field(description='Location where the operation occurs')]
     start: Annotated[int, Field(description='Start Index of Splice')]
     end: Annotated[int, Field(description='End Index of Splice')]
     data: Annotated[list[dict[str, Any]] | None, Field(description='The data that splice on the list.')]
 
     @classmethod
-    def new(cls, location: OperationLocation, *, start: int=0, end: int | None = None, data: list[dict[str, Any]] | None = None):
+    def new(cls, location: ResourceLocation, *, start: int=0, end: int | None = None, data: list[dict[str, Any]] | None = None):
         return cls(
-            target=OperationTarget.ELEMENT,
+            target=OperationTarget.RESOURCE,
             location=location,
             start=start,
             end=end if end is not None else start,
@@ -72,7 +70,7 @@ class ElementOperation(BaseModel):
         )
 
 
-Operation = Annotated[PropertyOperation | ElementOperation, Field(discriminator='target')]
+Operation = Annotated[PropertyOperation | ResourceOperation, Field(discriminator='target')]
 
 
 def validate_op(op: dict) -> Operation: # type: ignore

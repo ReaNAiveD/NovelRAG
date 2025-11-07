@@ -11,8 +11,8 @@ from novelrag.llm import EmbeddingLLM
 from .aspect import ResourceAspect
 from .element import DirectiveElement, Element
 from .lut import ElementLookUpTable
-from .operation import Operation, ElementOperation, \
-    PropertyOperation, ElementLocation, AspectLocation
+from .operation import Operation, ResourceOperation, \
+    PropertyOperation
 from .vector import LanceDBStore
 
 
@@ -47,15 +47,15 @@ class ResourceRepository(ABC):
         pass
 
     @abstractmethod
-    async def find_by_uri(self, element_uri: str) -> list[ResourceAspect] | ResourceAspect | DirectiveElement | None:
-        """Find an element by its URI in the repository.
+    async def find_by_uri(self, resource_uri: str) -> list[ResourceAspect] | ResourceAspect | DirectiveElement | None:
+        """Find a resource by its URI in the repository.
         
         Args:
-            element_uri: The URI of the element to find
+            resource_uri: The URI of the resource to find
         
         Returns:
-            - list[ResourceAspect]: All aspects if element_uri is '/'
-            - ResourceAspect: Single aspect if element_uri matches '/{aspect_name}'
+            - list[ResourceAspect]: All aspects if resource_uri is '/'
+            - ResourceAspect: Single aspect if resource_uri matches '/{aspect_name}'
             - DirectiveElement: Element if found by URI
             - None: If no match is found
         """
@@ -71,12 +71,12 @@ class ResourceRepository(ABC):
         pass
 
     @abstractmethod
-    async def update_relations(self, element_uri: str, target_uri: str, relations: list[str]) -> Element:
-        """Update the relations of an element by its URI.
+    async def update_relations(self, resource_uri: str, target_uri: str, relations: list[str]) -> Element:
+        """Update the relations of a resource by its URI.
         Args:
-            element_uri: The URI of the element to update
-            target_uri: The URI of the target element to relate to
-            relations: A dictionary of relations to set for the element
+            resource_uri: The URI of the resource to update
+            target_uri: The URI of the target resource to relate to
+            relations: A dictionary of relations to set for the resource
         Returns:
             Element: The updated element with new relations
         """
@@ -111,17 +111,21 @@ class LanceDBResourceRepository(ResourceRepository):
             vector_store_config: VectorStoreConfig,
             embedder: EmbeddingLLM,
             default_resource_dir: str = '.',
+            cleanup_invalid_vectors: bool | None = None,
     ) -> 'LanceDBResourceRepository':
         """Build a LanceDBResourceRepository from a YAML configuration file.
 
         This method loads resource aspects from a YAML configuration file, creates
         a vector store, and populates it with all elements from the loaded aspects.
+        It also cleans up any invalid vectors that no longer exist in the configuration.
 
         Args:
             config_path: Path to the YAML configuration file containing aspect definitions
             vector_store_config: Configuration object for the LanceDB vector store
             embedder: Embedding LLM instance used for generating vector embeddings
             default_resource_dir: Default directory for resource files (defaults to '.')
+            cleanup_invalid_vectors: Whether to remove invalid vectors during initialization.
+                                   If None, uses vector_store_config.cleanup_invalid_on_init
 
         Returns:
             A new LanceDBResourceRepository instance initialized with the configured
@@ -134,8 +138,11 @@ class LanceDBResourceRepository(ResourceRepository):
         """
         aspects = {}
         elements = []
+        
+        # Load aspects and collect valid elements
         with open(config_path, 'r', encoding='utf-8') as f:
             resource_config: dict = yaml.safe_load(f) or {}
+        
         for aspect_name, aspect_config in resource_config.items():
             aspect_config = AspectConfig.model_validate(aspect_config)
             aspect = ResourceAspect.from_config(aspect_name, aspect_config)
@@ -143,11 +150,27 @@ class LanceDBResourceRepository(ResourceRepository):
             aspects[aspect_name] = aspect
             for element in aspect.iter_elements():
                 elements.append(element.inner)
+        
+        # Create vector store
         vector_store = await LanceDBStore.create(
             uri=vector_store_config.lancedb_uri,
             table_name=vector_store_config.table_name,
             embedder=embedder,
         )
+        
+        # Determine if cleanup should be performed
+        should_cleanup = cleanup_invalid_vectors if cleanup_invalid_vectors is not None else vector_store_config.cleanup_invalid_on_init
+
+        # Clean up invalid vectors if requested
+        if should_cleanup:
+            valid_resource_uris = {element.uri for element in elements}
+            invalid_count = await vector_store.cleanup_invalid_resources(valid_resource_uris)
+            if invalid_count > 0:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.info(f"Cleaned up {invalid_count} invalid vectors from database")
+        
+        # Add current elements to vector store
         await vector_store.batch_add(elements)
 
         return cls(config_path, aspects, vector_store, embedder, default_resource_dir)
@@ -219,71 +242,72 @@ class LanceDBResourceRepository(ResourceRepository):
 
         return aspect
     
-    async def find_by_uri(self, element_uri: str) -> list[ResourceAspect] | ResourceAspect | DirectiveElement | None:
-        """Find an element by its URI in the repository.
+    async def find_by_uri(self, resource_uri: str) -> list[ResourceAspect] | ResourceAspect | DirectiveElement | None:
+        """Find a resource by its URI in the repository.
         
         Args:
-            element_uri: The URI of the element to find
+            resource_uri: The URI of the resource to find
         
         Returns:
-            - list[ResourceAspect]: All aspects if element_uri is '/'
-            - ResourceAspect: Single aspect if element_uri matches '/{aspect_name}'
+            - list[ResourceAspect]: All aspects if resource_uri is '/'
+            - ResourceAspect: Single aspect if resource_uri matches '/{aspect_name}'
             - DirectiveElement: Element if found by URI
             - None: If no match is found
         """
-        if element_uri and element_uri == '/':
+        if resource_uri and resource_uri == '/':
             return list(self.resource_aspects.values())
-        elif element_uri and element_uri.startswith('/') and element_uri[1:] in self.resource_aspects:
-            return self.resource_aspects[element_uri[1:]]
-        return self.lut.find_by_uri(element_uri)
+        elif resource_uri and resource_uri.startswith('/') and resource_uri[1:] in self.resource_aspects:
+            return self.resource_aspects[resource_uri[1:]]
+        return self.lut.find_by_uri(resource_uri)
 
     async def vector_search(self, query: str, *, aspect: str | None = None, limit: int | None = 20) -> list[SearchResult]:
         embeddings = await self.embedding_llm.embedding(query)
         vector = embeddings[0]
         result = await self.vector_store.vector_search(vector, aspect=aspect, limit=limit)
-        return [SearchResult(distance=item.distance, element=self.lut[item.element_uri]) for item in result]
+        return [SearchResult(distance=item.distance, element=self.lut[item.resource_uri]) for item in result]
 
     async def apply(self, op: Operation) -> Operation:
-        if isinstance(op, ElementOperation):
-            if isinstance(op.location, ElementLocation):
-                ele = self.lut.find_by_uri(op.location.element_uri)
+        if isinstance(op, ResourceOperation):
+            if op.location.children_key is not None:
+                # Operating on a resource's children list
+                ele = self.lut.find_by_uri(op.location.resource_uri)
                 if not ele:
-                    raise ElementNotFoundError(op.location.element_uri)
+                    raise ElementNotFoundError(op.location.resource_uri)
                 data = [Element.build(item, ele.uri, ele.aspect, ele.inner.children_keys) for item in (op.data or [])]
                 new, old = ele.splice_at(op.location.children_key, op.start, op.end, *data)
-            elif isinstance(op.location, AspectLocation):
-                aspect = self.resource_aspects[op.location.aspect]
-                data = [Element.build(item, op.location.aspect, op.location.aspect, aspect.children_keys) for item in (op.data or [])]
-                new, old = aspect.splice(op.start, op.end, *data)
             else:
-                raise OperationError(f'Unrecognized Operation Location Type: {type(op.location)}')
+                # Operating on an aspect's root list
+                aspect_name = op.location.resource_uri.strip('/')
+                aspect = self.resource_aspects[aspect_name]
+                data = [Element.build(item, aspect_name, aspect_name, aspect.children_keys) for item in (op.data or [])]
+                new, old = aspect.splice(op.start, op.end, *data)
             for ele in old:
                 await self._handle_deleted(ele)
             for ele in new:
                 await self._handle_added(ele)
             return op.create_undo([item.inner.dumped_dict() for item in old])
         elif isinstance(op, PropertyOperation):
-            ele = self.lut.find_by_uri(op.element_uri)
+            ele = self.lut.find_by_uri(op.resource_uri)
             if not ele:
-                raise ElementNotFoundError(op.element_uri)
+                raise ElementNotFoundError(op.resource_uri)
             undo = ele.update(op.data)
             await self._handle_updated(ele)
             return op.create_undo(undo)
 
-    async def update_relations(self, element_uri: str, target_uri: str, relations: list[str]) -> Element:
-        """Update the relations of an element by its URI.
+    async def update_relations(self, resource_uri: str, target_uri: str, relations: list[str]) -> Element:
+        """Update the relations of a resource by its URI.
 
         Args:
-            element_uri: The URI of the element to update
-            target_uri: The URI of the target element to relate to
-            relations: A dictionary of relations to set for the element
+            resource_uri: The URI of the resource to update
+            target_uri: The URI of the target resource to relate to
+            relations: A dictionary of relations to set for the resource
 
         Returns:
             Element: The updated element with new relations
         """
-        ele = self.lut.find_by_uri(element_uri)
+        ele = self.lut.find_by_uri(resource_uri)
         if not isinstance(ele, DirectiveElement):
-            raise ElementNotFoundError(element_uri)
+            raise ElementNotFoundError(resource_uri)
         _ = ele.update_relations(target_uri, relations)
         # await self._handle_updated(ele)
         return ele.inner
@@ -295,7 +319,7 @@ class LanceDBResourceRepository(ResourceRepository):
 
     async def _handle_deleted(self, ele: DirectiveElement):
         self.lut.pop(ele.uri)
-        await self.vector_store.delete(element_uri=ele.uri)
+        await self.vector_store.delete(resource_uri=ele.uri)
         for children in ele.children.values():
             for child in children:
                 await self._handle_deleted(child)

@@ -55,6 +55,9 @@ class Element(BaseModel):
         """
         return dict((k, v) for k, v in self.model_extra.items() if k not in self.children_keys) if self.model_extra else {}
     
+    def flattened_child_ids(self):
+        return dict((key, [child.id for child in self.children_of(key)]) for key in self.children_keys)
+
     def children_ids(self):
         """Returns id of children elements only"""
         return dict((key, [{"id": child.id} for child in self.children_of(key)]) for key in self.children_keys)
@@ -177,6 +180,10 @@ class DirectiveElement:
     @property
     def aspect(self):
         return self.inner.aspect
+
+    @property
+    def flattened_child_ids(self):
+        return self.inner.flattened_child_ids()
 
     @property
     def element_dict(self):

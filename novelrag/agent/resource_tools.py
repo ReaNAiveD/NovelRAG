@@ -13,9 +13,8 @@ from novelrag.resource.repository import ResourceRepository
 from novelrag.template import TemplateEnvironment
 from novelrag.resource.operation import validate_op
 from .llm_content_proposer import LLMContentProposer
-from .steps import StepDefinition
 
-from .tool import SchematicTool, ContextualTool, LLMToolMixin, ToolRuntime
+from .tool import SchematicTool, LLMToolMixin, ToolRuntime
 from .types import ToolOutput
 from .proposals import ContentProposer
 
@@ -24,8 +23,7 @@ from .proposals import ContentProposer
 class ContentGenerationTask:
     """Represents a content generation task."""
     description: str                    # What content to generate
-    context_facets: list[str]           # Which context facets to use
-    target_field: str | None = None    # Which field this content will update
+    content_key: str | None = None    # Which field this content will update
 
 
 @dataclass
@@ -106,8 +104,8 @@ class AspectCreateTool(LLMToolMixin, SchematicTool):
         return json.loads(await self.call_template(
             'initialize_aspect_metadata.jinja2',
             json_format=True,
-            name=name,
-            description=description,
+            aspect_name=name,
+            aspect_description=description,
         ))
 
 
@@ -239,7 +237,6 @@ class ResourceSearchTool(SchematicTool):
         top_k = kwargs.get('top_k', 5)
         
         if not query:
-            await runtime.error("No query provided. Please provide a search query string.")
             return self.error("No query provided. Please provide a search query string.")
 
         result = await self.repo.vector_search(query, aspect=aspect, limit=top_k)
@@ -252,7 +249,7 @@ class ResourceSearchTool(SchematicTool):
         return self.result(json.dumps(items, ensure_ascii=False))
 
 
-class ResourceWriteTool(LLMToolMixin, ContextualTool):
+class ResourceWriteTool(LLMToolMixin, SchematicTool):
     """Tool for editing existing content in the resource repository."""
     
     def __init__(self, repo: ResourceRepository, template_env: TemplateEnvironment, chat_llm: ChatLLM,
@@ -267,84 +264,84 @@ class ResourceWriteTool(LLMToolMixin, ContextualTool):
         return self.__class__.__name__
     
     @property
+    def prerequisites(self) -> str | None:
+        return "Requires the target aspect to already exist in the repository. Use AspectCreateTool first if the aspect is missing."
+    
+    @property
     def description(self):
-        return "This tool is used to edit existing content in the resource repository. " \
-        "It generates proposals based on current beliefs and context, sorts them, " \
-        "selects one for editing, builds an operation, and applies it to the repository. " \
-        "It also discovers chain updates and backlog items based on the operation. " \
-        "Before using this tool, you MUST first query the related aspect to understand its definition, structure, and dependencies. " \
-        "Based on the aspect's dependency definitions, you may need to query resources of other types that are referenced or related. " \
-        "Always retrieve the aspect definition first, then gather any dependent resources " \
-        "before attempting to write. This ensures you have a complete understanding of the resource structure and all necessary context."
+        return "Use this tool to modify existing resources within established aspects. " \
+        "This tool plans and executes repository operations based on your specified intent. " \
+        "Supports comprehensive operations including creating/updating/deleting resources, " \
+        "modifying properties, splicing element lists (insert/remove/replace), " \
+        "flattening hierarchies, and merging resources. " \
+        "Automatically handles cascading updates to related resources and discovers follow-up work for your backlog."
+    
+    @property
+    def input_schema(self) -> dict[str, Any]:
+        return {
+            "type": "object",
+            "properties": {
+                "operation_specification": {
+                    "type": "string",
+                    "description": "Detailed natural language description of the operation to be performed on existing aspects. Include target resource URIs (e.g., /character/john), specific fields to update, and any relationships to consider. Be specific about what exactly needs to be done, include all fields/properties that need updates, mention any relationships or dependencies, and use natural language but be precise."
+                },
+                "content_generation_tasks": {
+                    "type": "array",
+                    "description": "List of content generation tasks to perform as part of the operation. Break down into focused, specific tasks where each task should generate content for a clear purpose. All available context will be used for content generation.",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "description": {
+                                "type": "string",
+                                "description": "What content to generate for this specific task. Should be focused and specific, generating content for a clear purpose."
+                            },
+                            'content_key': {
+                                'type': 'string',
+                                'description': 'Key identifier for organizing this content in the resource structure (optional). Used when building the final resource object from multiple generated content pieces.'
+                            }
+                        },
+                        "required": ["description"]
+                    }
+                }
+            },
+            "required": ["operation_specification", "content_generation_tasks"]
+        }
 
-    async def plan_operation(self, step: StepDefinition, believes: list[str], context: dict[str, list[str]]) -> OperationPlan:
-        """Plan the operation by determining intent, content tasks, and prerequisites.
-        
-        Args:
-            step: Step definition containing the operation intent
-            context: Available context organized by facets
-            believes: Current agent beliefs
-            
-        Returns:
-            OperationPlan with operation specification, content tasks, and prerequisites
-        """
-        # Call LLM to analyze the step and generate the operation plan
-        plan_json = await self.call_template(
-            'plan_operation.jinja2',
-            json_format=True,
-            step_intent=step.intent,
-            believes=believes,
-            context=context,
-        )
-        plan_data = json.loads(plan_json)
+    @property
+    def require_context(self) -> bool:
+        """This tool requires context to operate effectively."""
+        return True
 
-        content_tasks = []
-        for task_data in plan_data.get('content_generation_tasks', []):
-            content_tasks.append(ContentGenerationTask(
-                description=task_data['description'],
-                context_facets=task_data['context_facets'],
-                target_field=task_data.get('target_field')
-            ))
-        return OperationPlan(
-            operation_specification=plan_data['operation_specification'],
-            content_generation_tasks=content_tasks,
-            missing_aspects=plan_data.get('missing_aspects', []),
-            missing_context=plan_data.get('missing_context', [])
-        )
-
-    async def call(self, runtime: ToolRuntime, believes: list[str], step: StepDefinition, context: dict[str, list[str]], tools: dict[str, str] | None = None) -> ToolOutput:
+    async def call(self, runtime: ToolRuntime, **kwargs) -> ToolOutput:
         """Edit existing content using the new planning-based workflow."""
-        if step.intent is None or not step.intent:
-            return self.error("No step description provided. Please provide a description of the current step.")
+        operation_specification = kwargs.get('operation_specification')
+        if not operation_specification:
+            return self.error("No operation specification provided. Please provide a detailed description of the operation to perform.")
+        content_generation_tasks = kwargs.get('content_generation_tasks', [])
+        if not content_generation_tasks:
+            return self.error("No content generation tasks provided. Please provide at least one content generation task.")
+        content_generation_tasks = [ContentGenerationTask(**task) for task in content_generation_tasks]
+        context = kwargs.get('context', {})
 
-        await runtime.message("Planning operation...")
-        plan = await self.plan_operation(step, believes, context)
-
-        if plan.has_prerequisites:
-            error_msg = plan.prerequisites_error()
-            await runtime.error(f"Prerequisites not met: {error_msg}")
-            return self.error(f"Prerequisites not met: {error_msg}")
-
-        await runtime.message(f"Operation planned: {plan.operation_specification}")
-        await runtime.message(f"Content generation tasks: {len(plan.content_generation_tasks)}")
+        await runtime.message(f"Operation planned: {operation_specification}")
+        await runtime.message(f"Content generation tasks: {len(content_generation_tasks)}")
 
         content_results = []
-        for i, task in enumerate(plan.content_generation_tasks):
-            await runtime.message(f"Generating content for task {i+1}/{len(plan.content_generation_tasks)}: {task.description}")
+        for i, task in enumerate(content_generation_tasks):
+            await runtime.message(f"Generating content for task {i+1}/{len(content_generation_tasks)}: {task.description}")
 
             content_description = (
                 f"Generate content for the following task:\n"
                 f"Task: {task.description}\n\n"
-                f"This content is part of a broader operation: {plan.operation_specification}\n\n"
-                f"The operation aims to accomplish: {step.intent}\n\n"
+                f"This content is part of a broader operation: {operation_specification}\n\n"
                 f"Ensure the generated content aligns with both the specific task requirements "
                 f"and the overall operation goal."
             )
 
             proposals = [await proposer.propose(
-                believes=believes,
+                believes=[],
                 content_description=content_description,
-                context={facet: context.get(facet, []) for facet in task.context_facets}
+                context=context  # Use all available context
             ) for proposer in self.content_proposers]
             proposals = [proposal for proposal_set in proposals for proposal in proposal_set]
             if not proposals:
@@ -356,7 +353,7 @@ class ResourceWriteTool(LLMToolMixin, ContextualTool):
             
             content_results.append({
                 "description": task.description,
-                "target_field": task.target_field,
+                "content_key": task.content_key,
                 "content": selected_content
             })
 
@@ -367,8 +364,7 @@ class ResourceWriteTool(LLMToolMixin, ContextualTool):
 
         await runtime.message("Building operations from generated content...")
         operations_json = await self.build_operations(
-            action=plan.operation_specification,
-            step_description=step.intent,
+            action=operation_specification,
             context=context,
             content_results=content_results
         )
@@ -396,7 +392,11 @@ class ResourceWriteTool(LLMToolMixin, ContextualTool):
         # TODO: Push the undo operation to the undo queue
 
         # Discover required updates that need to be applied as triggered actions
-        required_updates = await self._discover_required_updates(step.intent, [op.model_dump() for op in operations], [op.model_dump() for op in undo_operations], context)
+        required_updates = await self._discover_required_updates(
+            step_description=operation_specification,
+            operations=[op.model_dump() for op in operations],
+            undo_operations=[op.model_dump() for op in undo_operations],
+            context=context)
 
         # Process perspective updates first (higher priority)
         if required_updates.get("perspective_updates"):
@@ -413,7 +413,11 @@ class ResourceWriteTool(LLMToolMixin, ContextualTool):
                 await runtime.debug(f"Relation update: {update['reason']} - {update['content']}")
 
         # Discover future work items for the backlog
-        backlog = await self._discover_backlog(step.intent, [op.model_dump() for op in operations], [op.model_dump() for op in undo_operations], context)
+        backlog = await self._discover_backlog(
+            step_description=operation_specification,
+            operations=[op.model_dump() for op in operations],
+            undo_operations=[op.model_dump() for op in undo_operations],
+            context=context)
         if backlog:
             await runtime.message(f"Discovered {len(backlog)} backlog items.")
             for item in backlog:
@@ -422,20 +426,6 @@ class ResourceWriteTool(LLMToolMixin, ContextualTool):
 
         # Return the operations JSON that was applied as the result
         return self.result(json.dumps([op.model_dump() for op in operations], ensure_ascii=False))
-
-    async def _determine_target_aspect(self, step: StepDefinition, context: dict[str, list[str]]) -> str:
-        aspects = await self.repo.all_aspects()
-
-        response = await self.call_template(
-            'determine_suitable_aspect.jinja2',
-            json_format=True,
-            step_intent=step.intent,
-            context=context,
-            aspects=[aspect.context_dict for aspect in aspects]
-        )
-
-        result = json.loads(response)
-        return result.get('selected_aspect')
 
     async def _rank_proposals(self, proposals: list[str]) -> list[str]:
         response = await self.call_template(
@@ -481,12 +471,11 @@ class ResourceWriteTool(LLMToolMixin, ContextualTool):
         selected_proposal = random.choices(proposals, weights=weights, k=1)[0]
         return selected_proposal
 
-    async def build_operations(self, action: str, step_description: str, context: dict[str, list[str]], content_results: list[dict] | None = None) -> str:
+    async def build_operations(self, action: str, context: dict[str, list[str]], content_results: list[dict] | None = None) -> str:
         """Build operations from action description and optional content results.
         
         Args:
             action: Action description or operation specification
-            step_description: Step description for context
             context: Available context for reference
             content_results: Optional list of content generation results
             
@@ -496,18 +485,8 @@ class ResourceWriteTool(LLMToolMixin, ContextualTool):
         return await self.call_template(
             'build_operation.jinja2',
             action=action,
-            step_description=step_description,
             context=context,
             content_results=content_results or [],
-            json_format=True
-        )
-
-    async def rebuild_operation(self, proposal: str, step_description: str, incorrect_op: str) -> str:
-        return await self.call_template(
-            'rebuild_operation.jinja2',
-            proposal=proposal,
-            step_description=step_description,
-            incorrect_op=incorrect_op,
             json_format=True
         )
 

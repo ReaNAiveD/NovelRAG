@@ -1,134 +1,273 @@
-"""Main Agent class for orchestrating execution."""
+"""Agent implementation using OrchestrationLoop for strategic execution."""
 
 import logging
+from datetime import datetime
 from typing import Any
 
 from novelrag.agent.channel import AgentChannel
-from novelrag.agent.strategy import ContextStrategy
+from novelrag.agent.orchestrate import OrchestrationLoop, OrchestrationExecutionPlan, OrchestrationFinalization
+from novelrag.agent.pursuit_types import GoalBuilder
+from novelrag.agent.steps import StepDefinition, StepOutcome, StepStatus
+from novelrag.agent.tool import SchematicTool, ToolRuntime
+from novelrag.agent.workspace import ResourceContext
+from novelrag.agent.llm_logger import initialize_logger, get_logger
 from novelrag.llm.types import ChatLLM
+from novelrag.resource.repository import ResourceRepository
 from novelrag.template import TemplateEnvironment
-
-from .tool import BaseTool, ContextualTool, LLMToolMixin, SchematicTool, LLMLogicalOperationTool
-from .planning import PursuitPlanner
-from .pursuit import GoalPursuit, PursuitSummarizer
-from .proposals import TargetProposer
-from .context import LLMPursuitContext
 
 logger = logging.getLogger(__name__)
 
 
-class AgentMind:
-    """The cognitive core of the agent - beliefs, goals, and decision-making.
+class AgentToolRuntime(ToolRuntime):
+    """Agent's implementation of ToolRuntime that routes calls to AgentChannel."""
     
-    This represents the agent's mental model of the world, its objectives,
-    and its ability to reason and make decisions.
-    """
-    
-    def __init__(self):
-        self.beliefs: list[str] = []  # What the agent believes to be true
-        self.current_goal: str | None = None  # What the agent is trying to achieve
-        self.backlog: list[str] = []  # Things the agent wants to remember for later
-        
-    def set_goal(self, goal: str):
-        """Set a new primary goal for the agent to pursue."""
-        self.current_goal = goal
-    
-    def add_belief(self, belief: str):
-        """Add a new belief to the agent's world model."""
-        if belief not in self.beliefs:
-            self.beliefs.append(belief)
-    
-    def remove_belief(self, belief: str):
-        """Remove a belief that is no longer valid."""
-        if belief in self.beliefs:
-            self.beliefs.remove(belief)
-    
-    def add_to_backlog(self, item: str):
-        """Remember something for later consideration."""
-        if item not in self.backlog:
-            self.backlog.append(item)
-    
-    def get_world_view(self) -> dict[str, Any]:
-        """Get the agent's current understanding of the world."""
-        return {
-            "beliefs": self.beliefs.copy(),
-            "current_goal": self.current_goal,
-            "backlog_items": len(self.backlog)
-        }
-
-
-class Agent(LLMToolMixin):
-    """Main agent class for orchestrating tool execution and managing state.
-    
-    This is a composition of the core agent components:
-    - AgentMind: Handles beliefs, goals, and mental state
-    - AgentCommunicator: Manages all communication and output
-    - AgentExecutor: Executes actions and tools
-    """
-
-    def __init__(self, tools: dict[str, BaseTool], channel: AgentChannel, planner: PursuitPlanner, summarizer: PursuitSummarizer, context_strategy: ContextStrategy, template_env: TemplateEnvironment, chat_llm: ChatLLM):
-        # Initialize core components
-        self.mind = AgentMind()
+    def __init__(self, channel: AgentChannel):
         self.channel = channel
+        self._backlog: list[str] = []
+        self._progress: dict[str, list[str]] = {}
+        self._triggered_actions: list[dict[str, str]] = []
 
-        self.planner = planner
-        self.summarizer = summarizer
-        self.context_strategy = context_strategy
-        self.tools: dict[str, BaseTool] = tools
-        self.contextual_tools: dict[str, ContextualTool] = dict()
-        for (name, tool) in self.tools.items():
-            if isinstance(tool, ContextualTool):
-                self.contextual_tools[name] = tool
-            elif isinstance(tool, SchematicTool):
-                self.contextual_tools[name] = tool.wrapped(template_env, chat_llm)
-            else:
-                logger.warning(f'Tool {name} is not a ContextualTool or SchematicTool, skipping tool setup.')
+    async def debug(self, content: str):
+        await self.channel.debug(content)
 
-        # Create the fallback tool for logical operations
-        self.fallback_tool = LLMLogicalOperationTool(template_env, chat_llm)
+    async def message(self, content: str):
+        await self.channel.info(content)
 
-        self.target_proposers: list[TargetProposer] = []
-        super().__init__(template_env=template_env, chat_llm=chat_llm)
+    async def warning(self, content: str):
+        await self.channel.warning(content)
 
-    @property
-    def believes(self) -> list[str]:
-        """Access beliefs through the mind component."""
-        return self.mind.beliefs
-    
-    @property
-    def target(self) -> str | None:
-        """Access current goal through the mind component."""
-        return self.mind.current_goal
-    
-    @property
-    def backlog(self) -> list[str]:
-        """Access backlog through the mind component."""
-        return self.mind.backlog
+    async def error(self, content: str):
+        await self.channel.error(content)
 
-    def decide(self):
-        """Auto Decision - delegates to mind component."""
-        # TODO: Implement decision logic in mind component
-        pass
+    async def confirmation(self, prompt: str) -> bool:
+        return await self.channel.confirm(prompt)
 
-    async def pursue_goal(self, goal: str):
-        # Create a new PursuitContext for this specific goal pursuit
-        pursuit_context = LLMPursuitContext(self.context_strategy, self.template_env, self.chat_llm)
+    async def user_input(self, prompt: str) -> str:
+        return await self.channel.request(prompt)
 
-        pursuit = await GoalPursuit.initialize_pursuit(
-            goal=goal,
-            believes=self.believes,
-            tools=self.contextual_tools,
-            planner=self.planner,
-            context=pursuit_context
+    async def progress(self, key: str, value: str, description: str | None = None):
+        if key not in self._progress:
+            self._progress[key] = []
+        self._progress[key].append(value)
+
+    async def trigger_action(self, action: dict[str, str]):
+        self._triggered_actions.append(action)
+
+    async def backlog(self, content: dict, priority: str | None = None):
+        self._backlog.append(str(content))
+
+
+class Agent:
+    """Agent using OrchestrationLoop for strategic goal pursuit."""
+
+    def __init__(
+        self,
+        tools: dict[str, SchematicTool],
+        resource_repo: ResourceRepository,
+        template_env: TemplateEnvironment,
+        chat_llm: ChatLLM,
+        channel: AgentChannel,
+        max_iterations: int = 10,
+        min_iterations: int | None = 2
+    ):
+        self.tools = tools
+        self.resource_repo = resource_repo
+        self.template_env = template_env
+        self.chat_llm = chat_llm
+        self.channel = channel
+        self.max_iterations = max_iterations
+        self.min_iterations = min_iterations or 0
+        self.context = ResourceContext(self.resource_repo, self.template_env, self.chat_llm)
+
+    async def handle_request(self, request: str) -> str:
+        """Pursue a goal using the OrchestrationLoop approach.
+        
+        Returns:
+            Final response message for the user
+        """
+        await self.channel.info(f"Starting handle request: {request}")
+        
+        # Start LLM logging for this pursuit
+        llm_logger = get_logger()
+        if llm_logger:
+            llm_logger.start_pursuit(request)
+        
+        # Create a fresh OrchestrationLoop for this request
+        orchestrator = OrchestrationLoop(
+            context=self.context,
+            template_env=self.template_env,
+            chat_llm=self.chat_llm,
+            max_iter=self.max_iterations,
+            min_iter=self.min_iterations
         )
-        await self.channel.info(f"Initial plan for goal '{goal}': {pursuit.plan}")
-        result = await pursuit.run_to_completion(self.contextual_tools, self.channel, self.planner, self.fallback_tool)
-        records = result.records.executed_steps
-        if not records:
-            await self.channel.error(f'No steps completed for goal "{goal}".')
-            return
-        # last_step = records[-1]
-        # for result in last_step.results:
-        #     await self.channel.output(result)
-        summary = await self.summarizer.summarize_pursuit(result)
-        await self.channel.output(summary)
+        
+        goal_builder = GoalBuilder(template_env=self.template_env, chat_llm=self.chat_llm)
+        goal = await goal_builder.build_goal(request)
+
+        await self.channel.info(f"Pursuing Goal: {goal}")
+
+        # Track execution state
+        completed_steps: list[StepOutcome] = []
+        pending_steps: list[str] = []
+        
+        try:
+            while True:
+                # Let orchestrator decide next action (execution or finalization)
+                decision = await orchestrator.execution_advance(
+                    user_request=request,
+                    goal=goal,
+                    completed_steps=completed_steps,
+                    pending_steps=pending_steps,
+                    available_tools=self.tools,
+                )
+                
+                if isinstance(decision, OrchestrationFinalization):
+                    # Goal pursuit is complete
+                    await self.channel.info(f"Goal pursuit finalized: {decision.reason}")
+                    return decision.response                
+                elif isinstance(decision, OrchestrationExecutionPlan):
+                    # Execute the recommended tool
+                    await self.channel.info(f"Executing: {decision.reason}")
+                else:
+                    raise RuntimeError("Unknown orchestration decision type")
+
+                outcome = await self._execute_tool(
+                    tool_name=decision.tool,
+                    params=decision.params,
+                    reason=decision.reason,
+                    context=self.context
+                )
+                completed_steps.append(outcome)
+                pending_steps = decision.future_steps
+                
+                # Log execution result
+                if outcome.status == StepStatus.SUCCESS:
+                    await self.channel.info(f"✓ Completed: {outcome.action.reason}")
+                    for result in outcome.results:
+                        await self.channel.output(result)
+                else:
+                    await self.channel.error(f"✗ Failed: {outcome.action.reason} - {outcome.error_message}")
+                    
+        except Exception as e:
+            error_msg = f"Goal pursuit failed with error: {str(e)}"
+            await self.channel.error(error_msg)
+            logger.exception("Error during goal pursuit")
+            return error_msg
+        finally:
+            # Complete the pursuit logging and dump to file
+            if llm_logger:
+                llm_logger.complete_pursuit()
+                try:
+                    log_file = llm_logger.dump_to_file()
+                    await self.channel.debug(f"LLM logs saved to: {log_file}")
+                except Exception as log_error:
+                    logger.warning(f"Failed to save LLM logs: {log_error}")
+
+    async def _execute_tool(self, tool_name: str, params: dict[str, Any], reason: str, context: ResourceContext) -> StepOutcome:
+        """Execute a single tool and return the outcome."""
+        start_time = datetime.now()
+        
+        # Create step definition for tracking
+        step = StepDefinition(reason=reason, tool=tool_name, parameters=params)
+        
+        # Check if tool exists
+        if tool_name not in self.tools:
+            return StepOutcome(
+                action=step,
+                status=StepStatus.FAILED,
+                error_message=f"Tool {tool_name} not found",
+                started_at=start_time,
+                completed_at=datetime.now()
+            )
+        
+        tool = self.tools[tool_name]
+        runtime = AgentToolRuntime(self.channel)
+        
+        try:
+            # Add context to params if the tool requires it
+            if tool.require_context:
+                # Build context from the current workspace state
+                tool_context = await context._generate_final_context()
+                params = {**params, 'context': tool_context}
+            
+            await self.channel.debug(f"Calling tool {tool_name} with params: {params}")
+            result = await tool.call(runtime, **params)
+            
+            from novelrag.agent.types import ToolResult, ToolError
+            
+            if isinstance(result, ToolResult):
+                return StepOutcome(
+                    action=step,
+                    status=StepStatus.SUCCESS,
+                    results=[result.result],
+                    started_at=start_time,
+                    completed_at=datetime.now(),
+                    triggered_actions=runtime._triggered_actions,
+                    backlog_items=runtime._backlog,
+                    progress=runtime._progress,
+                )
+            elif isinstance(result, ToolError):
+                return StepOutcome(
+                    action=step,
+                    status=StepStatus.FAILED,
+                    error_message=result.error_message,
+                    started_at=start_time,
+                    completed_at=datetime.now(),
+                    triggered_actions=runtime._triggered_actions,
+                    backlog_items=runtime._backlog,
+                    progress=runtime._progress,
+                )
+            else:
+                raise ValueError(f"Unexpected tool result type: {type(result)}")
+                
+        except Exception as e:
+            logger.exception(f"Error executing tool {tool_name}")
+            return StepOutcome(
+                action=step,
+                status=StepStatus.FAILED,
+                error_message=str(e),
+                started_at=start_time,
+                completed_at=datetime.now(),
+            )
+
+
+def create_agent(
+    tools: dict[str, SchematicTool],
+    resource_repo: ResourceRepository,
+    template_env: TemplateEnvironment,
+    chat_llm: ChatLLM,
+    channel: AgentChannel,
+    max_iterations: int = 10,
+    min_iterations: int | None = 2,
+    log_directory: str = "logs"
+) -> Agent:
+    """Create a new Agent using the OrchestrationLoop approach.
+    
+    Args:
+        tools: Dictionary of SchematicTool instances
+        resource_repo: Resource repository for workspace management
+        template_env: Template environment for LLM calls
+        chat_llm: Chat LLM interface
+        channel: Communication channel for user interaction
+        max_iterations: Maximum orchestration iterations per request
+        min_iterations: Minimum orchestration iterations per request
+        log_directory: Directory to store LLM logs
+        
+    Returns:
+        Configured Agent instance ready for goal pursuit
+    """
+    # Initialize the LLM logger
+    initialize_logger(log_directory)
+    
+    # Create and return the agent
+    # Note: OrchestrationLoop is created fresh for each request in handle_request
+    # ResourceContext is shared across the agent's lifecycle
+    return Agent(
+        tools=tools,
+        resource_repo=resource_repo,
+        template_env=template_env,
+        chat_llm=chat_llm,
+        channel=channel,
+        max_iterations=max_iterations,
+        min_iterations=min_iterations
+    )
