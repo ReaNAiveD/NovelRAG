@@ -4,14 +4,17 @@ This package provides a comprehensive agent system for managing tool execution,
 scheduling, and coordination in the NovelRAG framework.
 """
 
-# Main agent class
-from .agent import Agent
+# Main agent class and factory
+from .agent import Agent, create_agent
 
 # Communication channels
 from .channel import AgentChannel, SessionChannel, ShellSessionChannel
 
 # Core tool interfaces for extension
-from .tool import BaseTool, SchematicTool, ContextualTool, ToolRuntime
+from .tool import BaseTool, SchematicTool, ToolRuntime
+
+# Pursuit data structures
+from .pursuit_types import GoalPursuitResult, PursuitOutcome, PursuitProgress, PursuitStatus
 
 # Essential types for public API
 from .types import (
@@ -30,6 +33,7 @@ from .types import (
 __all__ = [
     # Main agent
     "Agent",
+    "create_agent",
     
     # Communication channels
     "AgentChannel",
@@ -39,8 +43,13 @@ __all__ = [
     # Core tool interfaces
     "BaseTool",
     "SchematicTool",
-    "ContextualTool",
     "ToolRuntime",
+
+    # Pursuit data structures
+    "GoalPursuitResult",
+    "PursuitOutcome", 
+    "PursuitProgress",
+    "PursuitStatus",
 
     # Essential types
     "ToolOutputType",

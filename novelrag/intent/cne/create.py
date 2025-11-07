@@ -3,7 +3,7 @@ import json
 from novelrag.intent import LLMIntent, IntentContext
 from novelrag.intent.action import Action, UpdateAction
 from novelrag.pending_queue import PendingUpdateItem
-from novelrag.resource.operation import ElementOperation, AspectLocation
+from novelrag.resource.operation import ResourceOperation, ResourceLocation
 
 
 class Create(LLMIntent):
@@ -36,8 +36,8 @@ class Create(LLMIntent):
             update=UpdateAction(
                 item=PendingUpdateItem(
                     ops=[
-                        ElementOperation.new(
-                            location=AspectLocation.new('cne'),
+                        ResourceOperation.new(
+                            location=ResourceLocation.aspect('cne'),
                             start=len(cnes),
                             data=[json.loads(resp)]
                         )

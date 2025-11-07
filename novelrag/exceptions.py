@@ -171,8 +171,8 @@ class UnregisteredModelError(AspectError):
         super().__init__(f"Model '{model}' not registered")
 
 class ElementNotFoundError(OperationError):
-    def __init__(self, element_uri: str):
-        super().__init__(f'Element "{element_uri}" not found')
+    def __init__(self, resource_uri: str):
+        super().__init__(f'Resource "{resource_uri}" not found')
 
 class ChildrenKeyNotFoundError(OperationError):
     def __init__(self, key: str, aspect: str):
