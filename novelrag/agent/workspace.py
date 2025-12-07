@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 
-from novelrag.agent.tool import LLMToolMixin
+from novelrag.llm import LLMMixin
 from novelrag.llm.types import ChatLLM
 from novelrag.resource.aspect import ResourceAspect
 from novelrag.resource.repository import ResourceRepository
@@ -59,7 +59,7 @@ class SearchHistoryItem:
     uris: list[str]
 
 
-class ResourceContext(LLMToolMixin):
+class ResourceContext(LLMMixin):
     def __init__(self, resource_repo: ResourceRepository, template_env: TemplateEnvironment, chat_llm: ChatLLM):
         super().__init__(template_env, chat_llm)
         self.search_limit = 5

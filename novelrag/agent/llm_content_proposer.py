@@ -4,16 +4,16 @@ import json
 import logging
 from typing import Any
 
+from novelrag.llm import LLMMixin
 from novelrag.llm.types import ChatLLM
 from novelrag.template import TemplateEnvironment
 
 from .proposals import ContentProposal, ContentProposer
-from .tool import LLMToolMixin
 
 logger = logging.getLogger(__name__)
 
 
-class LLMContentProposer(LLMToolMixin, ContentProposer):
+class LLMContentProposer(LLMMixin, ContentProposer):
     """LLM-based content proposer using Sequential Diverse Prompting with dynamic perspective generation."""
 
     def __init__(self, template_env: TemplateEnvironment, chat_llm: ChatLLM, num_proposals: int = 3):

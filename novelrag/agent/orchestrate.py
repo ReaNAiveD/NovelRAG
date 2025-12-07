@@ -1,8 +1,9 @@
 import json
 from dataclasses import dataclass, field
 from novelrag.agent.steps import StepOutcome
-from novelrag.agent.tool import LLMToolMixin, SchematicTool
+from novelrag.agent.tool import SchematicTool
 from novelrag.agent.workspace import ResourceContext
+from novelrag.llm import LLMMixin
 from novelrag.llm.types import ChatLLM
 from novelrag.template import TemplateEnvironment
 
@@ -65,7 +66,7 @@ class OrchestrationFinalization:
     status: str  # success, failed, abandoned
 
 
-class OrchestrationLoop(LLMToolMixin):
+class OrchestrationLoop(LLMMixin):
     def __init__(self, context: ResourceContext, template_env: TemplateEnvironment, chat_llm: ChatLLM, max_iter: int | None = 5, min_iter: int | None = None):
         super().__init__(template_env, chat_llm)
         self.max_iter = max_iter

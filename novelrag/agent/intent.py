@@ -1,7 +1,7 @@
 from novelrag.resource.repository import ResourceRepository
 from .agent import create_agent
 from .channel import SessionChannel
-from .resource_tools import ResourceFetchTool, ResourceSearchTool, ResourceWriteTool, AspectCreateTool, ResourceRelationWriteTool
+from .tool import ResourceFetchTool, ResourceSearchTool, ResourceWriteTool, AspectCreateTool, ResourceRelationWriteTool
 from novelrag.intent import LLMIntent, IntentContext, Action
 from novelrag.template import TemplateEnvironment
 
