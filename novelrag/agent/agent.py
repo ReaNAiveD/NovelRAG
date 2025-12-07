@@ -11,7 +11,7 @@ from novelrag.agent.pursuit_types import GoalBuilder
 from novelrag.agent.steps import StepDefinition, StepOutcome, StepStatus
 from novelrag.agent.tool import SchematicTool, ToolRuntime
 from novelrag.agent.workspace import ResourceContext
-from novelrag.agent.llm_logger import initialize_logger, get_logger
+from novelrag.llm import initialize_logger, get_logger
 from novelrag.llm.types import ChatLLM
 from novelrag.resource.repository import ResourceRepository
 from novelrag.template import TemplateEnvironment
@@ -207,7 +207,7 @@ class Agent:
             await self.channel.debug(f"Calling tool {tool_name} with params: {params}")
             result = await tool.call(runtime, **params)
             
-            from novelrag.agent.types import ToolResult, ToolError
+            from novelrag.agent.tool.types import ToolResult, ToolError
             
             if isinstance(result, ToolResult):
                 return StepOutcome(

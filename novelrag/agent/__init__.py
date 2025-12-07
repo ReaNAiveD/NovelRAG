@@ -17,7 +17,7 @@ from .tool import BaseTool, SchematicTool, ToolRuntime
 from .pursuit_types import GoalPursuitResult, PursuitOutcome, PursuitProgress, PursuitStatus
 
 # Essential types for public API
-from .types import (
+from .tool.types import (
     ToolOutputType,
 
     # Main union types
@@ -26,9 +26,8 @@ from .types import (
     # Validation functions
     validate_tool_output,
     validate_tool_output_json,
-
-    AgentMessageLevel,
 )
+from .types import AgentMessageLevel
 
 __all__ = [
     # Main agent
