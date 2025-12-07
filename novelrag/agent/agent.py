@@ -6,8 +6,8 @@ from datetime import datetime
 from typing import Any
 
 from novelrag.agent.channel import AgentChannel
+from novelrag.agent.goal import GoalBuilder
 from novelrag.agent.orchestrate import OrchestrationLoop, OrchestrationExecutionPlan, OrchestrationFinalization
-from novelrag.agent.pursuit_types import GoalBuilder
 from novelrag.agent.steps import StepDefinition, StepOutcome, StepStatus
 from novelrag.agent.tool import SchematicTool, ToolRuntime
 from novelrag.agent.workspace import ResourceContext
