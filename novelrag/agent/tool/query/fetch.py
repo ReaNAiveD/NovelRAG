@@ -3,6 +3,7 @@
 import json
 from typing import Any
 
+from novelrag.agent.workspace import ResourceContext
 from novelrag.resource.aspect import ResourceAspect
 from novelrag.resource.element import DirectiveElement
 from novelrag.resource.repository import ResourceRepository
@@ -58,7 +59,7 @@ class ResourceFetchTool(SchematicTool):
             "required": ["uri"],
         }
 
-    async def call(self, runtime: ToolRuntime, **kwargs) -> ToolOutput:
+    async def call(self, runtime: ToolRuntime, context: ResourceContext, **kwargs) -> ToolOutput:
         """Fetch a resource or aspect by URI and return its content.
 
         For Root URI ('/'): Returns all aspects in the repository.

@@ -3,6 +3,7 @@
 import json
 from typing import Any
 
+from novelrag.agent.workspace import ResourceContext
 from novelrag.llm import LLMMixin
 from novelrag.llm.types import ChatLLM
 from novelrag.resource.repository import ResourceRepository
@@ -53,7 +54,7 @@ class AspectCreateTool(LLMMixin, SchematicTool):
             "required": ["name", "description"],
         }
 
-    async def call(self, runtime: ToolRuntime, **kwargs) -> ToolOutput:
+    async def call(self, runtime: ToolRuntime, context: ResourceContext, **kwargs) -> ToolOutput:
         name = kwargs.get('name')
         if not name:
             await runtime.error("No aspect name provided. Please provide a name for the aspect.")

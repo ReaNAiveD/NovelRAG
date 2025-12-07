@@ -7,6 +7,8 @@ with structured input schema capabilities.
 from abc import abstractmethod
 from typing import Any
 
+from novelrag.agent.workspace import ResourceContext
+
 from .base import BaseTool
 from .runtime import ToolRuntime
 from .types import ToolOutput
@@ -21,12 +23,7 @@ class SchematicTool(BaseTool):
         """Schema for input parameters required by the tool"""
         pass
 
-    @property
-    def require_context(self) -> bool:
-        """Whether the tool requires context to operate effectively"""
-        return False
-
     @abstractmethod
-    async def call(self, runtime: ToolRuntime, **kwargs) -> ToolOutput:
+    async def call(self, runtime: ToolRuntime, context: ResourceContext, **kwargs) -> ToolOutput:
         """Execute the tool with provided parameters and yield outputs asynchronously"""
         raise NotImplementedError("SchematicTool subclasses must implement the call method")

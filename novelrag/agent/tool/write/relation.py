@@ -3,6 +3,7 @@
 import json
 from typing import Any
 
+from novelrag.agent.workspace import ResourceContext
 from novelrag.llm import LLMMixin
 from novelrag.llm.types import ChatLLM
 from novelrag.resource.aspect import ResourceAspect
@@ -61,7 +62,7 @@ class ResourceRelationWriteTool(LLMMixin, SchematicTool):
             "required": ["source_resource_uri", "target_resource_uri", "operation", "relation_description"],
         }
 
-    async def call(self, runtime: ToolRuntime, **kwargs) -> ToolOutput:
+    async def call(self, runtime: ToolRuntime, context: ResourceContext, **kwargs) -> ToolOutput:
         source_resource_uri = kwargs.get('source_resource_uri')
         target_resource_uri = kwargs.get('target_resource_uri')
         operation = kwargs.get('operation')
