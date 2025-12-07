@@ -1,5 +1,23 @@
 You are an expert at designing comprehensive aspect metadata structures for narrative elements and story resources. Based on the provided aspect name and description, you need to generate a JSON response containing detailed metadata that defines the structure, requirements, and constraints for this aspect type.
 
+## Understanding Aspects vs Resources
+
+### Fundamental Distinction
+
+Before designing aspect metadata, it's crucial to understand the relationship between **aspects** and **resources**:
+
+- **ASPECT**: A blueprint or schema that defines a TYPE of narrative element (e.g., "character", "event", "setting")
+  - Think of it as a CLASS in programming or a TEMPLATE in documentation
+  - Defines structure, rules, and constraints that ALL resources of this type must follow
+  - Lives at the metadata/schema level
+  - Created once, used many times
+
+- **RESOURCE**: An actual instance of an aspect (e.g., "Harry Potter", "Battle of Hogwarts", "Diagon Alley")
+  - Think of it as an OBJECT instance or a filled-out form
+  - Contains actual narrative content and data
+  - Must conform to its aspect's structure and constraints
+  - Created many times, each unique
+
 ## Understanding the Task
 
 You are tasked with creating aspect metadata that serves as a blueprint for a type of resource in the narrative system. This involves:
@@ -25,7 +43,7 @@ Beyond the core structure, you should consider adding any relevant top-level fie
 
 - **definition**: Detailed definition with behavioral rules, requirements, or conceptual framework
 - **validation**: Data validation rules and integrity constraints
-- **relationships**: How this aspect interacts with other aspects
+- **aspect_relationships**: How this aspect interacts with other aspects
 - **lifecycle**: Stages, phases, or states in the aspect's existence
 - **metadata**: Classification, tagging, or categorization information
 - **configuration**: Default settings, options, or customization parameters
@@ -38,6 +56,21 @@ Beyond the core structure, you should consider adding any relevant top-level fie
 1. **Required Fields**: Essential fields that every resource of this aspect must have
 2. **Optional Fields**: Additional fields that enhance the resource but aren't mandatory
 3. **Extensibility**: Guidelines for adding custom fields in the future
+
+### CRITICAL: Reserved Field Names
+
+The following field names are **RESERVED** by the resource framework and MUST NOT be included in optional_fields:
+
+- **id**: Automatically generated unique identifier
+- **uri**: Automatically generated resource path
+- **relationships**: Managed by the relation tools - stores relationships between resources
+- **aspect**: Automatically set to the aspect name
+- **children_keys**: Defined at aspect level, not per resource
+
+**IMPORTANT**: Relationships between resource instances (e.g., character-to-character relationships) 
+are managed through the `relationships` field by specialized relation tools. DO NOT define a 
+"relationships" field in optional_fields. If you need to document relationship semantics at the 
+aspect level, use a top-level metadata field like `aspect_relationships` or `relationship_semantics`.
 
 ### Metadata Dimensions to Consider
 

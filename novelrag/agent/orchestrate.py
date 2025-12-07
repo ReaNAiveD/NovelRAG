@@ -37,14 +37,8 @@ class ActionDecision:
     """Result from Phase 1: Action Decision."""
     situation_analysis: str
     decision_type: str  # "execute" or "finalize"
-    
-    # For execute decision
     execution: dict | None = None  # {"tool": str, "params": dict, "confidence": str}
-    
-    # For finalize decision  
     finalization: dict | None = None  # {"status": str, "response": str, "evidence": list, "gaps": list}
-    
-    # Analysis details for refinement phase
     context_verification: dict = field(default_factory=dict)
 
 
@@ -53,11 +47,7 @@ class RefinementDecision:
     """Result from Phase 2: Refinement Analysis."""
     analysis: dict  # Quality assessment and discovered issues
     verdict: str  # "approve" or "refine"
-    
-    # For approval
     approval: dict | None = None  # {"ready": bool, "confidence": str, "notes": str}
-    
-    # For refinement
     refinement: dict | None = None  # {"refined_goal": str, "additions": list, "exploration_hints": dict, "rationale": str}
 
 
@@ -66,7 +56,6 @@ class OrchestrationExecutionPlan:
     reason: str
     tool: str
     params: dict = field(default_factory=dict)
-    future_steps: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -239,7 +228,7 @@ class OrchestrationLoop(LLMToolMixin):
             available_tools=expanded_tool_info,
             collapsed_tools=collapsed_tool_names
         )
-        result = json.loads(refinement_json)
+        result: dict = json.loads(refinement_json)
         
         return RefinementDecision(
             analysis=result.get("analysis", {}),
@@ -270,8 +259,7 @@ class OrchestrationLoop(LLMToolMixin):
             return OrchestrationExecutionPlan(
                 reason=action_decision.situation_analysis,
                 tool=exec_data["tool"],
-                params=exec_data["params"],
-                future_steps=[]
+                params=exec_data["params"]
             )
         elif action_decision.decision_type == "finalize" and action_decision.finalization:
             final_data = action_decision.finalization
@@ -312,7 +300,7 @@ class OrchestrationLoop(LLMToolMixin):
             response="I was unable to complete your request within the iteration limit.",
             status="abandoned"
         )
-        
+
         while True:
             # Context discovery and refinement loop
             while True:
@@ -331,18 +319,15 @@ class OrchestrationLoop(LLMToolMixin):
                     current_goal, available_tools, discovery_plan.discovery_analysis
                 )
                 await self._apply_refinement_plan(refinement_plan)
-            
+
             action_decision = await self._make_action_decision(
                 user_request, current_goal, completed_steps, available_tools
             )
-
+            planned_action = self._convert_to_orchestration_action(action_decision)
+            last_planned_action = planned_action
             refinement_decision = await self._analyze_and_refine(
                 user_request, current_goal, action_decision, completed_steps, available_tools
             )
-            
-            # Convert action decision to orchestration type
-            planned_action = self._convert_to_orchestration_action(action_decision)
-            last_planned_action = planned_action
             
             # Process refinement verdict
             if refinement_decision.verdict == "approve":

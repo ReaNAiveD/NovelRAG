@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 class Element(BaseModel):
     id: Annotated[str, Field(description='Id of the element')]
     uri: Annotated[str, Field(description='URI of the element')]
-    relations: Annotated[dict[str, list[str]], Field(description='Related Elements. <Id>: <Description>', default_factory=lambda: {})]
+    relationships: Annotated[dict[str, list[str]], Field(description='Related Elements. <Id>: <Description>', default_factory=lambda: {})]
     aspect: Annotated[str, Field(description='Aspect of the element')]
     children_keys: Annotated[list[str], Field(default_factory=lambda: [])]
 
@@ -35,7 +35,7 @@ class Element(BaseModel):
     ):
         """
         Build an Element instance from a dictionary value.
-        Note that the value must contain 'id', 'relations', 'aspect', and 'children_keys' keys.
+        Note that the value must contain 'id', 'relationships', 'aspect', and 'children_keys' keys.
         """
         uri = f'{parent_uri}/{value["id"]}'
         value['uri'] = uri
@@ -51,7 +51,7 @@ class Element(BaseModel):
         """
         Returns a dictionary of properties excluding children keys.
         Usually includes all properties in model_extra except those defined in children_keys.
-        Excludes properties like 'id', 'relations', 'aspect', and 'children_keys'.
+        Excludes properties like 'id', 'relationships', 'aspect', and 'children_keys'.
         """
         return dict((k, v) for k, v in self.model_extra.items() if k not in self.children_keys) if self.model_extra else {}
     
@@ -75,10 +75,10 @@ class Element(BaseModel):
         return {"id": self.id, "uri": self.uri, **self.props()}
     
     def context_dict(self):
-        """Returns a dictionary composed of id, uri, relations, props and children_ids"""
+        """Returns a dictionary composed of id, uri, relationships, props and children_ids"""
         return {
             **self.element_dict(),
-            "relations": self.relations,
+            "relationships": self.relationships,
             "aspect": self.aspect,
             **self.children_ids(),
         }
@@ -103,8 +103,8 @@ class Element(BaseModel):
         return data
 
     def dumped_dict(self):
-        """Returns id + relations + props + children (children elements recursively call dumped_dict)"""
-        data = {"id": self.id, "relations": self.relations, **self.props()}
+        """Returns id + relationships + props + children (children elements recursively call dumped_dict)"""
+        data = {"id": self.id, "relationships": self.relationships, **self.props()}
         for key in self.children_keys:
             children = self.children_of(key)
             data[key] = [child.dumped_dict() for child in children]
@@ -113,7 +113,7 @@ class Element(BaseModel):
     def update(self, props: dict[str, Any]):
         undo = {}
         for k, v in props.items():
-            if k in ['id', 'uri', 'relations', 'aspect', 'children_keys', 'embedding', 'hash']:
+            if k in ['id', 'uri', 'relationships', 'aspect', 'children_keys', 'embedding', 'hash']:
                 logger.warning(f'Ignore Private Property "{k}" Update.')
             elif k in self.children_keys:
                 logger.warning(f'Ignore Children Key "{k}" Update.')
@@ -133,9 +133,9 @@ class Element(BaseModel):
         else:
             logger.warning(f'Ignore Update for Element with no model_extra: {self.uri}')
 
-    def update_relations(self, target_uri: str, relations: list[str]):
-        old = self.relations.get(target_uri, [])
-        self.relations[target_uri] = relations
+    def update_relationships(self, target_uri: str, relationships: list[str]):
+        old = self.relationships.get(target_uri, [])
+        self.relationships[target_uri] = relationships
         return old
 
 
@@ -192,7 +192,7 @@ class DirectiveElement:
     
     @property
     def context_dict(self):
-        """Returns a dictionary composed of id, uri, relations, props and children_ids"""
+        """Returns a dictionary composed of id, uri, relationships, props and children_ids"""
         return self.inner.context_dict()
 
     @property
@@ -206,8 +206,8 @@ class DirectiveElement:
         return self.inner.nested_dict()
 
     @property
-    def relations(self):
-        return self.inner.relations
+    def relationships(self):
+        return self.inner.relationships
 
     def __getitem__(self, key: str):
         return self.inner[key]
@@ -220,8 +220,8 @@ class DirectiveElement:
     def update(self, props: dict[str, Any]):
         return self.inner.update(props)
 
-    def update_relations(self, target_uri: str, relations: list[str]):
-        return self.inner.update_relations(target_uri, relations)
+    def update_relationships(self, target_uri: str, relationships: list[str]):
+        return self.inner.update_relationships(target_uri, relationships)
 
     def splice_at(self, children_key: str, start: int, end: int, *items: 'Element') -> tuple[list['DirectiveElement'], list['DirectiveElement']]:
         old = self.children_of(children_key)[start: end]

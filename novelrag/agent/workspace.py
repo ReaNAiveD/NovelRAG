@@ -100,7 +100,7 @@ class ResourceContext(LLMToolMixin):
             filtered_child_ids = {key: self.workspace.filter_children_ids(segment.uri, ids) for key, ids in child_ids.items()}
             included_properties = set(data.keys()) - segment.excluded_properties
             included_data = {k: v for k, v in data.items() if k in included_properties}
-            relations = self.workspace.filter_relationships({uri: " ".join(desc) for uri, desc in resource.relations.items()})
+            relations = self.workspace.filter_relationships({uri: " ".join(desc) for uri, desc in resource.relationships.items()})
             return {
                 "uri": segment.uri,
                 "included_data": included_data,
