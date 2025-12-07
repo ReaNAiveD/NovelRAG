@@ -576,14 +576,14 @@ class ResourceRelationWriteTool(LLMToolMixin, SchematicTool):
             await runtime.error(f"Target resource URI '{target_resource_uri}' not found in the repository.")
             return self.error(f"Target resource URI '{target_resource_uri}' not found in the repository.")
         if isinstance(source_resource, DirectiveElement):
-            existing_relation = source_resource.relations.get(target_resource_uri)
+            existing_relation = source_resource.relationships.get(target_resource_uri)
             updated_relations = await self.get_updated_relations(
                 source_resource, target_resource, existing_relation or [], operation, relation_description
             )
             await self.repo.update_relations(source_resource_uri, target_resource_uri, updated_relations)
             await runtime.message(f"Updated relations for source resource '{source_resource_uri}' to target resource '{target_resource_uri}'.")
             if isinstance(target_resource, DirectiveElement):
-                existing_relation = target_resource.relations.get(source_resource_uri)
+                existing_relation = target_resource.relationships.get(source_resource_uri)
                 updated_relations = await self.get_updated_relations(
                     target_resource, source_resource, existing_relation or [], operation, relation_description
                 )

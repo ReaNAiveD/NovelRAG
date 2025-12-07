@@ -308,7 +308,7 @@ class LanceDBResourceRepository(ResourceRepository):
         ele = self.lut.find_by_uri(resource_uri)
         if not isinstance(ele, DirectiveElement):
             raise ElementNotFoundError(resource_uri)
-        _ = ele.update_relations(target_uri, relations)
+        _ = ele.update_relationships(target_uri, relations)
         # await self._handle_updated(ele)
         return ele.inner
 

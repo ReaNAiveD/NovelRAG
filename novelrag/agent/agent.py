@@ -1,5 +1,6 @@
 """Agent implementation using OrchestrationLoop for strategic execution."""
 
+import json
 import logging
 from datetime import datetime
 from typing import Any
@@ -55,6 +56,18 @@ class AgentToolRuntime(ToolRuntime):
 
     async def backlog(self, content: dict, priority: str | None = None):
         self._backlog.append(str(content))
+
+    def take_backlog(self) -> list[str]:
+        """Take all backlog items, clearing the internal list."""
+        backlog = self._backlog
+        self._backlog = []
+        return backlog
+
+    def take_triggered_actions(self) -> list[dict[str, str]]:
+        """Take all triggered actions, clearing the internal list."""
+        actions = self._triggered_actions
+        self._triggered_actions = []
+        return actions
 
 
 class Agent:
@@ -120,6 +133,7 @@ class Agent:
                     pending_steps=pending_steps,
                     available_tools=self.tools,
                 )
+                self.context.reset_workspace()
                 
                 if isinstance(decision, OrchestrationFinalization):
                     # Goal pursuit is complete
@@ -138,8 +152,8 @@ class Agent:
                     context=self.context
                 )
                 completed_steps.append(outcome)
-                pending_steps = decision.future_steps
-                
+                pending_steps = [json.dumps(action, ensure_ascii=False) for action in outcome.triggered_actions]
+
                 # Log execution result
                 if outcome.status == StepStatus.SUCCESS:
                     await self.channel.info(f"✓ Completed: {outcome.action.reason}")
@@ -147,7 +161,7 @@ class Agent:
                         await self.channel.output(result)
                 else:
                     await self.channel.error(f"✗ Failed: {outcome.action.reason} - {outcome.error_message}")
-                    
+
         except Exception as e:
             error_msg = f"Goal pursuit failed with error: {str(e)}"
             await self.channel.error(error_msg)
@@ -202,8 +216,8 @@ class Agent:
                     results=[result.result],
                     started_at=start_time,
                     completed_at=datetime.now(),
-                    triggered_actions=runtime._triggered_actions,
-                    backlog_items=runtime._backlog,
+                    triggered_actions=runtime.take_triggered_actions(),
+                    backlog_items=runtime.take_backlog(),
                     progress=runtime._progress,
                 )
             elif isinstance(result, ToolError):
@@ -213,8 +227,8 @@ class Agent:
                     error_message=result.error_message,
                     started_at=start_time,
                     completed_at=datetime.now(),
-                    triggered_actions=runtime._triggered_actions,
-                    backlog_items=runtime._backlog,
+                    triggered_actions=runtime.take_triggered_actions(),
+                    backlog_items=runtime.take_backlog(),
                     progress=runtime._progress,
                 )
             else:
