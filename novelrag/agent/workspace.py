@@ -127,7 +127,7 @@ class ResourceContext(LLMMixin):
     async def sort_resources(self, sorted_uris: list[str]):
         self.workspace.sort_segments(sorted_uris)
     
-    async def _generate_final_context(self) -> dict[str, list[str]]:
+    async def dict_context(self) -> dict[str, list[str]]:
         """Generate final context from workspace segments."""
         
         context = {}
@@ -141,7 +141,7 @@ class ResourceContext(LLMMixin):
                     context[segment.uri].append(f"Related to {rel_uri}: {rel_desc}")
         
         return context
-    
+
     def reset_workspace(self):
         """Clear excluded properties (reset to pending) but keep included properties."""
         self.workspace.reset_excluded()

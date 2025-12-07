@@ -198,14 +198,9 @@ class Agent:
         runtime = AgentToolRuntime(self.channel)
         
         try:
-            # Add context to params if the tool requires it
-            if tool.require_context:
-                # Build context from the current workspace state
-                tool_context = await context._generate_final_context()
-                params = {**params, 'context': tool_context}
             
             await self.channel.debug(f"Calling tool {tool_name} with params: {params}")
-            result = await tool.call(runtime, **params)
+            result = await tool.call(runtime, context, **params)
             
             from novelrag.agent.tool.types import ToolResult, ToolError
             

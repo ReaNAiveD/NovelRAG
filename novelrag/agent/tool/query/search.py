@@ -3,6 +3,7 @@
 import json
 from typing import Any
 
+from novelrag.agent.workspace import ResourceContext
 from novelrag.resource.repository import ResourceRepository
 
 from ..schematic import SchematicTool
@@ -56,7 +57,7 @@ class ResourceSearchTool(SchematicTool):
             "required": ["query"],
         }
 
-    async def call(self, runtime: ToolRuntime, **kwargs) -> ToolOutput:
+    async def call(self, runtime: ToolRuntime, context: ResourceContext, **kwargs) -> ToolOutput:
         """Perform semantic search and return matching resources."""
         query = kwargs.get('query')
         aspect = kwargs.get('aspect')

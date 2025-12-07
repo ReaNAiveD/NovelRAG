@@ -279,7 +279,7 @@ class LanceDBResourceRepository(ResourceRepository):
                 # Operating on an aspect's root list
                 aspect_name = op.location.resource_uri.strip('/')
                 aspect = self.resource_aspects[aspect_name]
-                data = [Element.build(item, aspect_name, aspect_name, aspect.children_keys) for item in (op.data or [])]
+                data = [Element.build(item, f'/{aspect_name}', aspect_name, aspect.children_keys) for item in (op.data or [])]
                 new, old = aspect.splice(op.start, op.end, *data)
             for ele in old:
                 await self._handle_deleted(ele)
@@ -317,7 +317,7 @@ class LanceDBResourceRepository(ResourceRepository):
         await self.vector_store.add(ele.inner)
         self.resource_aspects[ele.inner.aspect].save_to_file()
 
-    async def _handle_deleted(self, ele: DirectiveElement):
+    async def _handle_deleted(self, ele: DirectiveElement) -> None:
         self.lut.pop(ele.uri)
         await self.vector_store.delete(resource_uri=ele.uri)
         for children in ele.children.values():

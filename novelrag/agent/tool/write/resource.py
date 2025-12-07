@@ -5,6 +5,7 @@ import pydantic
 import random
 from typing import Any
 
+from novelrag.agent.workspace import ResourceContext
 from novelrag.llm import LLMMixin
 from novelrag.llm.types import ChatLLM
 from novelrag.resource.repository import ResourceRepository
@@ -78,12 +79,7 @@ class ResourceWriteTool(LLMMixin, SchematicTool):
             "required": ["operation_specification", "content_generation_tasks"]
         }
 
-    @property
-    def require_context(self) -> bool:
-        """This tool requires context to operate effectively."""
-        return True
-
-    async def call(self, runtime: ToolRuntime, **kwargs) -> ToolOutput:
+    async def call(self, runtime: ToolRuntime, context: ResourceContext, **kwargs) -> ToolOutput:
         """Edit existing content using the new planning-based workflow."""
         operation_specification = kwargs.get('operation_specification')
         if not operation_specification:
@@ -92,7 +88,6 @@ class ResourceWriteTool(LLMMixin, SchematicTool):
         if not content_generation_tasks:
             return self.error("No content generation tasks provided. Please provide at least one content generation task.")
         content_generation_tasks = [ContentGenerationTask(**task) for task in content_generation_tasks]
-        context = kwargs.get('context', {})
 
         await runtime.message(f"Operation planned: {operation_specification}")
         await runtime.message(f"Content generation tasks: {len(content_generation_tasks)}")
@@ -112,7 +107,7 @@ class ResourceWriteTool(LLMMixin, SchematicTool):
             proposals = [await proposer.propose(
                 believes=[],
                 content_description=content_description,
-                context=context  # Use all available context
+                context=await context.dict_context()
             ) for proposer in self.content_proposers]
             proposals = [proposal for proposal_set in proposals for proposal in proposal_set]
             if not proposals:
@@ -136,7 +131,7 @@ class ResourceWriteTool(LLMMixin, SchematicTool):
         await runtime.message("Building operations from generated content...")
         operations_json = await self.build_operations(
             action=operation_specification,
-            context=context,
+            context=await context.dict_context(),
             content_results=content_results
         )
         
@@ -167,7 +162,8 @@ class ResourceWriteTool(LLMMixin, SchematicTool):
             step_description=operation_specification,
             operations=[op.model_dump() for op in operations],
             undo_operations=[op.model_dump() for op in undo_operations],
-            context=context)
+            context=await context.dict_context(),
+        )
 
         # Process perspective updates first (higher priority)
         if required_updates.get("perspective_updates"):
@@ -188,7 +184,8 @@ class ResourceWriteTool(LLMMixin, SchematicTool):
             step_description=operation_specification,
             operations=[op.model_dump() for op in operations],
             undo_operations=[op.model_dump() for op in undo_operations],
-            context=context)
+            context=await context.dict_context(),
+        )
         if backlog:
             await runtime.message(f"Discovered {len(backlog)} backlog items.")
             for item in backlog:
