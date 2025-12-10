@@ -6,8 +6,10 @@ import random
 from typing import Any
 
 from novelrag.agent.workspace import ResourceContext
+from novelrag.exceptions import OperationError
 from novelrag.llm import LLMMixin
 from novelrag.llm.types import ChatLLM
+from novelrag.resource.element import DirectiveElement
 from novelrag.resource.repository import ResourceRepository
 from novelrag.resource.operation import validate_op
 from novelrag.template import TemplateEnvironment
@@ -169,15 +171,34 @@ class ResourceWriteTool(LLMMixin, SchematicTool):
         if required_updates.get("perspective_updates"):
             await runtime.message(f"Discovered {len(required_updates['perspective_updates'])} perspective updates.")
             for update in required_updates["perspective_updates"]:
-                await runtime.trigger_action(update)
                 await runtime.debug(f"Perspective update: {update['reason']} - {update['content']}")
+                operation = await self._build_perspective_update_operation(
+                    update, 
+                    step_description=operation_specification,
+                    operations=[op.model_dump() for op in operations],
+                    undo_operations=[op.model_dump() for op in undo_operations],
+                    context=await context.dict_context(),
+                )
+                validated_operation = validate_op(operation)
+                await runtime.message(f"Applying perspective update operation: {validated_operation}")
+                try:
+                    await self.repo.apply(validated_operation)
+                except OperationError as e:
+                    await runtime.warning(f"Failed to apply perspective update operation: {e}\nOperation: {validated_operation}")
 
         # Process relation updates second
         if required_updates.get("relation_updates"):
             await runtime.message(f"Discovered {len(required_updates['relation_updates'])} relation updates.")
             for update in required_updates["relation_updates"]:
-                await runtime.trigger_action(update)
                 await runtime.debug(f"Relation update: {update['reason']} - {update['content']}")
+                await self._apply_relation_update(
+                    runtime=runtime,
+                    update=update,
+                    step_description=operation_specification,
+                    operations=[op.model_dump() for op in operations],
+                    undo_operations=[op.model_dump() for op in undo_operations],
+                    context=await context.dict_context(),
+                )
 
         # Discover future work items for the backlog
         backlog = await self._discover_backlog(
@@ -281,3 +302,124 @@ class ResourceWriteTool(LLMMixin, SchematicTool):
             json_format=True
         )
         return json.loads(response)["backlog_items"]
+    
+    async def _build_perspective_update_operation(self, update: dict[str, str], step_description: str, operations: list[dict], undo_operations: list[dict], context: dict[str, list[str]]) -> dict:
+        """Build a perspective update operation from the update description."""
+        response = await self.call_template(
+            'build_perspective_update_operation.jinja2',
+            update=update,
+            step_description=step_description,
+            operations=operations,
+            undo_operations=undo_operations,
+            context=context,
+            json_format=True
+        )
+        return json.loads(response)
+
+    async def _apply_relation_update(
+        self,
+        runtime: ToolRuntime,
+        update: dict[str, str],
+        step_description: str,
+        operations: list[dict],
+        undo_operations: list[dict],
+        context: dict[str, list[str]],
+    ) -> None:
+        """Apply a relation update to both sides of the relationship."""
+        # Parse URIs from the update content
+        uris = await self._parse_relation_update_uris(update, context)
+        source_uri = uris.get('source_uri')
+        target_uri = uris.get('target_uri')
+        
+        if not source_uri or not target_uri:
+            await runtime.warning(f"Could not parse relation update URIs: {uris.get('error', 'Unknown error')}")
+            return
+        
+        # Fetch resources
+        source_resource = await self.repo.find_by_uri(source_uri)
+        target_resource = await self.repo.find_by_uri(target_uri)
+        
+        if not source_resource:
+            await runtime.warning(f"Source resource not found: {source_uri}")
+            return
+        if not target_resource:
+            await runtime.warning(f"Target resource not found: {target_uri}")
+            return
+        if isinstance(source_resource, list):
+            await runtime.warning(f"Source URI '{source_uri}' points to multiple resources")
+            return
+        if isinstance(target_resource, list):
+            await runtime.warning(f"Target URI '{target_uri}' points to multiple resources")
+            return
+        
+        # Get existing relations
+        source_to_target_existing: list[str] = []
+        target_to_source_existing: list[str] = []
+        
+        if isinstance(source_resource, DirectiveElement):
+            source_to_target_existing = source_resource.relationships.get(target_uri, [])
+        if isinstance(target_resource, DirectiveElement):
+            target_to_source_existing = target_resource.relationships.get(source_uri, [])
+        
+        # Build updated relations using template
+        updated_relations = await self._build_relation_update(
+            update=update,
+            source_resource=source_resource.context_dict if hasattr(source_resource, 'context_dict') else {},
+            target_resource=target_resource.context_dict if hasattr(target_resource, 'context_dict') else {},
+            source_to_target_existing=source_to_target_existing,
+            target_to_source_existing=target_to_source_existing,
+            step_description=step_description,
+            operations=operations,
+            undo_operations=undo_operations,
+            context=context,
+        )
+        
+        # Apply source → target relations
+        if isinstance(source_resource, DirectiveElement):
+            source_to_target_relations = updated_relations.get('source_to_target_relations', [])
+            await self.repo.update_relations(source_uri, target_uri, source_to_target_relations)
+            await runtime.message(f"Updated relations: {source_uri} → {target_uri}")
+        
+        # Apply target → source relations
+        if isinstance(target_resource, DirectiveElement):
+            target_to_source_relations = updated_relations.get('target_to_source_relations', [])
+            await self.repo.update_relations(target_uri, source_uri, target_to_source_relations)
+            await runtime.message(f"Updated relations: {target_uri} → {source_uri}")
+
+    async def _parse_relation_update_uris(self, update: dict[str, str], context: dict[str, list[str]]) -> dict[str, str | None]:
+        """Parse source and target URIs from a relation update description."""
+        response = await self.call_template(
+            'parse_relation_update_uris.jinja2',
+            update=update,
+            context=context,
+            json_format=True
+        )
+        return json.loads(response)
+
+    async def _build_relation_update(
+        self,
+        update: dict[str, str],
+        source_resource: dict,
+        target_resource: dict,
+        source_to_target_existing: list[str],
+        target_to_source_existing: list[str],
+        step_description: str,
+        operations: list[dict],
+        undo_operations: list[dict],
+        context: dict[str, list[str]],
+    ) -> dict[str, list[str]]:
+        """Build updated relation lists for both directions."""
+        response = await self.call_template(
+            'build_relation_update.jinja2',
+            update=update,
+            source_resource=source_resource,
+            target_resource=target_resource,
+            source_to_target_existing=source_to_target_existing,
+            target_to_source_existing=target_to_source_existing,
+            step_description=step_description,
+            operations=operations,
+            undo_operations=undo_operations,
+            context=context,
+            json_format=True
+        )
+        return json.loads(response)
