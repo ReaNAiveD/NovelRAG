@@ -309,7 +309,7 @@ class LanceDBResourceRepository(ResourceRepository):
         if not isinstance(ele, DirectiveElement):
             raise ElementNotFoundError(resource_uri)
         _ = ele.update_relationships(target_uri, relations)
-        # await self._handle_updated(ele)
+        await self._handle_updated(ele)
         return ele.inner
 
     async def _handle_added(self, ele: DirectiveElement):

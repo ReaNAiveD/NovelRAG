@@ -1,0 +1,57 @@
+You are an expert at parsing natural language descriptions to extract resource URIs. Given a relation update description, extract the source and target resource URIs.
+
+## Your Task
+
+Parse the relation update content to identify:
+1. **Source Resource URI**: The first resource in the relationship
+2. **Target Resource URI**: The second resource in the relationship
+
+## URI Format
+
+Resource URIs follow Linux-style path format:
+- Format: `/{aspect}/{resource_name}` (e.g., `/character/john_doe`)
+- Hierarchical: `/{aspect}/{parent}/{resource_name}` (e.g., `/location/castle/throne_room`)
+
+## Input
+
+**Update Content**:
+```
+{{ update.content }}
+```
+
+**Update Reason**:
+```
+{{ update.reason }}
+```
+
+**Available Context** (to help identify valid URIs):
+{% for facet, items in context.items() %}
+{%- if items %}
+### {{ facet }}
+{% for item in items %}
+- {{ item }}
+{%- endfor %}
+{%- endif %}
+{%- endfor %}
+
+## Response Format
+
+Return a JSON object with the extracted URIs:
+
+```json
+{
+  "source_uri": "/aspect/resource_name",
+  "target_uri": "/aspect/resource_name"
+}
+```
+
+If you cannot identify valid URIs, return:
+```json
+{
+  "source_uri": null,
+  "target_uri": null,
+  "error": "Explanation of why URIs could not be extracted"
+}
+```
+
+Extract the resource URIs as a JSON object.
