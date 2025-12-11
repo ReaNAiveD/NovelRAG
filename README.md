@@ -244,11 +244,10 @@ A key feature of the context-driven approach is that goals evolve through iterat
 
 ```
 Iteration 1: "Create protagonist named 余归"
-Iteration 2: "Create protagonist named 余归 
-              (Prerequisites: Check if character aspect exists)"
-Iteration 3: "Create protagonist named 余归 
-              (Prerequisites: 1. Verify character aspect, 
-                            2. Check for existing character...)"
+
+Iteration 2: "Create protagonist named 余归 (Prerequisites: Check if character aspect exists)"
+
+Iteration 3: "Create protagonist named 余归 (Prerequisites: 1. Verify character aspect, 2. Check for existing character...)"
 ```
 
 ### Dynamic Tool Management
