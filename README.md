@@ -17,7 +17,6 @@ A **context-driven intelligent agent framework** for managing narrative content 
 - [Installation](#installation)
 - [Quick Start](#quick-start)
 - [Documentation](#documentation)
-- [Contributing](#contributing)
 - [License](#license)
 
 ## Installation
@@ -147,18 +146,6 @@ For detailed documentation, see the `docs/` directory:
 - [Agent System Design](docs/agent_system_design.md) - Complete technical design document
 - [Multi-Phase Orchestration](docs/multi_phase_orchestration.md) - Deep dive into the orchestration architecture
 - [Terminology](docs/terminology.md) - Definitions of all system concepts
-
-## Contributing
-
-Contributions are welcome! Please follow these steps:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Make your changes
-4. Run tests (`pytest`)
-5. Commit your changes (`git commit -m 'Add amazing feature'`)
-6. Push to the branch (`git push origin feature/amazing-feature`)
-7. Open a Pull Request
 
 ## License
 
