@@ -455,6 +455,160 @@ The **communication adapter** that enables the Agent to interact with external e
 - HTTP-based communication
 - Session-based communication
 
+**Returns:**
+- `OrchestrationExecutionPlan` - Execute a specific tool
+- `OrchestrationFinalization` - Complete goal pursuit with response
+
+**Main Method:** `execution_advance(...) -> OrchestrationExecutionPlan | OrchestrationFinalization`
+
+### Goal
+A **refined statement of intent** that evolves across iterations. Goals accumulate discovered prerequisites and context requirements through the refinement process.
+
+**Evolution Example:**
+```
+Iteration 1: "Create protagonist named 余归"
+Iteration 2: "Create protagonist named 余归 (Prerequisites: Check if character aspect exists)"
+Iteration 3: "Create protagonist named 余归 (Prerequisites: 1. Verify character aspect, 2. Check for existing character...)"
+```
+
+**Built by:** `GoalBuilder` from user request
+
+### Tool
+An **executable unit** that performs a specific action. Tools are atomic, composable functions with well-defined schemas.
+
+**Types:**
+- `BaseTool` - Abstract base interface
+- `SchematicTool` - Tools with JSON schema for parameters
+- Tool has `name`, `description`, `input_schema`, `prerequisites`, `output_description`
+
+**Execution:** `await tool.call(runtime, **params) -> ToolOutput`
+
+### Tool State
+Tools can be in two states within orchestration:
+
+**Collapsed State:**
+- Only name and description visible to LLM
+- Minimal context consumption
+- Default state for all tools
+
+**Expanded State:**
+- Full schema with parameters, types, descriptions visible
+- Higher context consumption but necessary for execution planning
+- Dynamically expanded/collapsed by orchestration phases
+
+**Managed by:** `OrchestrationLoop.expanded_tools` set
+
+### Phase
+A distinct stage in the orchestration process, each with specific responsibility and dedicated LLM template.
+
+**Phase 1: Context Discovery**
+- **Template:** `context_discovery.jinja2`
+- **Returns:** `DiscoveryPlan`
+- **Purpose:** Aggressively explore and identify relevant context
+- **Outputs:** search queries, resource URIs, tools to expand
+
+**Phase 2: Context Refinement**
+- **Template:** `refine_context_for_execution.jinja2` (via `context_relevance.jinja2`)
+- **Returns:** `RefinementPlan`
+- **Purpose:** Filter and prioritize discovered context
+- **Outputs:** exclusions, collapses, sorted segments
+
+**Phase 3: Action Decision**
+- **Template:** `action_decision.jinja2`
+- **Returns:** `ActionDecision`
+- **Purpose:** Make decisive action choice (execute or finalize)
+- **Outputs:** situation analysis, execution plan OR finalization
+
+**Phase 4: Refinement Analysis**
+- **Template:** `refinement_analysis.jinja2`
+- **Returns:** `RefinementDecision`
+- **Purpose:** Strategic oversight and goal evolution
+- **Outputs:** approval OR refined goal with exploration hints
+
+### Iteration
+A **complete cycle** through the orchestration loop. Each iteration may contain:
+- Multiple context discovery/refinement cycles (inner loop)
+- One action decision
+- One refinement analysis
+- Goal refinement if needed
+
+**Controlled by:**
+- `min_iter` - Minimum iterations before allowing execution
+- `max_iter` - Maximum iterations to prevent infinite loops
+
+### Context Loop
+The **inner loop** within an iteration that repeatedly discovers and refines context until adequate. Allows multiple discovery/refinement cycles before making an action decision.
+
+**Pattern:**
+```
+while True:
+    discovery = discover_context()
+    apply(discovery)
+    if not discovery.refinement_needed:
+        break
+    refinement = refine_context()
+    apply(refinement)
+```
+
+### StepOutcome
+The **result of tool execution**, tracking success/failure and metadata.
+
+**Contains:**
+- `action`: StepDefinition (tool name, parameters, reason)
+- `status`: StepStatus (SUCCESS, FAILED, SKIPPED)
+- `results`: List of result strings
+- `error_message`: Error details if failed
+- `started_at`, `completed_at`: Timestamps
+- `triggered_actions`: Actions triggered during execution
+- `backlog_items`: Items added to backlog
+- `progress`: Progress tracking information
+
+### Exploration Hints
+**Guidance provided by Refinement Analysis** when refining goals. Helps the next iteration focus on relevant areas.
+
+**Components:**
+- `search_terms` - Keywords to search for
+- `resource_paths` - Specific resource URIs to load
+- `tools_to_expand` - Additional tools that might be needed
+- `focus_areas` - Conceptual areas to explore
+
+### Last Planned Action
+A **fallback mechanism** ensuring graceful degradation. The system tracks the most recent planned action throughout execution.
+
+**Purpose:**
+- Provides meaningful response if max iterations reached
+- Can be either `OrchestrationExecutionPlan` or `OrchestrationFinalization`
+- Updated with every action decision
+- Never leaves user without response
+
+### ResourceContext
+The **context builder** that manages workspace state during orchestration. Handles resource loading, filtering, and search.
+
+**Key Operations:**
+- `search_resources(query)` - Semantic search
+- `query_resource(uri)` - Load specific resource
+- `exclude_resource(uri)` - Remove from context
+- `exclude_property(uri, property)` - Filter property
+- `sort_resources(uris)` - Reorder by priority
+- `build_segment_data(segment)` - Generate context data
+
+### ToolRuntime
+The **interface provided to tools during execution**. Enables tools to interact with users and track state.
+
+**Methods:**
+- `debug(content)`, `message(content)` - Output messages
+- `warning(content)`, `error(content)` - Error messages
+- `confirmation(prompt)` - Ask yes/no question
+- `user_input(prompt)` - Request input from user
+- `progress(key, value, description)` - Track progress
+- `trigger_action(action)` - Trigger future actions
+- `backlog(content, priority)` - Add to backlog
+
+**Implementation:** `AgentToolRuntime` routes to `AgentChannel`
+
+### AgentChannel
+The **communication interface** between Agent and user. Abstracts different interaction modes (session, shell, etc.).
+
 **Methods:**
 - `info(message)` - Informational message
 - `error(message)` - Error message
@@ -515,9 +669,6 @@ Goal: "Create a protagonist character named 余归 with background as a scholar"
 
 ### Pursuit
 The **dynamic process** of an Agent working to complete a Goal. A Pursuit consists of multiple Steps and grows as the Agent takes concrete actions toward the goal.
-
-**Characteristics:**
-- **Goal-bound**: Each Pursuit is associated with exactly one Goal
 - **Multi-step**: Composed of a sequence of Steps
 - **Dynamic**: Evolves as the Agent executes actions
 - **Tracked**: Maintains state via Pursuit State
@@ -957,6 +1108,57 @@ tool_output: ToolOutput = await tool.call(runtime, **params)
 │  │       │          │ (via Context)                    │  │
 │  └───────┼──────────┼──────────────────────────────────┘  │
 │          │          │                                      │
+│  ┌───────▼──────────▼──────────────────────────────────┐  │
+│  │              Resource System                         │  │
+│  │  ┌─────────┐   ┌──────────────┐   ┌─────────────┐  │  │
+│  │  │ Aspects │──→│  Resources   │──→│  Elements   │  │  │
+│  │  │         │   │  (Entities)  │   │  (Data)     │  │  │
+│  │  └─────────┘   └──────────────┘   └─────────────┘  │  │
+│  └──────────────────────────────────────────────────────┘  │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Migration Notes
+
+For developers migrating from the previous terminology:
+
+### Term Mappings
+
+| Old Term | New Term | Notes |
+|----------|----------|-------|
+| `OrchestrationLoop` | `Determination` | Per-step decision loop |
+| `OrchestrationExecutionPlan` | `Operation` | Directive to continue |
+| `OrchestrationFinalization` | `Resolution` | Directive to terminate |
+| `StepOutcome` | `OperationOutcome` | Wrapped execution result |
+| `Iteration` | (within Pursuit) | Now part of Step sequence |
+| `Phase` | (within Determination) | Internal to determination |
+| `Context Loop` | (within Determination) | Part of determine() |
+
+### What Changed
+- `OrchestrationLoop` → Conceptually replaced by `Determination` (step-level)
+- `StepOutcome` → `OperationOutcome` (clarifies it wraps Operation results)
+- Execution flow restructured around Pursuit → Step → Determination hierarchy
+
+### What Did NOT Change
+- `Agent` class (main controller)
+- `Tool`, `SchematicTool` classes
+- `ToolRuntime` interface
+- `AgentChannel` interface
+- `ResourceContext` (now explicitly decoupled via constructor injection)
+
+### Rationale
+The new terminology:
+- Clarifies the hierarchical structure: Goal → Pursuit → Step → Determination → Directive
+- Distinguishes between Directives (decisions) and their outcomes
+- Makes the autonomous capability explicit with Belief and Goal Decision
+- Decouples Agent framework from Resource System via Context injection
+
+---
+
+This terminology guide ensures consistent understanding across the Agent System components, from high-level goal management to low-level tool execution.
 │  ┌───────▼──────────▼──────────────────────────────────┐  │
 │  │              Resource System                         │  │
 │  │  ┌─────────┐   ┌──────────────┐   ┌─────────────┐  │  │

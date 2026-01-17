@@ -1,0 +1,125 @@
+You are an expert at managing relationships between story resources. Based on the provided relation update request and existing relationships, you need to generate updated relationship lists for both directions.
+
+## Background
+
+An operation was just applied to the resource repository. Now we need to update the relationship records between two resources to reflect this change. Relationships are bidirectional - each resource maintains its own list of relationship descriptions with the other resource.
+
+## Key Concepts
+
+- **Relationship**: A list of descriptive strings that characterize how one resource relates to another
+- **Bidirectional Updates**: When updating relationships, both sides must be updated to maintain consistency
+- **Existing Relations**: Current relationship descriptions that may need to be preserved, modified, or removed
+
+## Your Task
+
+Analyze the relation update request and generate updated relationship lists for both directions:
+
+1. **Source → Target**: How the source resource relates to the target resource
+2. **Target → Source**: How the target resource relates to the source resource (inverse perspective)
+
+## Update Types
+
+Based on the update content, determine the appropriate action:
+
+### Add Relations
+- Append new relationship descriptions to existing ones
+- Avoid semantic duplicates (same meaning, different wording)
+- Consider implied relationships that naturally follow
+
+### Update Relations
+- Modify existing relationships that match the update intent
+- Replace outdated relationship descriptions with new ones
+- Preserve unrelated existing relationships
+
+### Delete Relations
+- Remove relationships that match the deletion intent
+- Keep relationships that are still valid
+- Consider what relationships should remain after removal
+
+## Guidelines
+
+1. **Preserve Valid Relations**: Don't remove existing relationships unless the update explicitly requires it
+2. **Semantic Awareness**: Understand the meaning behind relationships, not just literal text matching
+3. **Perspective Consistency**: Each direction should describe the relationship from that resource's viewpoint
+4. **Narrative Logic**: Ensure relationships make sense given the resources' properties and story context
+5. **Emotional Depth**: Include emotional nuance where appropriate
+6. **Language Matching**: Generate content in the same language as the input
+
+## Response Format
+
+Return a JSON object with updated relationship lists for both directions:
+
+```json
+{
+  "source_to_target_relations": ["relation description 1", "relation description 2", ...],
+  "target_to_source_relations": ["relation description 1", "relation description 2", ...]
+}
+```
+
+## Input Information
+
+**Update Reason**:
+```
+{{ update.reason }}
+```
+
+**Update Content**:
+```
+{{ update.content }}
+```
+
+**Source Resource**:
+```json
+{{ source_resource | tojson(indent=2) }}
+```
+
+**Target Resource**:
+```json
+{{ target_resource | tojson(indent=2) }}
+```
+
+**Existing Source → Target Relations**:
+```json
+{{ source_to_target_existing | tojson }}
+```
+
+**Existing Target → Source Relations**:
+```json
+{{ target_to_source_existing | tojson }}
+```
+
+**Original Step Description**:
+```
+{{ step_description }}
+```
+
+**Applied Operations** (for context):
+```json
+{{ operations | tojson(indent=2) }}
+```
+
+**Undo Operations** (shows previous state):
+```json
+{{ undo_operations | tojson(indent=2) }}
+```
+
+**Additional Context**:
+{% for facet, items in context.items() %}
+{%- if items %}
+### {{ facet }}
+{% for item in items %}
+- {{ item }}
+{%- endfor %}
+{%- endif %}
+{%- endfor %}
+
+## Instructions
+
+1. **Analyze the update request**: Understand what relationship change is needed
+2. **Identify operation type**: Is this adding, updating, or deleting relationships?
+3. **Review existing relations**: Understand current relationship state for both directions
+4. **Consider both perspectives**: Generate appropriate descriptions from each resource's viewpoint
+5. **Apply the update**: Merge/modify/remove relationships as appropriate
+6. **Ensure consistency**: Both directions should reflect the same event/change coherently
+
+Generate the updated relationship lists as a JSON object.

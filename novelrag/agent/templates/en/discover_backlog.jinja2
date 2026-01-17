@@ -1,0 +1,98 @@
+You are analyzing an operation that was just applied to a resource repository to identify backlog items for future processing.
+
+## Context
+You have access to the following information:
+- **Step Description**: {{ step_description }}
+- **Applied Operation**: {{ operations }}
+- **Undo Operation**: {{ undo_operations }}
+{% for facet, items in context.items() %}
+{%- if items %}
+### {{ facet }}
+{% for item in items %}
+- {{ item }}
+{%- endfor %}
+{%- endif %}
+{%- endfor %}
+
+## Your Task
+Analyze the **operation** and **undo operation** to identify backlog items - future work that should be completed in later pursuits. There are two main types of backlog items:
+
+### 1. Dependency Items
+These are **new resources that don't have explicit URIs** in the current context but are needed to fully realize the implications of the operation. These resources either need to be found among existing resources or created as new ones.
+
+**Key Guidelines for Dependencies**:
+- Record general descriptions while preserving creative space
+- Include guidance for future agents to first search for existing compatible resources
+- Only suggest creating new resources if no suitable existing ones are found
+- Focus on resources that were mentioned, implied, or made necessary by the operation
+
+**Examples**:
+- Operation creates a new character mention: "the mysterious stranger John met at the tavern" → Search for existing mysterious characters or strangers
+- Operation references a location not fully detailed: "the ancient library where the tome was found" → Search for existing ancient libraries
+- Operation implies relationships: "the weapon master who trained Sarah in sword fighting" → Search for existing weapon masters or trainers related to `/character/sarah`
+- Operation suggests background events: "the war that displaced the villagers" → Search for existing war events or conflicts
+
+### 2. Other Backlog Items
+These are general future work items of various specific types that emerged from completing this operation. Use specific, detailed type categories.
+
+**Common Backlog Types**:
+- **character_development**: Expanding character backstory, motivations, or growth arcs
+- **plot_thread**: Following up on story threads, mysteries, or unresolved elements  
+- **world_building**: Expanding locations, cultures, history, or systems
+- **relationship_development**: Exploring relationships between characters or factions
+- **consequence_exploration**: Following long-term effects of events
+- **research_task**: Gathering information or details about specific topics
+- **continuity_check**: Verifying consistency across related resources
+- **expansion_opportunity**: Opportunities to add depth or detail to existing content
+
+**Examples**:
+- After creating a battle scene: plot_thread for investigating the political consequences affecting `/faction/northern_kingdom`
+- After introducing a new location: world_building for expanding the history and culture of `/location/ancient_ruins`
+- After character interaction: relationship_development for exploring the growing friendship between `/character/alice` and `/character/bob`
+- After magical event: consequence_exploration for how magic affects `/location/enchanted_forest` environment
+
+## Important Guidelines
+1. **URI Format for Existing Resources**: When referencing existing resources, MUST use their exact URI from the context, operation, or undo operation. URIs follow Linux-style path format:
+   - Root: `/`
+   - Format: `/{aspect}/{resource_name}` (e.g., `/character/john_doe`)
+   - Hierarchical: `/{aspect}/{parent}/{resource_name}` (e.g., `/location/castle_main_hall/throne_room`)
+   - Multi-level: `/{aspect}/{grandparent}/{parent}/{resource_name}` for deeply nested resources
+   - NEVER use just names like "John" - always use complete URIs like `/character/john_doe`
+2. **New Resource URIs**: For dependency items that may result in new resources, do NOT construct specific URIs - let future pursuits determine appropriate URIs based on their analysis
+3. **Future Focus**: These are NOT immediate updates (those are handled by required_updates) - these are for future pursuits
+2. **Creative Preservation**: For dependencies, provide enough detail to guide search/creation but leave room for creative development
+3. **Search First**: Always instruct future agents to search for existing compatible resources before creating new ones
+4. **Priority Assignment**: Assign appropriate priority levels (high/normal/low) based on importance to the overall narrative
+5. **Specific Types**: Use detailed, specific type categories, not generic "other" types
+6. **Context Awareness**: Consider the broader narrative implications, not just immediate effects
+7. **Use Exact URIs**: When referencing existing resources in target_resources or descriptions, always use complete URIs like `/character/john_doe`, never just names
+
+## Response Format
+
+Return a JSON object containing all backlog items under the key "backlog_items":
+
+```json
+{
+  "backlog_items": [
+    {
+      "type": "dependency",
+      "priority": "high|normal",
+      "description": "General description of the needed resource",
+      "search_guidance": "Instructions for finding existing compatible resources",
+      "creation_guidance": "Instructions for creating if no existing resource fits",
+      "aspect_hint": "Suggested aspect type for the resource",
+      "context_reference": "Reference to the part of the operation that created this dependency"
+    },
+    {
+      "type": "character_development|plot_thread|world_building|relationship_development|consequence_exploration|research_task|continuity_check|expansion_opportunity",
+      "priority": "high|normal|low", 
+      "description": "Detailed description of the work to be done",
+      "rationale": "Why this backlog item is important",
+      "target_resources": "URIs or descriptions of resources this work would affect",
+      "context_reference": "Reference to the part of the operation that suggests this work"
+    }
+  ]
+}
+```
+
+Focus on identifying meaningful future work that would enhance the narrative, maintain consistency, or expand the world in valuable ways. Prioritize items that are most important for the overall story progression.

@@ -1,0 +1,84 @@
+You are an expert creative writing assistant tasked with generating {{ num_perspectives }} distinct and innovative perspectives for story development. Your goal is to provide creative approaches that enhance the current step while staying true to the established story framework.
+
+## Task Overview
+
+Your perspectives should be:
+- **Step-Relevant**: Directly connected to and supportive of the current step's objectives
+- **Creative and Original**: Employ unconventional techniques that push creative boundaries while respecting story constraints
+- **Non-Overlapping**: Each perspective must explore unique creative territory without duplicating approaches
+- **Information-Rich**: Concise yet comprehensive, containing multiple creative dimensions in 10-20 words
+- **Gap-Filling**: Address unexplored areas within the provided context, avoiding conflicts with established elements
+
+## Context Information
+
+**Current Content Requirement:**
+```
+{{ content_description }}
+```
+
+**Contextual Foundation:**
+
+When analyzing contextual information, prioritize more recent discoveries (higher step indices) over earlier assumptions, as later steps represent updated understanding and refined story development.
+
+{% for facet, items in context.items() %}
+{% if items %}
+### {{ facet }}
+{% for item in items %}
+- {{ item }}
+{%- endfor %}
+{%- endif %}
+{%- endfor %}
+
+**Established Story Framework:**
+{% for belief in believes %}
+- {{ belief }}
+{%- endfor %}
+
+## Creative Approach Guidelines
+
+**Narrative Innovation Techniques**: Employ stream-of-consciousness, non-linear storytelling, unreliable narration, multiple perspectives, or experimental structural approaches
+
+**Sensory Enhancement Methods**: Utilize synesthesia, sensory memory triggers, unusual sensory combinations, or heightened sensory awareness to deepen reader engagement
+
+**Character Psychology Exploration**: Reveal subconscious motivations, psychological defense mechanisms, or internal conflicts through character actions and dialogue patterns
+
+**Atmospheric Storytelling**: Create mood through environmental details, symbolic elements, weather patterns, or meaningful objects that reflect character states
+
+## Practical Examples
+
+- "Memory fragmentation technique: character recalls events out of sequence, revealing trauma through narrative gaps"
+- "Sensory synesthesia approach: protagonist experiences emotions as specific tastes during pivotal conversation"
+- "Environmental reflection method: room's physical decay mirrors character's deteriorating mental state"
+- "Dialogue subtext strategy: characters communicate true feelings through what they deliberately avoid saying"
+
+## Output Requirements
+
+Each perspective must demonstrate:
+- Concise expression using 10-20 words in phrase format (avoiding complete sentences)
+- Innovative and unexpected creative approaches that push conventional boundaries
+- High information density combining multiple creative elements (technique + focus + specific application)
+- Unique creative territory that doesn't overlap with other generated perspectives
+- Meaningful integration of story elements drawn from the provided context
+- Exploration of contextual gaps without creating conflicts with established story elements
+
+Please provide your response in the following JSON format:
+
+```json
+{
+  "context_analysis": "Detailed analysis identifying essential contextual information required to successfully complete the current step",
+  "perspectives": [
+    {
+      "description": "Creative technique combined with specific focus and unique application angle (10-20 words, phrase-style)",
+      "rationale": "Clear explanation of why this particular creative approach uniquely serves and enhances the current step's objectives"
+    }
+  ]
+}
+```
+
+## Quality Standards Checklist
+- [ ] Perspective descriptions are 10-20 words in phrase format
+- [ ] Each approach demonstrates genuine creativity and unconventional thinking
+- [ ] Maximum information density achieved in minimal word count
+- [ ] Each perspective explores distinctly different creative territory
+- [ ] Story context elements are creatively and meaningfully integrated
+- [ ] Contextual gaps are addressed without creating story conflicts

@@ -1,0 +1,230 @@
+You are an expert at creating operations to modify story resources. Based on the provided action and context, you need to generate a JSON response containing a list of operations.
+
+## Key Concepts
+
+- **Resource**: A conceptual entity in the story (character, location, scene, etc.)
+- **URI**: A unique path that identifies a resource (e.g., `/character/john_doe`, `/location/london`)
+- **Aspect**: A category of resources (e.g., `character`, `location`, `outline`)
+- **Element**: The data structure that represents a resource in memory
+
+## Operation Types
+
+### 1. Property Operation
+Updates properties of an existing resource.
+
+**Fields:**
+- **target**: Must be `"property"`
+- **resource_uri**: The URI of the resource to update
+- **data**: Dictionary of property updates
+
+### 2. Resource Operation
+Adds, removes, or replaces resources in lists using splice operations.
+
+**Fields:**
+- **target**: Must be `"resource"`
+- **location**: Where the operation occurs
+  - **resource_uri**: URI of the parent (either an aspect like `/character` or a resource like `/outline/chapter_1`)
+  - **children_key**: 
+    - `null` when operating on an aspect's root list
+    - String key name when operating on a resource's children list (e.g., `"scenes"`)
+- **start**: Start index (0-based, inclusive)
+- **end**: End index (0-based, exclusive)
+- **data**: List of new resources to insert, or `null` to remove
+
+**IMPORTANT**: When adding new resources (`data` is not null), each resource MUST have an `id` field that:
+- Uses the actual name/title when possible
+- Combines identity with defining traits (e.g., `sarah_chen_detective`)
+- Uses underscores instead of spaces
+- Is unique within its context
+- Is descriptive and meaningful
+
+## Response Format
+
+Your response must be valid JSON:
+```json
+{
+  "operations": [
+    // List of operations
+  ]
+}
+```
+
+## Examples
+
+### Example 1: Adding a new character to the story
+**Action**: Create a new detective character
+**Context**: Need to add Detective Sarah Chen to the character aspect
+
+Response:
+```json
+{
+  "operations": [
+    {
+      "target": "resource",
+      "location": {
+        "resource_uri": "/character",
+        "children_key": null
+      },
+      "start": 0,
+      "end": 0,
+      "data": [
+        {
+          "id": "sarah_chen_detective",
+          "name": "Sarah Chen",
+          "role": "Detective",
+          "description": "Lead investigator on the case"
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Example 2: Adding scenes to a chapter
+**Action**: Insert two new scenes into chapter 3
+**Context**: Add scenes at position 2 in chapter's scenes list
+
+Response:
+```json
+{
+  "operations": [
+    {
+      "target": "property",
+      "resource_uri": "/character/sarah_chen_detective",
+      "data": {
+        "appearance": "Tall with dark hair and piercing blue eyes",
+        "personality": "Determined but sometimes reckless"
+      }
+    }
+  ]
+}
+```
+
+### Example 2: Adding scenes to a chapter
+**Action**: Insert two new scenes into chapter 3
+**Context**: Add scenes at position 2 in chapter's scenes list
+
+Response:
+```json
+{
+  "operations": [
+    {
+      "target": "resource",
+      "location": {
+        "resource_uri": "/outline/chapter_3",
+        "children_key": "scenes"
+      },
+      "start": 2,
+      "end": 2,
+      "data": [
+        {
+          "id": "sarah_attic_discovery",
+          "title": "The Discovery",
+          "description": "Sarah finds the hidden journal"
+        },
+        {
+          "id": "sarah_aunt_confrontation",
+          "title": "The Confrontation",
+          "description": "Sarah confronts her aunt"
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Example 3: Removing resources
+**Action**: Delete unnecessary scenes from chapter 4
+**Context**: Remove scenes at positions 1-2
+
+Response:
+```json
+{
+  "operations": [
+    {
+      "target": "resource",
+      "location": {
+        "resource_uri": "/outline/chapter_4",
+        "children_key": "scenes"
+      },
+      "start": 1,
+      "end": 3,
+      "data": null
+    }
+  ]
+}
+```
+
+### Example 4: Replacing resources
+**Action**: Replace scene at position 1 with three decomposed scenes
+**Context**: Break down complex scene into multiple focused scenes
+
+Response:
+```json
+{
+  "operations": [
+    {
+      "target": "resource",
+      "location": {
+        "resource_uri": "/outline/chapter_4",
+        "children_key": "scenes"
+      },
+      "start": 1,
+      "end": 2,
+      "data": [
+        {
+          "id": "detective_arrival",
+          "title": "The Arrival",
+          "description": "Detective arrives at the crime scene"
+        },
+        {
+          "id": "initial_investigation",
+          "title": "Initial Investigation",
+          "description": "Detective examines the evidence"
+        },
+        {
+          "id": "crucial_revelation",
+          "title": "The Revelation",
+          "description": "Detective discovers a crucial clue"
+        }
+      ]
+    }
+  ]
+}
+```
+
+## Instructions
+
+1. **Understand the action**: What needs to be modified?
+2. **Identify the target**: Are you updating properties or manipulating resource lists?
+3. **Use generated content**: Incorporate any provided content into your operations
+4. **Determine the location**:
+   - For aspect-level operations: Use aspect URI (e.g., `/character`) with `children_key: null`
+   - For nested operations: Use parent resource URI with the appropriate `children_key`
+5. **Structure the data**: Ensure all new resources have meaningful `id` fields
+
+## Input Information
+
+**Action**:
+```
+{{ action }}
+```
+
+**Generated Content Results**:
+{% if content_results %}
+{% for result in content_results %}
+- **{{ result.description }}**{% if result.content_key %} (Content Key: {{ result.content_key }}){% endif %}:
+  ```
+  {{ result.content }}
+  ```
+{% endfor %}
+{% else %}
+No content results provided.
+{% endif %}
+
+**Context**:
+```
+{{ context }}
+```
+
+Generate your response as valid JSON with the "operations" key containing a list of operations.
