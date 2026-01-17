@@ -416,182 +416,44 @@ This distinction enables clear communication and consistent implementation throu
 
 ## Agent System Terminology
 
-Core concepts related to the multi-phase orchestration system for goal pursuit and tool execution.
+Core concepts related to the autonomous goal pursuit system, including belief-driven decision-making, step-based execution, and tool interaction.
 
 ### Agent
-The main controller for **goal pursuit** and **user interaction**. The Agent receives user requests, coordinates the orchestration process, executes tools, and returns final responses.
+An **autonomous intelligent entity** capable of self-directed decision-making to continuously refine and improve the Resource System content. The Agent operates based on its beliefs, interacts with the environment through a set of tools, pursues goals, and may autonomously decide to define new goals.
 
-**Key Responsibilities:**
-- Convert user requests into structured goals
-- Create and manage OrchestrationLoop instances
-- Execute tools based on orchestration decisions
-- Track execution history (completed steps, pending steps)
-- Handle errors and communicate with users
+**Key Characteristics:**
+- **Belief-driven**: Actions are guided by the Agent's beliefs
+- **Goal-oriented**: Pursues observable, judgeable objectives
+- **Tool-equipped**: Interacts with the environment via tools
+- **Autonomous capability**: Can self-generate new goals in autonomous mode
+
+**Operating Modes:**
+- **Request-driven mode**: User requests are converted into goals for execution
+- **Autonomous mode**: Agent decides goals based on beliefs, recent operations, backlog, and user context
 
 **Main Method:** `handle_request(request: str) -> str`
 
-### OrchestrationLoop
-The **multi-phase strategic decision engine** that determines what action to take next. Uses a sophisticated four-phase architecture to discover context, refine it, make decisions, and validate those decisions.
+---
 
-**Four Phases:**
-1. **Context Discovery** - Identify and load relevant resources and tools
-2. **Context Refinement** - Filter and prioritize discovered context
-3. **Action Decision** - Choose to execute a tool or finalize
-4. **Refinement Analysis** - Validate decision or refine goal
+### Belief
+A **constraint and reference framework** that guides the Agent's behavior. Beliefs define how goals should be accomplished and serve as reference points when making decisions about new goals.
 
-**Returns:**
-- `OrchestrationExecutionPlan` - Execute a specific tool
-- `OrchestrationFinalization` - Complete goal pursuit with response
+**Role in Agent System:**
+- Constrains the approach to goal completion
+- Provides reference for goal decision-making in autonomous mode
+- Shapes the Agent's understanding of appropriate actions
 
-**Main Method:** `execution_advance(...) -> OrchestrationExecutionPlan | OrchestrationFinalization`
+**Note:** The belief system provides the foundational principles that ensure consistent and purposeful Agent behavior across different goals and contexts.
 
-### Goal
-A **refined statement of intent** that evolves across iterations. Goals accumulate discovered prerequisites and context requirements through the refinement process.
+---
 
-**Evolution Example:**
-```
-Iteration 1: "Create protagonist named 余归"
-Iteration 2: "Create protagonist named 余归 (Prerequisites: Check if character aspect exists)"
-Iteration 3: "Create protagonist named 余归 (Prerequisites: 1. Verify character aspect, 2. Check for existing character...)"
-```
+### Agent Channel
+The **communication adapter** that enables the Agent to interact with external environments. Abstracts different interaction modes to allow the Agent framework to operate across various platforms.
 
-**Built by:** `GoalBuilder` from user request
-
-### Tool
-An **executable unit** that performs a specific action. Tools are atomic, composable functions with well-defined schemas.
-
-**Types:**
-- `BaseTool` - Abstract base interface
-- `SchematicTool` - Tools with JSON schema for parameters
-- Tool has `name`, `description`, `input_schema`, `prerequisites`, `output_description`
-
-**Execution:** `await tool.call(runtime, **params) -> ToolOutput`
-
-### Tool State
-Tools can be in two states within orchestration:
-
-**Collapsed State:**
-- Only name and description visible to LLM
-- Minimal context consumption
-- Default state for all tools
-
-**Expanded State:**
-- Full schema with parameters, types, descriptions visible
-- Higher context consumption but necessary for execution planning
-- Dynamically expanded/collapsed by orchestration phases
-
-**Managed by:** `OrchestrationLoop.expanded_tools` set
-
-### Phase
-A distinct stage in the orchestration process, each with specific responsibility and dedicated LLM template.
-
-**Phase 1: Context Discovery**
-- **Template:** `context_discovery.jinja2`
-- **Returns:** `DiscoveryPlan`
-- **Purpose:** Aggressively explore and identify relevant context
-- **Outputs:** search queries, resource URIs, tools to expand
-
-**Phase 2: Context Refinement**
-- **Template:** `refine_context_for_execution.jinja2` (via `context_relevance.jinja2`)
-- **Returns:** `RefinementPlan`
-- **Purpose:** Filter and prioritize discovered context
-- **Outputs:** exclusions, collapses, sorted segments
-
-**Phase 3: Action Decision**
-- **Template:** `action_decision.jinja2`
-- **Returns:** `ActionDecision`
-- **Purpose:** Make decisive action choice (execute or finalize)
-- **Outputs:** situation analysis, execution plan OR finalization
-
-**Phase 4: Refinement Analysis**
-- **Template:** `refinement_analysis.jinja2`
-- **Returns:** `RefinementDecision`
-- **Purpose:** Strategic oversight and goal evolution
-- **Outputs:** approval OR refined goal with exploration hints
-
-### Iteration
-A **complete cycle** through the orchestration loop. Each iteration may contain:
-- Multiple context discovery/refinement cycles (inner loop)
-- One action decision
-- One refinement analysis
-- Goal refinement if needed
-
-**Controlled by:**
-- `min_iter` - Minimum iterations before allowing execution
-- `max_iter` - Maximum iterations to prevent infinite loops
-
-### Context Loop
-The **inner loop** within an iteration that repeatedly discovers and refines context until adequate. Allows multiple discovery/refinement cycles before making an action decision.
-
-**Pattern:**
-```
-while True:
-    discovery = discover_context()
-    apply(discovery)
-    if not discovery.refinement_needed:
-        break
-    refinement = refine_context()
-    apply(refinement)
-```
-
-### StepOutcome
-The **result of tool execution**, tracking success/failure and metadata.
-
-**Contains:**
-- `action`: StepDefinition (tool name, parameters, reason)
-- `status`: StepStatus (SUCCESS, FAILED, SKIPPED)
-- `results`: List of result strings
-- `error_message`: Error details if failed
-- `started_at`, `completed_at`: Timestamps
-- `triggered_actions`: Actions triggered during execution
-- `backlog_items`: Items added to backlog
-- `progress`: Progress tracking information
-
-### Exploration Hints
-**Guidance provided by Refinement Analysis** when refining goals. Helps the next iteration focus on relevant areas.
-
-**Components:**
-- `search_terms` - Keywords to search for
-- `resource_paths` - Specific resource URIs to load
-- `tools_to_expand` - Additional tools that might be needed
-- `focus_areas` - Conceptual areas to explore
-
-### Last Planned Action
-A **fallback mechanism** ensuring graceful degradation. The system tracks the most recent planned action throughout execution.
-
-**Purpose:**
-- Provides meaningful response if max iterations reached
-- Can be either `OrchestrationExecutionPlan` or `OrchestrationFinalization`
-- Updated with every action decision
-- Never leaves user without response
-
-### ResourceContext
-The **context builder** that manages workspace state during orchestration. Handles resource loading, filtering, and search.
-
-**Key Operations:**
-- `search_resources(query)` - Semantic search
-- `query_resource(uri)` - Load specific resource
-- `exclude_resource(uri)` - Remove from context
-- `exclude_property(uri, property)` - Filter property
-- `sort_resources(uris)` - Reorder by priority
-- `build_segment_data(segment)` - Generate context data
-
-### ToolRuntime
-The **interface provided to tools during execution**. Enables tools to interact with users and track state.
-
-**Methods:**
-- `debug(content)`, `message(content)` - Output messages
-- `warning(content)`, `error(content)` - Error messages
-- `confirmation(prompt)` - Ask yes/no question
-- `user_input(prompt)` - Request input from user
-- `progress(key, value, description)` - Track progress
-- `trigger_action(action)` - Trigger future actions
-- `backlog(content, priority)` - Add to backlog
-
-**Implementation:** `AgentToolRuntime` routes to `AgentChannel`
-
-### AgentChannel
-The **communication interface** between Agent and user. Abstracts different interaction modes (session, shell, etc.).
+**Supported Environments:**
+- Shell/CLI interaction
+- HTTP-based communication
+- Session-based communication
 
 **Methods:**
 - `info(message)` - Informational message
@@ -606,80 +468,457 @@ The **communication interface** between Agent and user. Abstracts different inte
 
 ---
 
+### Request
+A **user-initiated input** that triggers Agent activity.
+
+**Behavior by Mode:**
+- **Request-driven mode**: The request is transformed into a Goal and executed immediately
+- **Autonomous mode**: The request is stored in a dedicated context for consideration during Goal Decision
+
+**Processing:** In request-driven mode, requests are converted to goals via `GoalBuilder`.
+
+---
+
+### Goal Decision
+The **strategic decision-making process** in autonomous mode that generates new goals. This process balances priority, depth, and breadth of exploration.
+
+**Input Factors:**
+- Agent's beliefs (guiding principles)
+- Recent operations (execution history)
+- Backlog items (pending tasks)
+- User requests (stored in context)
+
+**Output:** A prioritized Goal with clear success criteria.
+
+**Note:** Goal Decision is only active in autonomous mode. In request-driven mode, goals are directly derived from user requests.
+
+---
+
+### Goal
+An **observable and judgeable result description** that the Agent aims to achieve in the current context. Goals are independent of specific implementation steps and directly constrain the Agent's action scope and completion criteria.
+
+**Characteristics:**
+- **Observable**: Progress and completion can be measured
+- **Judgeable**: Success or failure can be definitively determined
+- **Implementation-agnostic**: Describes WHAT, not HOW
+- **Constraining**: Bounds the scope of Agent actions
+
+**Example:**
+```
+Goal: "Create a protagonist character named 余归 with background as a scholar"
+- Observable: Character resource can be queried
+- Judgeable: Resource exists with correct properties
+- Does not specify: Which tools to use or in what order
+```
+
+---
+
+### Pursuit
+The **dynamic process** of an Agent working to complete a Goal. A Pursuit consists of multiple Steps and grows as the Agent takes concrete actions toward the goal.
+
+**Characteristics:**
+- **Goal-bound**: Each Pursuit is associated with exactly one Goal
+- **Multi-step**: Composed of a sequence of Steps
+- **Dynamic**: Evolves as the Agent executes actions
+- **Tracked**: Maintains state via Pursuit State
+
+**Lifecycle:**
+```
+Goal Created → Pursuit Started → [Steps Executed...] → Resolution → Pursuit Ended
+```
+
+---
+
+### Step
+An **atomic behavioral unit** within a Pursuit. Each Step aims to move closer to the goal state. Steps encapsulate the smallest granularity of Agent choices, such as invoking specific tools or taking specific actions.
+
+**Characteristics:**
+- **Goal-approaching**: Each step moves toward the goal state
+- **Atomic**: Represents a single decision point
+- **Bounded**: Contains one Determination cycle
+- **Executable**: Results in a concrete action or termination
+
+**Step Structure:**
+- Contains a Determination Loop that produces a Directive
+- Directive is either an Operation (continue) or Resolution (terminate)
+
+---
+
+### Pursuit State
+A **comprehensive description** of the current pursuit progress and its expected evolution. Pursuit State serves as the foundation for Step-level action decisions.
+
+**Components:**
+- **Goal**: The target being pursued
+- **Completed items**: What has been accomplished
+- **Remaining requirements**: What still needs to be done
+- **Expected actions**: Anticipated next steps
+- **Boundary conditions**: Constraints and limitations
+- **Fallback strategies**: Error handling approaches
+- **Success criteria**: How to judge completion
+
+**Usage:** Each Step's Determination process consults the Pursuit State to make informed decisions.
+
+---
+
+### Determination
+The **action decision loop** within each Step. Determination operates under incomplete context, repeatedly discovering and refining information until it can produce an executable Directive or decide to terminate.
+
+**Process:**
+```
+while not decided:
+    discover_context()
+    refine_context()
+    attempt_decision()
+    if can_decide:
+        produce Directive
+        break
+```
+
+**Output:** A Directive (either Operation or Resolution)
+
+**Note:** The current implementation is tightly coupled with the Resource System. Future refactoring will abstract this dependency.
+
+---
+
+### Context
+The **internal implementation detail** of the Determination Loop. Context manages workspace state during the decision-making process.
+
+**Design Approach:**
+For tools that require detailed context data, the `ResourceContext` is passed as a constructor parameter to the tool. This design decouples the Agent framework from Context implementation.
+
+**Pattern:**
+```python
+# Context-dependent tool receives ResourceContext at construction
+tool = ContextAwareTool(resource_context=context)
+
+# Agent framework remains context-agnostic
+agent.register_tool(tool)
+```
+
+**Key Operations:**
+- `search_resources(query)` - Semantic search
+- `query_resource(uri)` - Load specific resource
+- `exclude_resource(uri)` - Remove from context
+- `sort_resources(uris)` - Reorder by priority
+
+---
+
+### Directive
+The **decision product** of a Step's Determination Loop. A Directive represents the Agent's decision at a given stage.
+
+**Types:**
+- **Operation**: Execute a specific action and continue the Pursuit
+- **Resolution**: Terminate the Pursuit with a final status
+
+**Relationship:**
+```
+Determination Loop ──produces──> Directive
+                                    │
+                    ┌───────────────┴───────────────┐
+                    ↓                               ↓
+                Operation                       Resolution
+            (continue pursuit)              (terminate pursuit)
+```
+
+---
+
+### Operation
+A **type of Directive** that instructs the Agent to execute a specific action (typically a tool invocation) and continue the Pursuit.
+
+**Characteristics:**
+- Specifies the tool to invoke
+- Includes parameters for the tool
+- Provides reasoning for the action
+- Expects execution to continue after completion
+
+**Structure:**
+```python
+Operation(
+    tool="create_resource",
+    parameters={"aspect": "character", "id": "protagonist"},
+    reason="Creating the protagonist character as required by the goal"
+)
+```
+
+---
+
+### Resolution
+A **type of Directive** that terminates the Pursuit. Resolution includes the final status (success or failure) and the response to return.
+
+**Status Types:**
+- **Success**: Goal was achieved
+- **Failure**: Goal could not be achieved
+
+**Structure:**
+```python
+Resolution(
+    status=ResolutionStatus.SUCCESS,
+    response="Successfully created protagonist character 余归"
+)
+```
+
+---
+
+### Tool
+An **executable interface** for Agent-environment interaction. Tools are the primary mechanism through which the Agent affects the world and gathers information.
+
+**Capabilities:**
+- **Self-describing**: Provides schema and documentation for Agent decision-making
+- **User communication**: Can interact with users through various means
+- **Agent communication**: Can influence Agent internals (backlog, progress tracking)
+- **Environment interaction**: Performs actual operations on resources
+
+**Types:**
+- `BaseTool` - Abstract base interface
+- `SchematicTool` - Tools with JSON schema for parameters
+
+**Tool Interface:**
+```python
+class SchematicTool:
+    name: str                    # Tool identifier
+    description: str             # What the tool does
+    input_schema: dict           # JSON Schema for parameters
+    prerequisites: str           # Conditions for use
+    output_description: str      # What the tool returns
+    
+    async def call(runtime: ToolRuntime, **params) -> ToolOutput
+```
+
+---
+
+### Tool Runtime
+The **interface provided to tools during execution**. Enables tools to communicate with users and affect Agent state.
+
+**Communication Methods:**
+- `debug(content)`, `message(content)` - Output messages
+- `warning(content)`, `error(content)` - Error messages
+- `confirmation(prompt)` - Ask yes/no question
+- `user_input(prompt)` - Request input from user
+
+**State Influence Methods:**
+- `progress(key, value, description)` - Track progress
+- `backlog(content, priority)` - Add items to backlog
+
+**Implementation:** `AgentToolRuntime` routes calls to `AgentChannel`
+
+---
+
+### Tool Output
+The **result returned by a tool** after execution. Tool Output has two categories.
+
+**Output Types:**
+- **ToolResult**: Successful execution with result data
+- **ToolError**: Failed execution with error information
+
+**Structure:**
+```python
+ToolOutput = ToolResult | ToolError
+
+class ToolResult:
+    type: "output"
+    content: str      # Success result
+
+class ToolError:
+    type: "error"
+    message: str      # Error description
+```
+
+---
+
+### Operation Outcome
+A **wrapped representation** of Tool Output with additional contextual information. Operation Outcome captures not just the tool's response but also the broader context of the Step execution.
+
+**Contains:**
+- Tool Output (success or error)
+- Step metadata (timing, parameters)
+- Side effects (triggered actions, backlog items)
+- Progress information
+
+**Structure:**
+```python
+@dataclass
+class OperationOutcome:
+    action: StepDefinition        # What was executed
+    status: StepStatus            # SUCCESS, FAILED, CANCELLED
+    results: list[str]            # Output from tool
+    error_message: str | None     # Error if failed
+    triggered_actions: list       # Side effects
+    backlog_items: list[str]      # Added backlog items
+    started_at: datetime | None
+    completed_at: datetime | None
+```
+
+---
+
+## Tool State
+
+Tools can be in two visibility states within the Determination process:
+
+**Collapsed State:**
+- Only name and description visible to LLM
+- Minimal context consumption
+- Default state for all tools
+
+**Expanded State:**
+- Full schema with parameters, types, descriptions visible
+- Higher context consumption but necessary for execution planning
+- Dynamically expanded/collapsed during Determination
+
+---
+
 ## Agent System Decision Matrix
 
 Use this table to choose the correct term:
 
 | Scenario | Use Term | Example |
 |----------|----------|---------|
-| Main controller | **Agent** | "Agent receives user request" |
-| Decision-making engine | **OrchestrationLoop** | "OrchestrationLoop determines next action" |
-| User's intent | **Goal** | "Goal evolves with discovered prerequisites" |
-| Executable action | **Tool** | "Tool performs resource creation" |
-| Tool visibility state | **Expanded/Collapsed** | "Tool is expanded to show full schema" |
-| Orchestration stage | **Phase** | "Phase 3 makes action decision" |
-| Complete orchestration cycle | **Iteration** | "After 3 iterations, goal is achieved" |
-| Context discovery cycle | **Context Loop** | "Context loop runs until refinement not needed" |
-| Tool execution result | **StepOutcome** | "StepOutcome tracks execution success" |
-| Refinement guidance | **Exploration Hints** | "Exploration hints suggest resources to load" |
-| Graceful degradation | **Last Planned Action** | "Return last planned action if max_iter reached" |
-| Workspace state | **ResourceContext** | "ResourceContext manages loaded resources" |
-| Tool interaction interface | **ToolRuntime** | "Tool receives ToolRuntime for user communication" |
-| User communication | **AgentChannel** | "AgentChannel abstracts communication mode" |
+| Autonomous intelligent entity | **Agent** | "Agent pursues goals autonomously" |
+| Guiding principles/constraints | **Belief** | "Agent's beliefs constrain its approach" |
+| User-initiated input | **Request** | "Request is converted to a Goal" |
+| Autonomous goal generation | **Goal Decision** | "Goal Decision considers backlog and beliefs" |
+| Observable target outcome | **Goal** | "Goal: Create protagonist character" |
+| Goal completion process | **Pursuit** | "Pursuit contains multiple Steps" |
+| Atomic behavior unit | **Step** | "Each Step approaches the goal state" |
+| Pursuit progress description | **Pursuit State** | "Pursuit State tracks remaining work" |
+| Step-level decision loop | **Determination** | "Determination discovers and refines context" |
+| Decision product | **Directive** | "Directive can be Operation or Resolution" |
+| Continue-execution directive | **Operation** | "Operation invokes a tool" |
+| Terminate-pursuit directive | **Resolution** | "Resolution ends with success/failure" |
+| Environment interaction unit | **Tool** | "Tool performs resource creation" |
+| Tool execution interface | **Tool Runtime** | "Tool Runtime enables user communication" |
+| Tool result (success/error) | **Tool Output** | "Tool Output indicates success or error" |
+| Wrapped execution result | **Operation Outcome** | "Operation Outcome includes timing and side effects" |
+| External communication | **Agent Channel** | "Agent Channel abstracts Shell/HTTP" |
+| Determination workspace | **Context** | "Context manages resource state" |
 
 ---
 
 ## Agent System Naming Conventions
 
 ### Class Names
-- `Agent` - Main goal pursuit controller
-- `OrchestrationLoop` - Multi-phase decision engine
-- `GoalBuilder` - Converts requests to goals
-- `SchematicTool` - Tool with JSON schema
+- `Agent` - Autonomous goal pursuit controller
+- `Belief` - Agent's guiding principles (planned)
+- `Goal` - Target outcome description
+- `Pursuit` - Goal completion process
+- `PursuitState` - Progress and evolution description
+- `Step` - Atomic behavior unit
+- `Determination` - Action determination loop (planned refactor from `OrchestrationLoop`)
+- `Directive` - Decision product base class
+- `Operation` - Continue-execution directive
+- `Resolution` - Terminate-pursuit directive
+- `Tool`, `SchematicTool` - Tool implementations
 - `ToolRuntime` - Tool execution interface
-- `AgentToolRuntime` - Agent's ToolRuntime implementation
+- `ToolOutput`, `ToolResult`, `ToolError` - Tool result types
+- `OperationOutcome` - Wrapped execution result (refactor from `StepOutcome`)
 - `AgentChannel` - Communication interface
-- `ResourceContext` - Context management
-- `StepDefinition` - Action specification
-- `StepOutcome` - Execution result
-- `OrchestrationExecutionPlan` - Tool execution decision
-- `OrchestrationFinalization` - Completion decision
-- `DiscoveryPlan` - Phase 1 output
-- `RefinementPlan` - Phase 2 output
-- `ActionDecision` - Phase 3 output
-- `RefinementDecision` - Phase 4 output
+- `ResourceContext` - Context implementation for Resource System
 
 ### Method Names
 - `handle_request(request)` - Agent's main entry point
-- `execution_advance(...)` - OrchestrationLoop main method
-- `build_goal(request)` - GoalBuilder creates goal
+- `pursue(goal)` - Start goal pursuit
+- `advance_step()` - Execute next step in pursuit
+- `determine()` - Run determination loop
 - `call(runtime, **params)` - Tool execution
-- `_discover_and_expand_context()` - Phase 1 method
-- `_filter_and_refine_context()` - Phase 2 method
-- `_make_action_decision()` - Phase 3 method
-- `_analyze_and_refine()` - Phase 4 method
 
 ### Variable Names
 ```python
 # Good - Clear semantic meaning
 agent: Agent = create_agent(...)
-orchestrator: OrchestrationLoop = OrchestrationLoop(...)
-goal: str = "Create protagonist named 余归"
-tool: SchematicTool = tools["create_aspect"]
-runtime: ToolRuntime = AgentToolRuntime(channel)
-outcome: StepOutcome = await execute_tool(...)
+belief: Belief = agent.belief
+goal: Goal = Goal("Create protagonist named 余归")
+pursuit: Pursuit = agent.pursue(goal)
+step: Step = pursuit.current_step
+directive: Directive = step.determine()
 
-# Good - Phase outputs
-discovery_plan: DiscoveryPlan = await discover_context()
-refinement_plan: RefinementPlan = await refine_context()
-action_decision: ActionDecision = await make_decision()
-refinement_decision: RefinementDecision = await analyze()
+# Good - Directive types
+operation: Operation = Operation(tool="create_resource", ...)
+resolution: Resolution = Resolution(status=SUCCESS, response="Done")
 
-# Good - Orchestration state
-completed_steps: list[StepOutcome] = []
-pending_steps: list[str] = []
-expanded_tools: set[str] = set()
-last_planned_action: OrchestrationExecutionPlan | OrchestrationFinalization
+# Good - Execution tracking
+outcome: OperationOutcome = await execute_operation(operation)
+tool_output: ToolOutput = await tool.call(runtime, **params)
+```
+
+---
+
+## Agent Execution Flow
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     Agent Execution Flow                        │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  ┌─────────────┐     ┌─────────────┐                          │
+│  │   Request   │     │    Belief   │                          │
+│  │  (User or   │     │  (Guiding   │                          │
+│  │  Autonomous)│     │  Principles)│                          │
+│  └──────┬──────┘     └──────┬──────┘                          │
+│         │                    │                                  │
+│         └────────┬───────────┘                                  │
+│                  ↓                                              │
+│         ┌────────────────┐                                     │
+│         │  Goal Decision │  (autonomous mode)                  │
+│         │       or       │                                     │
+│         │  Goal Builder  │  (request-driven mode)              │
+│         └───────┬────────┘                                     │
+│                 ↓                                              │
+│         ┌───────────────┐                                      │
+│         │     Goal      │                                      │
+│         │  (Observable  │                                      │
+│         │   Outcome)    │                                      │
+│         └───────┬───────┘                                      │
+│                 ↓                                              │
+│         ┌───────────────┐                                      │
+│         │    Pursuit    │◄────────────────────────┐           │
+│         │  (Dynamic     │                         │           │
+│         │   Process)    │                         │           │
+│         └───────┬───────┘                         │           │
+│                 ↓                                 │           │
+│         ┌───────────────┐                         │           │
+│         │ Pursuit State │                         │           │
+│         │  (Progress    │                         │           │
+│         │  Description) │                         │           │
+│         └───────┬───────┘                         │           │
+│                 ↓                                 │           │
+│         ┌───────────────┐                         │           │
+│         │     Step      │                         │           │
+│         │   (Atomic     │                         │           │
+│         │   Behavior)   │                         │           │
+│         └───────┬───────┘                         │           │
+│                 ↓                                 │           │
+│     ┌───────────────────────┐                     │           │
+│     │    Determination      │                     │           │
+│     │  ┌─────────────────┐  │                     │           │
+│     │  │ Context Loop    │  │                     │           │
+│     │  │ (discover →     │  │                     │           │
+│     │  │  refine →       │  │                     │           │
+│     │  │  decide)        │  │                     │           │
+│     │  └────────┬────────┘  │                     │           │
+│     └───────────┼───────────┘                     │           │
+│                 ↓                                 │           │
+│         ┌───────────────┐                         │           │
+│         │   Directive   │                         │           │
+│         └───────┬───────┘                         │           │
+│                 │                                 │           │
+│       ┌─────────┴─────────┐                       │           │
+│       ↓                   ↓                       │           │
+│  ┌──────────┐      ┌────────────┐                │           │
+│  │Operation │      │ Resolution │                │           │
+│  │(continue)│      │(terminate) │                │           │
+│  └────┬─────┘      └─────┬──────┘                │           │
+│       │                  │                        │           │
+│       ↓                  ↓                        │           │
+│  ┌──────────┐      ┌────────────┐                │           │
+│  │   Tool   │      │  Final     │                │           │
+│  │Execution │      │  Response  │                │           │
+│  └────┬─────┘      └────────────┘                │           │
+│       ↓                                          │           │
+│  ┌────────────┐                                  │           │
+│  │ Operation  │──────────────────────────────────┘           │
+│  │  Outcome   │  (next step)                                 │
+│  └────────────┘                                              │
+│                                                               │
+└───────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -692,38 +931,80 @@ last_planned_action: OrchestrationExecutionPlan | OrchestrationFinalization
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
 │  ┌──────────────────────────────────────────────────────┐  │
-│  │              Agent System                            │  │
-│  │  ┌────────┐    ┌──────────────────┐   ┌──────────┐ │  │
-│  │  │ Agent  │───→│OrchestrationLoop │──→│  Tools   │ │  │
-│  │  │        │    │  (4 Phases)      │   │          │ │  │
-│  │  └────┬───┘    └────────┬─────────┘   └────┬─────┘ │  │
-│  │       │                 │                    │       │  │
-│  │       │      ┌──────────▼──────────┐        │       │  │
-│  │       │      │  ResourceContext    │        │       │  │
-│  │       │      │  (Context Builder)  │        │       │  │
-│  │       │      └──────────┬──────────┘        │       │  │
-│  └───────┼─────────────────┼───────────────────┼───────┘  │
-│          │                 │                    │          │
-│  ┌───────▼─────────────────▼────────────────────▼───────┐ │
-│  │              Resource System                         │ │
-│  │  ┌─────────┐   ┌──────────────┐   ┌─────────────┐  │ │
-│  │  │ Aspects │──→│  Resources   │──→│  Elements   │  │ │
-│  │  │         │   │  (Entities)  │   │  (Data)     │  │ │
-│  │  └─────────┘   └──────────────┘   └─────────────┘  │ │
-│  └──────────────────────────────────────────────────────┘ │
+│  │                   Agent System                        │  │
+│  │                                                       │  │
+│  │  ┌─────────┐   ┌─────────┐   ┌─────────────────────┐│  │
+│  │  │  Agent  │──→│  Goal   │──→│      Pursuit        ││  │
+│  │  │(Belief) │   │         │   │  ┌───────────────┐  ││  │
+│  │  └────┬────┘   └─────────┘   │  │     Step      │  ││  │
+│  │       │                      │  │ ┌───────────┐ │  ││  │
+│  │       │                      │  │ │Determina- │ │  ││  │
+│  │       │                      │  │ │   tion    │ │  ││  │
+│  │       │                      │  │ └─────┬─────┘ │  ││  │
+│  │       │                      │  │       ↓       │  ││  │
+│  │       │                      │  │  ┌─────────┐  │  ││  │
+│  │       │                      │  │  │Directive│  │  ││  │
+│  │       │                      │  │  └────┬────┘  │  ││  │
+│  │       │                      │  └───────┼───────┘  ││  │
+│  │       │                      └──────────┼──────────┘│  │
+│  │       │                                 │           │  │
+│  │       │      ┌──────────────────────────┘           │  │
+│  │       │      ↓                                      │  │
+│  │       │  ┌───────────────┐                          │  │
+│  │       │  │     Tools     │←── Tool Runtime          │  │
+│  │       │  └───────┬───────┘                          │  │
+│  │       │          │                                  │  │
+│  │       │          │ (via Context)                    │  │
+│  └───────┼──────────┼──────────────────────────────────┘  │
+│          │          │                                      │
+│  ┌───────▼──────────▼──────────────────────────────────┐  │
+│  │              Resource System                         │  │
+│  │  ┌─────────┐   ┌──────────────┐   ┌─────────────┐  │  │
+│  │  │ Aspects │──→│  Resources   │──→│  Elements   │  │  │
+│  │  │         │   │  (Entities)  │   │  (Data)     │  │  │
+│  │  └─────────┘   └──────────────┘   └─────────────┘  │  │
+│  └──────────────────────────────────────────────────────┘  │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
-
-Execution Flow:
-  User Request → Agent → OrchestrationLoop → [4 Phases] → Decision
-                   ↓                             ↓
-             Execute Tool ←──────────────── Execute/Finalize
-                   ↓
-         Modify Resources in Resource System
-                   ↓
-             Return Response to User
 ```
 
 ---
 
-This terminology guide ensures consistent understanding across both the Resource System (data management) and Agent System (orchestration and execution) components of NovelRAG.
+## Migration Notes
+
+For developers migrating from the previous terminology:
+
+### Term Mappings
+
+| Old Term | New Term | Notes |
+|----------|----------|-------|
+| `OrchestrationLoop` | `Determination` | Per-step decision loop |
+| `OrchestrationExecutionPlan` | `Operation` | Directive to continue |
+| `OrchestrationFinalization` | `Resolution` | Directive to terminate |
+| `StepOutcome` | `OperationOutcome` | Wrapped execution result |
+| `Iteration` | (within Pursuit) | Now part of Step sequence |
+| `Phase` | (within Determination) | Internal to determination |
+| `Context Loop` | (within Determination) | Part of determine() |
+
+### What Changed
+- `OrchestrationLoop` → Conceptually replaced by `Determination` (step-level)
+- `StepOutcome` → `OperationOutcome` (clarifies it wraps Operation results)
+- Execution flow restructured around Pursuit → Step → Determination hierarchy
+
+### What Did NOT Change
+- `Agent` class (main controller)
+- `Tool`, `SchematicTool` classes
+- `ToolRuntime` interface
+- `AgentChannel` interface
+- `ResourceContext` (now explicitly decoupled via constructor injection)
+
+### Rationale
+The new terminology:
+- Clarifies the hierarchical structure: Goal → Pursuit → Step → Determination → Directive
+- Distinguishes between Directives (decisions) and their outcomes
+- Makes the autonomous capability explicit with Belief and Goal Decision
+- Decouples Agent framework from Resource System via Context injection
+
+---
+
+This terminology guide ensures consistent understanding across the Agent System components, from high-level goal management to low-level tool execution.
