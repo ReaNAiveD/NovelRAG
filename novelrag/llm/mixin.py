@@ -23,7 +23,7 @@ class LLMMixin:
         self.template_env = template_env
         self.chat_llm = chat_llm
 
-    async def call_template(self, template_name: str, user_question: str | None = None, json_format: bool = False, **kwargs: None | bool | int | float | str | list | dict) -> str:
+    async def call_template(self, template_name: str, user_question: str | None = None, json_format: bool = False, **kwargs: Any) -> str:
         """Call an LLM with a template and return the response."""
         logger.info(f"Calling template: {template_name} with json_format={json_format} ─────────────────")
         template = self.template_env.load_template(template_name)
@@ -58,7 +58,7 @@ class LLMMixin:
         logger.info('───────────────────────────────────────────────────────────────────────────────')
         return response
 
-    async def call_template_structured(self, template_name: str, response_schema: dict[str, Any], user_question: str | None = None, **kwargs: None | bool | int | float | str | list | dict) -> str:
+    async def call_template_structured(self, template_name: str, response_schema: dict[str, Any], user_question: str | None = None, **kwargs: Any) -> str:
         """Call an LLM with a template and enforce a specific JSON schema for the response.
         
         Args:

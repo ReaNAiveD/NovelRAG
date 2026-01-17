@@ -1,8 +1,8 @@
 import logging
 from dataclasses import dataclass
 
-from novelrag.agent import ShellSessionChannel
-from novelrag.agent.intent import AgentIntent
+from novelrag.agenturn import ShellSessionChannel
+from novelrag.intent.builtin.agent import AgentIntent
 from novelrag.conversation import ConversationHistory
 from novelrag.exceptions import IntentNotFoundError, SessionQuitError, NoItemToSubmitError, NoItemToUndoError
 from novelrag.intent import IntentFactory, DictionaryIntentFactory, IntentContext
