@@ -10,14 +10,16 @@ from novelrag.llm.types import ChatLLM
 from novelrag.resource.aspect import ResourceAspect
 from novelrag.resource.element import DirectiveElement
 from novelrag.resource.repository import ResourceRepository
+from novelrag.resource_agent.undo import ReversibleAction, UndoQueue
 from novelrag.template import TemplateEnvironment
 
 
 class ResourceRelationWriteTool(LLMMixin, SchematicTool):
     """Tool for writing relations between resources in the repository."""
     
-    def __init__(self, repo: ResourceRepository, template_env: TemplateEnvironment, chat_llm: ChatLLM):
+    def __init__(self, repo: ResourceRepository, template_env: TemplateEnvironment, chat_llm: ChatLLM, undo_queue: UndoQueue | None = None):
         self.repo = repo
+        self.undo = undo_queue
         super().__init__(template_env=template_env, chat_llm=chat_llm)
 
     @property
@@ -80,14 +82,32 @@ class ResourceRelationWriteTool(LLMMixin, SchematicTool):
             updated_relations = await self.get_updated_relations(
                 source_resource, target_resource, existing_relation or [], operation, relation_description
             )
-            await self.repo.update_relations(source_resource_uri, target_resource_uri, updated_relations)
+            undo_relationships = await self.repo.update_relationships(source_resource_uri, target_resource_uri, updated_relations)
+            if self.undo is not None:
+                self.undo.add_undo_item(ReversibleAction(
+                    method="update_relationships",
+                    params={
+                        "source_uri": source_resource_uri,
+                        "target_uri": target_resource_uri,
+                        "relations": undo_relationships
+                    }
+                ), clear_redo=True)
             await runtime.message(f"Updated relations for source resource '{source_resource_uri}' to target resource '{target_resource_uri}'.")
             if isinstance(target_resource, DirectiveElement):
                 existing_relation = target_resource.relationships.get(source_resource_uri)
                 updated_relations = await self.get_updated_relations(
                     target_resource, source_resource, existing_relation or [], operation, relation_description
                 )
-                await self.repo.update_relations(target_resource_uri, source_resource_uri, updated_relations)
+                undo_relationships = await self.repo.update_relationships(target_resource_uri, source_resource_uri, updated_relations)
+                if self.undo is not None:
+                    self.undo.add_undo_item(ReversibleAction(
+                        method="update_relationships",
+                        params={
+                            "source_uri": target_resource_uri,
+                            "target_uri": source_resource_uri,
+                            "relations": undo_relationships
+                        }
+                    ), clear_redo=True)
                 await runtime.message(f"Updated relations for target resource '{target_resource_uri}' to source resource '{source_resource_uri}'.")
             return self.result(json.dumps(source_resource.context_dict, ensure_ascii=False))
         else:

@@ -76,7 +76,7 @@ def create_executor(
     channel,
     chat_llm,
     beliefs: list[str] | None = None,
-    lang: str = "en",
+    lang: str | None = None,
 ):
     """Factory function to create a GoalExecutor configured for resource operations.
     
@@ -97,7 +97,7 @@ def create_executor(
     
     # Create workspace and orchestrator
     context = ResourceContext(resource_repo, resource_template_env, chat_llm)
-    orchestrator = ActionDetermineLoop(context, chat_llm, template_lang=lang)
+    orchestrator = ActionDetermineLoop(context, chat_llm, template_lang=lang or "en")
     
     # Create resource tools
     tools = {

@@ -17,7 +17,7 @@ class NoEmbeddingConfigError(LLMError):
     def __init__(self, msg: str | None = None):
         super().__init__(msg or "Can not find available Embedding LLM Config")
 
-class IntentError(NovelRagError):
+class HandlerError(NovelRagError):
     pass
 
 class SessionError(NovelRagError):
@@ -147,22 +147,22 @@ class InvalidLLMResponseFormatError(ActionError):
             f"Expected format: {expected_format}"
         )
 
-class IntentNotFoundError(IntentError):
-    """Raised when an intent is not found"""
-    def __init__(self, intent: str):
-        self.intent = intent
-        super().__init__(f"Intent '{intent}' not found")
+class HandlerNotFoundError(HandlerError):
+    """Raised when a handler is not found"""
+    def __init__(self, handler: str):
+        self.handler = handler
+        super().__init__(f"Handler '{handler}' not found")
 
 
-class IntentMissingNameError(IntentError):
+class HandlerMissingNameError(HandlerError):
     def __init__(self, msg: str | None = None):
-        super().__init__(msg or "Intent missing name")
+        super().__init__(msg or "Handler missing name")
 
 
-class InvalidIntentRegisterError(NovelRagError):
-    def __init__(self, intent_cls: type):
-        self.intent_cls = intent_cls
-        super().__init__(f"Class '{intent_cls}' is not a valid UserIntent.")
+class InvalidHandlerRegisterError(NovelRagError):
+    def __init__(self, handler_cls: type):
+        self.handler_cls = handler_cls
+        super().__init__(f"Class '{handler_cls}' is not a valid Handler.")
 
 class UnregisteredModelError(AspectError):
     """Raised when a model is not registered"""

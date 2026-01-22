@@ -7,7 +7,7 @@ from .logger import (
     LLMResponse,
     LLMCall,
     PursuitLog,
-    initialize_logger,
+    initialize_llm_logger,
     get_logger,
     log_llm_call,
 )

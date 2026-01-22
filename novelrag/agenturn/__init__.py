@@ -22,7 +22,7 @@ Tool abstractions:
 from .agent import GoalExecutor, AgentToolRuntime
 
 # Communication channels
-from .channel import AgentChannel, SessionChannel, ShellSessionChannel
+from .channel import AgentChannel
 
 # Goal abstractions
 from .goal import Goal
@@ -61,8 +61,6 @@ __all__ = [
     
     # Communication channels
     "AgentChannel",
-    "SessionChannel",
-    "ShellSessionChannel",
 
     # Goal abstractions
     "Goal",

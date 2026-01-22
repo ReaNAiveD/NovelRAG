@@ -13,6 +13,8 @@ from novelrag.llm.types import ChatLLM
 from novelrag.resource.element import DirectiveElement
 from novelrag.resource.repository import ResourceRepository
 from novelrag.resource.operation import validate_op
+from novelrag.resource_agent.backlog.types import Backlog, PrioritizedBacklogEntry
+from novelrag.resource_agent.undo import ReversibleAction, UndoQueue
 from novelrag.template import TemplateEnvironment
 
 from .types import ContentGenerationTask
@@ -25,11 +27,12 @@ class ResourceWriteTool(LLMMixin, SchematicTool):
     """Tool for editing existing content in the resource repository."""
     
     def __init__(self, repo: ResourceRepository, context: ResourceContext, template_env: TemplateEnvironment, chat_llm: ChatLLM,
-                 compatibility_threshold: float = 0.7):
+                 backlog: Backlog[PrioritizedBacklogEntry] | None = None, undo_queue: UndoQueue | None = None):
         self.content_proposers: list[ContentProposer] = [LLMContentProposer(template_env=template_env, chat_llm=chat_llm)]
         self.context = context
         self.repo = repo
-        self.compatibility_threshold = compatibility_threshold
+        self.backlog = backlog
+        self.undo = undo_queue
         super().__init__(template_env=template_env, chat_llm=chat_llm)
 
     @property
@@ -117,7 +120,7 @@ class ResourceWriteTool(LLMMixin, SchematicTool):
             ranked_proposals = await self._rank_proposals([proposal.content for proposal in proposals])
             selected_content = await self.select_proposal(ranked_proposals)
             await runtime.debug(f"Generated content: {selected_content}")
-            
+
             content_results.append({
                 "description": task.description,
                 "content_key": task.content_key,
@@ -156,7 +159,9 @@ class ResourceWriteTool(LLMMixin, SchematicTool):
             return self.result("Operation application cancelled by user.")
         undo_operations = [await self.repo.apply(op) for op in operations][::-1]
         await runtime.message(f"Applied operation. Undo operation created: {undo_operations}")
-        # TODO: Push the undo operation to the undo queue
+        if self.undo is not None:
+            for undo_op in undo_operations:
+                self.undo.add_undo_item(ReversibleAction(method="apply", params={"op": undo_op.model_dump()}), clear_redo=True)
 
         # Discover required updates that need to be applied as triggered actions
         required_updates = await self._discover_required_updates(
@@ -181,7 +186,9 @@ class ResourceWriteTool(LLMMixin, SchematicTool):
                 validated_operation = validate_op(operation)
                 await runtime.message(f"Applying perspective update operation: {validated_operation}")
                 try:
-                    await self.repo.apply(validated_operation)
+                    undo_op = await self.repo.apply(validated_operation)
+                    if self.undo is not None:
+                        self.undo.add_undo_item(ReversibleAction(method="apply", params={"op": undo_op.model_dump()}), clear_redo=True)
                 except OperationError as e:
                     await runtime.warning(f"Failed to apply perspective update operation: {e}\nOperation: {validated_operation}")
 
@@ -206,13 +213,12 @@ class ResourceWriteTool(LLMMixin, SchematicTool):
             undo_operations=[op.model_dump() for op in undo_operations],
             context=await self.context.dict_context(),
         )
-        if backlog:
+        if backlog and self.backlog is not None:
             await runtime.message(f"Discovered {len(backlog)} backlog items.")
             for item in backlog:
                 priority = item.get("priority", "normal")
-                # await runtime.backlog(content=item, priority=priority)
+                self.backlog.add_entry(PrioritizedBacklogEntry(content=item["content"], priority=priority))
 
-        # Return the operations JSON that was applied as the result
         return self.result(json.dumps([op.model_dump() for op in operations], ensure_ascii=False))
 
     async def _rank_proposals(self, proposals: list[str]) -> list[str]:
@@ -372,17 +378,35 @@ class ResourceWriteTool(LLMMixin, SchematicTool):
             undo_operations=undo_operations,
             context=context,
         )
-        
+
         # Apply source → target relations
         if isinstance(source_resource, DirectiveElement):
             source_to_target_relations = updated_relations.get('source_to_target_relations', [])
-            await self.repo.update_relations(source_uri, target_uri, source_to_target_relations)
+            old_relationships = await self.repo.update_relationships(source_uri, target_uri, source_to_target_relations)
+            if self.undo is not None:
+                self.undo.add_undo_item(ReversibleAction(
+                    method="update_relationships",
+                    params={
+                        "source_uri": source_uri,
+                        "target_uri": target_uri,
+                        "relations": old_relationships
+                    }
+                ), clear_redo=True)
             await runtime.message(f"Updated relations: {source_uri} → {target_uri}")
         
         # Apply target → source relations
         if isinstance(target_resource, DirectiveElement):
             target_to_source_relations = updated_relations.get('target_to_source_relations', [])
-            await self.repo.update_relations(target_uri, source_uri, target_to_source_relations)
+            old_relationships = await self.repo.update_relationships(target_uri, source_uri, target_to_source_relations)
+            if self.undo is not None:
+                self.undo.add_undo_item(ReversibleAction(
+                    method="update_relationships",
+                    params={
+                        "source_uri": target_uri,
+                        "target_uri": source_uri,
+                        "relations": old_relationships
+                    }
+                ), clear_redo=True)
             await runtime.message(f"Updated relations: {target_uri} → {source_uri}")
 
     async def _parse_relation_update_uris(self, update: dict[str, str], context: dict[str, list[str]]) -> dict[str, str | None]:

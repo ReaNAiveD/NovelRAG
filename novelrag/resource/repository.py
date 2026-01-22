@@ -36,6 +36,10 @@ class ResourceRepository(ABC):
         pass
 
     @abstractmethod
+    def remove_aspect(self, name: str) -> ResourceAspect | None:
+        pass
+
+    @abstractmethod
     async def vector_search(self, query: str, *, aspect: str | None = None, limit: int | None = None) -> list[SearchResult]:
         """Search for resources using vector similarity.
         
@@ -71,14 +75,14 @@ class ResourceRepository(ABC):
         pass
 
     @abstractmethod
-    async def update_relations(self, resource_uri: str, target_uri: str, relations: list[str]) -> Element:
-        """Update the relations of a resource by its URI.
+    async def update_relationships(self, source_uri: str, target_uri: str, relationships: list[str]) -> list[str]:
+        """Update the relationships of a resource by its URI.
         Args:
-            resource_uri: The URI of the resource to update
+            source_uri: The URI of the resource to update
             target_uri: The URI of the target resource to relate to
-            relations: A dictionary of relations to set for the resource
+            relationships: A dictionary of relations to set for the resource
         Returns:
-            Element: The updated element with new relations
+            List[str]: The old relationships before the update
         """
         pass
 
@@ -241,7 +245,21 @@ class LanceDBResourceRepository(ResourceRepository):
         self.dump_config()
 
         return aspect
-    
+
+    def remove_aspect(self, name: str) -> ResourceAspect | None:
+        """Remove an aspect from the repository by name.
+        
+        Args:
+            name: The name of the aspect to remove
+        Returns:
+            ResourceAspect | None: The removed aspect if it existed, else None
+        """
+
+        removed_asepct = self.resource_aspects.pop(name, None)
+        if removed_asepct:
+            self.dump_config()
+        return removed_asepct
+
     async def find_by_uri(self, resource_uri: str) -> list[ResourceAspect] | ResourceAspect | DirectiveElement | None:
         """Find a resource by its URI in the repository.
         
@@ -294,23 +312,23 @@ class LanceDBResourceRepository(ResourceRepository):
             await self._handle_updated(ele)
             return op.create_undo(undo)
 
-    async def update_relations(self, resource_uri: str, target_uri: str, relations: list[str]) -> Element:
-        """Update the relations of a resource by its URI.
+    async def update_relationships(self, source_uri: str, target_uri: str, relationships: list[str]) -> list[str]:
+        """Update the relationships of a resource by its URI.
 
         Args:
             resource_uri: The URI of the resource to update
             target_uri: The URI of the target resource to relate to
-            relations: A dictionary of relations to set for the resource
+            relationships: A dictionary of relations to set for the resource
 
         Returns:
-            Element: The updated element with new relations
+            List[str]: The old relationships before the update
         """
-        ele = self.lut.find_by_uri(resource_uri)
+        ele = self.lut.find_by_uri(source_uri)
         if not isinstance(ele, DirectiveElement):
-            raise ElementNotFoundError(resource_uri)
-        _ = ele.update_relationships(target_uri, relations)
+            raise ElementNotFoundError(source_uri)
+        old_relationships = ele.update_relationships(target_uri, relationships)
         await self._handle_updated(ele)
-        return ele.inner
+        return old_relationships
 
     async def _handle_added(self, ele: DirectiveElement):
         self.lut[ele.uri] = ele

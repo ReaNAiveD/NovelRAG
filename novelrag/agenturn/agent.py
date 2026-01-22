@@ -115,8 +115,6 @@ class GoalExecutor:
                 # Log execution result
                 if outcome.status == StepStatus.SUCCESS:
                     await self.channel.info(f"✓ Completed: {outcome.operation.reason}")
-                    for result in outcome.results:
-                        await self.channel.output(result)
                 else:
                     await self.channel.error(f"✗ Failed: {outcome.operation.reason} - {outcome.error_message}")
         except Exception as e:
@@ -191,6 +189,14 @@ class GoalExecutor:
                 started_at=start_time,
                 completed_at=datetime.now(),
             )
+    
+    def create_request_handler(self, goal_translator: GoalTranslator) -> 'RequestHandler':
+        """Create a RequestHandler that uses this executor."""
+        return RequestHandler(executor=self, goal_translator=goal_translator)
+
+    def create_autonomous_agent(self, goal_decider: GoalDecider) -> 'AutonomousAgent':
+        """Create an AutonomousAgent that uses this executor."""
+        return AutonomousAgent(executor=self, goal_decider=goal_decider)
 
 
 class RequestHandler:

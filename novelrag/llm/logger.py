@@ -197,7 +197,7 @@ def get_logger() -> Optional[LLMLogger]:
     return _global_logger
 
 
-def initialize_logger(log_directory: str = "logs") -> LLMLogger:
+def initialize_llm_logger(log_directory: str = "logs") -> LLMLogger:
     """Initialize the global LLM logger."""
     global _global_logger
     _global_logger = LLMLogger(log_directory)

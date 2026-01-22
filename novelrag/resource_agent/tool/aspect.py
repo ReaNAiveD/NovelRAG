@@ -8,14 +8,16 @@ from novelrag.agenturn.tool.types import ToolOutput
 from novelrag.llm import LLMMixin
 from novelrag.llm.types import ChatLLM
 from novelrag.resource.repository import ResourceRepository
+from novelrag.resource_agent.undo import ReversibleAction, UndoQueue
 from novelrag.template import TemplateEnvironment
 
 
 class AspectCreateTool(LLMMixin, SchematicTool):
     """Tool for creating new aspects in the resource repository."""
     
-    def __init__(self, repo: ResourceRepository, template_env: TemplateEnvironment, chat_llm: ChatLLM):
+    def __init__(self, repo: ResourceRepository, template_env: TemplateEnvironment, chat_llm: ChatLLM, undo_queue: UndoQueue | None = None):
         self.repo = repo
+        self.undo = undo_queue
         super().__init__(template_env=template_env, chat_llm=chat_llm)
     
     @property
@@ -64,6 +66,11 @@ class AspectCreateTool(LLMMixin, SchematicTool):
 
         aspect = self.repo.add_aspect(name, aspect_metadata)
         await runtime.message(f"Aspect '{name}' created successfully.")
+        if self.undo:
+            self.undo.add_undo_item(
+                ReversibleAction(method="remove_aspect", params={"name": name}),
+                clear_redo=True,
+            )
         return self.result(json.dumps(aspect.context_dict, ensure_ascii=False))
 
     async def initialize_aspect_metadata(self, name: str, description: list[str]) -> dict[str, Any]:
