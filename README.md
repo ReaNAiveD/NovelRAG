@@ -1,6 +1,6 @@
 # NovelRAG
 
-A **context-driven intelligent agent framework** for managing narrative content through multi-phase orchestration and Retrieval-Augmented Generation (RAG). NovelRAG uses a sophisticated decision-making architecture to dynamically discover, refine, and act on contextual information.
+A **context-driven intelligent agent framework** for managing narrative content through multi-phase orchestration and Retrieval-Augmented Generation (RAG).
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
@@ -79,11 +79,6 @@ vector_store:
 # Resource configuration
 resource_config: aspect.yml
 default_resource_dir: ./data/resources
-
-# Define intents for interactive shell
-intents:
-  quit:
-    cls: novelrag.intent.QuitIntent
 ```
 
 ### 2. Define Resource Aspects
@@ -102,11 +97,6 @@ location:
   description: Story locations and settings
   children_keys:
     - sub_locations
-
-scene:
-  path: scenes.yml
-  description: Story scenes and events
-  children_keys: []
 ```
 
 ### 3. Run the Interactive Shell
@@ -116,28 +106,14 @@ scene:
 export OPENAI_API_KEY="your-api-key"
 
 # Run the shell
-python -m novelrag --config config.yml
+python -m novelrag.cli --config config.yml
 
 # With verbose logging
-python -m novelrag --config config.yml -v
+python -m novelrag.cli --config config.yml -v
 
 # Execute a single request
-python -m novelrag --config config.yml "Find the protagonist"
+python -m novelrag.cli --config config.yml "Find the protagonist"
 ```
-
-### 4. Interactive Shell Commands
-
-Once in the shell, you can:
-
-```
-> @character Find the protagonist
-> @location Describe the main setting
-> /search mysterious artifact
-```
-
-- `@aspect` - Switch to a specific aspect context
-- `/intent` - Trigger a specific intent
-- Free text - The agent will determine the appropriate action
 
 ## Documentation
 
