@@ -90,9 +90,9 @@ class Session:
             config.default_resource_dir,
         )
         channel = SessionChannel(logger)
-        undo_queue = LocalUndoQueue(config.undo_path) if config.undo_path else MemoryUndoQueue()
+        undo_queue = LocalUndoQueue.load(config.undo_path) if config.undo_path else MemoryUndoQueue()
         conversation_history = ConversationHistory.empty(chat_llm=chat_llm)
-        backlog = LocalBacklog(config.backlog_path) if config.backlog_path else None
+        backlog = LocalBacklog.load(config.backlog_path) if config.backlog_path else None
 
         agent = create_executor(
             resource_repo=repository,

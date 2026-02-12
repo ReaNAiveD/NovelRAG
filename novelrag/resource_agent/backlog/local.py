@@ -16,7 +16,8 @@ class LocalBacklog(MemoryBacklog):
             return cls(path)
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
-        assert isinstance(data, list)
+        if not isinstance(data, list):
+            raise ValueError(f"Invalid backlog file format at {path!r}: expected a list of entries, got {type(data).__name__}")
         entries = []
         for entry in data:
             # Support both new format (type/priority/description/metadata)

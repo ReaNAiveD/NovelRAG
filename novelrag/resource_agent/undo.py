@@ -136,6 +136,8 @@ class MemoryUndoQueue(UndoQueue):
         return group
 
     def peek_recent(self, n: int = 5) -> list[ReversibleAction]:
+        if n <= 0:
+            return []
         if not self.undo_stack:
             return []
         return list(reversed(self.undo_stack[-n:]))
@@ -146,19 +148,24 @@ class MemoryUndoQueue(UndoQueue):
 
 
 class LocalUndoQueue(MemoryUndoQueue):
-    def __init__(self, path: str) -> None:
+    def __init__(self, path: str, undo_stack: list[ReversibleAction] | None = None,
+                 redo_stack: list[ReversibleAction] | None = None, stack_size: int | None = 100) -> None:
+        self.path = path
+        super().__init__(undo_stack, redo_stack, stack_size)
+
+    @classmethod
+    def load(cls, path: str, stack_size: int | None = 100) -> 'LocalUndoQueue':
         import os
         import json
 
-        self.path = path
         if os.path.exists(path):
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
             undo_stack = [ReversibleAction(**item) for item in data.get("undo_stack", [])]
             redo_stack = [ReversibleAction(**item) for item in data.get("redo_stack", [])]
-            super().__init__(undo_stack, redo_stack)
+            return cls(path, undo_stack, redo_stack, stack_size)
         else:
-            super().__init__()
+            return cls(path, stack_size=stack_size)
 
     def _save(self) -> None:
         import os
