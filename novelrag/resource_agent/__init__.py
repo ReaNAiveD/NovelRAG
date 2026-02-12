@@ -1,23 +1,12 @@
-"""Resource-specific agent module built on top of the agenturn framework.
-
-This module provides:
-- OrchestrationLoop: Context-driven multi-phase action determination
-- ResourceContext/ContextWorkspace: Resource workspace management
-- Resource tools: Fetch, search, write, aspect, relation operations
-- Content proposers: LLM-based content generation
-
-Factory function:
-- create_resource_agent(): Creates a GoalExecutor configured for resource operations
-"""
-
+from novelrag.resource_agent.backlog.types import Backlog, BacklogEntry
+from novelrag.resource_agent.undo import UndoQueue
+from .goal_decider import CompositeGoalDecider
 from .action_determine_loop import (
     ActionDetermineLoop,
     DiscoveryPlan,
     RefinementPlan,
     ActionDecision,
     RefinementDecision,
-    OrchestrationExecutionPlan,
-    OrchestrationFinalization,
 )
 from .workspace import (
     ResourceContext,
@@ -44,8 +33,6 @@ __all__ = [
     "RefinementPlan",
     "ActionDecision",
     "RefinementDecision",
-    "OrchestrationExecutionPlan",
-    "OrchestrationFinalization",
     
     # Workspace
     "ResourceContext",
@@ -66,6 +53,9 @@ __all__ = [
     "ResourceRelationWriteTool",
     "ContentGenerationTask",
     
+    # Goal decider
+    "CompositeGoalDecider",
+    
     # Factory
     "create_executor",
 ]
@@ -77,6 +67,8 @@ def create_executor(
     chat_llm,
     beliefs: list[str] | None = None,
     lang: str | None = None,
+    backlog: Backlog[BacklogEntry] | None = None,
+    undo_queue: UndoQueue | None = None,
 ):
     """Factory function to create a GoalExecutor configured for resource operations.
     
@@ -101,9 +93,8 @@ def create_executor(
     
     # Create resource tools
     tools = {
-        "ResourceFetchTool": ResourceFetchTool(resource_repo),
-        "ResourceSearchTool": ResourceSearchTool(resource_repo),
         "AspectCreateTool": AspectCreateTool(resource_repo, resource_template_env, chat_llm),
+        "ResourceWriteTool": ResourceWriteTool(resource_repo, context, resource_template_env, chat_llm, backlog=backlog, undo_queue=undo_queue),
         "ResourceRelationWriteTool": ResourceRelationWriteTool(resource_repo, resource_template_env, chat_llm),
     }
     

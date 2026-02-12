@@ -63,6 +63,17 @@ class UndoQueue(Protocol):
         """
         ...
 
+    def peek_recent(self, n: int = 5) -> list[ReversibleAction]:
+        """
+        Peek at the most recent undo items without removing them.
+        Args:
+            n: Number of recent items to return.
+        Returns:
+            List of the most recent ReversibleActions (newest first),
+            up to n items.
+        """
+        ...
+
     def clear(self) -> None:
         """
         Clear the undo and redo queues.
@@ -124,6 +135,11 @@ class MemoryUndoQueue(UndoQueue):
             group.append(self.redo_stack.pop())
         return group
 
+    def peek_recent(self, n: int = 5) -> list[ReversibleAction]:
+        if not self.undo_stack:
+            return []
+        return list(reversed(self.undo_stack[-n:]))
+
     def clear(self) -> None:
         self.undo_stack = []
         self.redo_stack = []
@@ -148,8 +164,9 @@ class LocalUndoQueue(MemoryUndoQueue):
         import os
         import json
 
-        if not os.path.exists(os.path.dirname(self.path)):
-            os.makedirs(os.path.dirname(self.path))
+        dir_path = os.path.dirname(self.path)
+        if dir_path:
+            os.makedirs(dir_path, exist_ok=True)
         with open(self.path, "w", encoding="utf-8") as f:
             data = {
                 "undo_stack": [item.__dict__ for item in self.undo_stack],

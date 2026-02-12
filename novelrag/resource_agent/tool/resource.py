@@ -13,7 +13,7 @@ from novelrag.llm.types import ChatLLM
 from novelrag.resource.element import DirectiveElement
 from novelrag.resource.repository import ResourceRepository
 from novelrag.resource.operation import validate_op
-from novelrag.resource_agent.backlog.types import Backlog, PrioritizedBacklogEntry
+from novelrag.resource_agent.backlog.types import Backlog, BacklogEntry
 from novelrag.resource_agent.undo import ReversibleAction, UndoQueue
 from novelrag.template import TemplateEnvironment
 
@@ -27,7 +27,7 @@ class ResourceWriteTool(LLMMixin, SchematicTool):
     """Tool for editing existing content in the resource repository."""
     
     def __init__(self, repo: ResourceRepository, context: ResourceContext, template_env: TemplateEnvironment, chat_llm: ChatLLM,
-                 backlog: Backlog[PrioritizedBacklogEntry] | None = None, undo_queue: UndoQueue | None = None):
+                 backlog: Backlog[BacklogEntry] | None = None, undo_queue: UndoQueue | None = None):
         self.content_proposers: list[ContentProposer] = [LLMContentProposer(template_env=template_env, chat_llm=chat_llm)]
         self.context = context
         self.repo = repo
@@ -216,8 +216,7 @@ class ResourceWriteTool(LLMMixin, SchematicTool):
         if backlog and self.backlog is not None:
             await runtime.message(f"Discovered {len(backlog)} backlog items.")
             for item in backlog:
-                priority = item.get("priority", "normal")
-                self.backlog.add_entry(PrioritizedBacklogEntry(content=item["content"], priority=priority))
+                self.backlog.add_entry(BacklogEntry.from_dict(item))
 
         return self.result(json.dumps([op.model_dump() for op in operations], ensure_ascii=False))
 

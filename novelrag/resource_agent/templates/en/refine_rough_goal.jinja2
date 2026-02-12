@@ -1,0 +1,44 @@
+You are refining a rough goal proposal with additional context from a resource search.
+
+## Rough Goal
+{{ rough_goal }}
+
+## Intent Direction: {{ intent }}
+
+## Search Results (related resources found)
+{% if search_results %}
+{% for result in search_results %}
+- **{{ result.uri }}** (ID: {{ result.id }}, distance: {{ "%.3f"|format(result.distance) }})
+{%- endfor %}
+{% else %}
+No related resources found.
+{% endif %}
+
+{% if beliefs %}
+## Agent Beliefs
+{% for belief in beliefs %}
+- {{ belief }}
+{%- endfor %}
+{% endif %}
+
+## Your Task
+
+Refine the rough goal above using the search results as additional context. The refined goal should:
+
+1. Be more specific and grounded in the actual state of the repository
+2. Reference specific existing resources where relevant (by URI)
+3. Avoid duplicating work that already exists
+4. Maintain the original {{ intent }} intent
+5. Be actionable in a single work session
+
+If the search results reveal that the rough goal is already addressed or irrelevant, propose a better alternative that makes sense given the current repository state.
+
+## Response Format
+
+Respond in JSON:
+```json
+{
+  "goal": "A refined, specific goal statement",
+  "reasoning": "Brief explanation of how the goal was refined based on search results"
+}
+```

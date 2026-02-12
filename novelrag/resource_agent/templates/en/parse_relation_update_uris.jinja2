@@ -6,6 +6,8 @@ Parse the relation update content to identify:
 1. **Source Resource URI**: The first resource in the relationship
 2. **Target Resource URI**: The second resource in the relationship
 
+Each relation update describes a relationship between exactly **two** resources. Extract exactly one source URI and one target URI. Both must be **single URI strings**. If the text mentions more than two resources, identify the primary pair that the relationship directly connects.
+
 ## URI Format
 
 Resource URIs follow Linux-style path format:
@@ -45,6 +47,8 @@ Return a JSON object with the extracted URIs:
 }
 ```
 
+**Important**: Both `source_uri` and `target_uri` must each be a single string value, NOT an array.
+
 If you cannot identify valid URIs, return:
 ```json
 {
@@ -54,4 +58,4 @@ If you cannot identify valid URIs, return:
 }
 ```
 
-Extract the resource URIs as a JSON object.
+Extract exactly one source URI and one target URI as a JSON object. Each value must be a single string.

@@ -347,7 +347,7 @@ class DirectiveElementTestCase(unittest.TestCase):
         sub_event1 = self.test_data.create_event("Sub Event 1", ["Bob"])
         sub_event2 = self.test_data.create_event("Sub Event 2", ["Charlie"])
         main_event['subEvents'] = [sub_event1, sub_event2]
-        
+
         # Create and wrap the element
         event_element = Element.build(main_event, parent_uri='event', aspect='event', children_keys=['subEvents'])
         directive = DirectiveElement.wrap(event_element, ['subEvents'])
@@ -356,7 +356,7 @@ class DirectiveElementTestCase(unittest.TestCase):
         self.assertEqual(len(directive.children['subEvents']), 2)
         self.assertEqual(directive.children['subEvents'][0].props['name'], "Sub Event 1")
         self.assertEqual(directive.children['subEvents'][1].props['name'], "Sub Event 2")
-        
+
         # Verify parent-child relationships
         for child in directive.children['subEvents']:
             self.assertEqual(child.parent, directive)

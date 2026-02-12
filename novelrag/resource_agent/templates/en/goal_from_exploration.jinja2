@@ -1,0 +1,107 @@
+You are an autonomous agent generating a goal for the knowledge-base repository.
+
+## Focus: {{ focus }}
+
+{% if element %}
+## Target Element
+- **URI**: {{ element.uri }}
+- **ID**: {{ element.id }}
+- **Aspect**: {{ element.aspect }}
+{% if element.properties %}
+### Properties
+{% for key, value in element.properties.items() %}
+- **{{ key }}**: {{ value }}
+{%- endfor %}
+{% endif %}
+{% if element.relationships %}
+### Relationships
+{% for target_uri, descriptions in element.relationships.items() %}
+- **{{ target_uri }}**: {{ descriptions | join("; ") }}
+{%- endfor %}
+{% endif %}
+{% endif %}
+
+{% if aspect %}
+## Current Aspect
+{% for key, value in aspect.items() %}
+- **{{ key }}**: {{ value }}
+{%- endfor %}
+{% endif %}
+
+{% if aspect_summaries %}
+## Repository Aspects Overview
+{% for summary in aspect_summaries %}
+- **{{ summary.name }}**{% if summary.description %} — {{ summary.description }}{% endif %}{% if summary.element_count is defined %} ({{ summary.element_count }} elements){% endif %}
+{%- endfor %}
+{% endif %}
+
+{% if gap_analysis %}
+## Concept Gap Analysis
+- **Priority concern**: {{ gap_analysis.priority_concern }}
+- **Reasoning**: {{ gap_analysis.reasoning }}
+{% if gap_analysis.missing_aspects %}
+### Missing Aspects
+{% for ma in gap_analysis.missing_aspects %}
+- **{{ ma.name }}**: {{ ma.description }} — {{ ma.reason }}
+{%- endfor %}
+{% endif %}
+{% if gap_analysis.missing_elements %}
+### Missing Elements
+{% for me in gap_analysis.missing_elements %}
+- **{{ me.aspect }}/{{ me.id }}**: {{ me.reason }}
+{%- endfor %}
+{% endif %}
+{% if gap_analysis.unresolved_references %}
+### Unresolved References
+{% for ur in gap_analysis.unresolved_references %}
+- **{{ ur.reference }}**: {{ ur.context }}
+{%- endfor %}
+{% endif %}
+{% endif %}
+
+{% if beliefs %}
+## Agent Beliefs
+{% for belief in beliefs %}
+- {{ belief }}
+{%- endfor %}
+{% endif %}
+
+## Your Task
+
+Generate a **{{ focus }}** goal.
+
+{% if focus == "creation_aspect" %}
+- Propose creating a new resource aspect that is missing from the repository
+- Define what the aspect should contain and why it is needed
+- Suggest initial elements to populate the new aspect with
+- Ground the proposal in the gap analysis above
+{% elif focus == "creation_element" %}
+- Propose creating a specific resource element that is missing from an existing aspect
+- Describe what properties the new element should have
+- Explain how it relates to the target element and other existing resources
+- Reference the gap analysis findings
+{% elif focus == "enrichment" %}
+- Propose new content to create, expand, or develop related to the target element
+- Consider adding depth, new perspectives, or connected elements
+- Build upon what already exists in the element's properties
+{% elif focus == "verification" %}
+- Propose a review or validation of the target element's content
+- Check for consistency with related resources, completeness, or quality
+- Consider whether relationships and cross-references are accurate
+{% elif focus == "populate" %}
+- Propose creating the first elements for the aspect described above
+- Consider what 2-4 initial entities would best establish this aspect
+- Each entity should be meaningful and provide a foundation to build upon
+- Think about what properties each entity needs
+{% endif %}
+
+Also provide a search query to find related resources for additional context.
+
+## Response Format
+
+Respond in JSON:
+{
+  "goal": "A clear, concise {{ focus }} goal statement",
+  "search_query": "A search query to find related resources",
+  "reasoning": "Brief explanation of the goal choice"
+}

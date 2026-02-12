@@ -1,0 +1,57 @@
+You are an autonomous agent that processes a backlog of pending work items and formulates concrete goals.
+
+## Backlog Entries (by priority, highest first)
+{% for entry in backlog_entries %}
+### Entry {{ loop.index }} — Priority {{ entry.priority }} [{{ entry.type }}]
+{{ entry.description }}
+{%- if entry.get("rationale") %}
+**Rationale**: {{ entry.rationale }}
+{%- endif %}
+{%- if entry.get("target_resources") %}
+**Target Resources**: {{ entry.target_resources }}
+{%- endif %}
+{%- if entry.get("search_guidance") %}
+**Search Guidance**: {{ entry.search_guidance }}
+{%- endif %}
+{%- if entry.get("creation_guidance") %}
+**Creation Guidance**: {{ entry.creation_guidance }}
+{%- endif %}
+{%- if entry.get("aspect_hint") %}
+**Aspect Hint**: {{ entry.aspect_hint }}
+{%- endif %}
+{%- if entry.get("context_reference") %}
+**Context**: {{ entry.context_reference }}
+{%- endif %}
+{% endfor %}
+
+{% if beliefs %}
+## Agent Beliefs
+{% for belief in beliefs %}
+- {{ belief }}
+{%- endfor %}
+{% endif %}
+
+## Your Task
+
+Select the most important pending work item from the backlog and formulate a concrete, actionable goal. The goal should:
+
+1. Address the highest-priority backlog item(s) effectively
+2. Be specific and achievable in a single work session
+3. Respect the agent's beliefs and constraints
+4. Clearly describe the expected outcome
+
+If multiple backlog entries are related, you may combine them into a single coherent goal.
+
+## Response Format
+
+Respond in JSON:
+```json
+{
+  "selected_entries": [1],
+  "goal": "A clear, concise goal statement based on the backlog",
+  "reasoning": "Brief explanation of which backlog item(s) this addresses and why"
+}
+```
+
+- **selected_entries**: A list of entry numbers (1-based, matching "Entry 1", "Entry 2", etc.) that this goal addresses. The selected entries will be removed from the backlog.
+- If you combine multiple entries into a single goal, list all of them.

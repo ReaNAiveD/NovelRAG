@@ -65,7 +65,7 @@ Use this analysis to make informed decisions about what context to keep, exclude
 No tools currently expanded. Focus on general goal relevance.
 {%- endif %}
 
-## Collapsed Tools (Not Currently Needed)
+## Other Available Tools (Not Yet Expanded)
 {%- if collapsed_tools %}
 {%- for tool_name in collapsed_tools %}
 - {{ tool_name }}
@@ -127,7 +127,7 @@ Rate each loaded resource and its properties by relevance to the goal and expand
 - `exclude_properties`: Hide properties within kept resources
 
 ### Tool Cleanup
-- `collapse_tools`: Hide schema for tools not needed for current goal
+- `collapse_tools`: Hide schema for **expanded** tools that are genuinely unrelated to the current goal
 
 ### Prioritize (Required)
 - `sorted_segments`: Order all loaded resources by relevance (most relevant first)
@@ -147,7 +147,8 @@ Analyze only the resources listed in "Loaded Resources" section above.
     {"uri": "/another/loaded", "property": "unneeded_detail"}
   ],
   "collapse_tools": [
-    // Tools not needed for current goal
+    // ONLY expanded tools genuinely unrelated to the goal
+    // Do NOT collapse tools needed for the goal's expected actions
   ],
   "sorted_segments": [
     // All loaded URIs from "Loaded Resources" section, ordered by relevance

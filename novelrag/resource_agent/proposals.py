@@ -14,12 +14,12 @@ class ContentProposer:
     
     async def propose(self, believes: list[str], content_description: str, context: dict[str, list[str]]) -> list[ContentProposal]:
         """Propose content based on current beliefs and targeted context.
-        
+
         Args:
             believes: Current agent beliefs
             content_description: Specific description of what content to generate
             context: Full context dictionary
-            
+
         Returns:
             List of content proposals with reasoning
         """

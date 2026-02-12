@@ -139,12 +139,12 @@ Search for concepts when you don't know their URIs.
 - Leave empty array if all relevant searches done.
 
 ### `expand_tools`
-Show schema for tools you're planning to use
+Expand any collapsed tool whose capabilities will likely be needed to achieve the goal.
 
 ## Output
 ```json
 {
-  "discovery_analysis": "What have we found? What unloaded children/relations should we explore? What NEW searches are needed? Which tools are relevant?",
+  "discovery_analysis": "What have we found? What unloaded children/relations should we explore? What NEW searches are needed? Which tools are relevant given the goal and expected actions?",
   "query_resources": [
     // URIs from "Unloaded Children/Relations" above
     // For children: parent_uri + "/" + child_name (e.g., "/cne/character_template")
@@ -156,7 +156,7 @@ Show schema for tools you're planning to use
     // If all relevant concepts searched, use empty array []
   ],
   "expand_tools": [
-    // Tools whose schema you need to see for planning
+    // Tools whose capabilities are needed to achieve the goal
   ]
 }
 ```
@@ -169,6 +169,6 @@ Show schema for tools you're planning to use
 4. **Avoid Redundancy**: Check search history before adding to search_queries
 5. **Empty is Valid**: Empty search_queries array is perfectly acceptable when nothing new to search
 6. **Only Real URIs**: Only query URIs you see in Children/Relations - never construct hypothetical paths
-7. **Expand for Planning**: Expand tools you're considering for execution
+7. **Expand Tools Proactively**: If the goal or expected actions imply resource creation/modification/linking, expand the relevant write tools immediately — they cannot be used unless expanded
 
 Focus on discovering context that helps achieve the goal.
