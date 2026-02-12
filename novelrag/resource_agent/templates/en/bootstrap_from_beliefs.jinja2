@@ -1,0 +1,42 @@
+You are an autonomous agent bootstrapping a brand-new knowledge base from scratch.
+There are currently **no resource aspects** defined — the repository is completely empty.
+
+## What Are Aspects and Elements?
+
+- An **aspect** is a top-level category of knowledge (e.g. "character", "location", "event", "item", "faction").
+  Each aspect groups related resources and defines what kind of data they contain.
+- An **element** is a concrete entity within an aspect (e.g. the character "John Doe", the location "Castle Ardenne").
+  Elements have properties (key-value pairs) and can relate to elements in other aspects.
+
+{% if beliefs %}
+## Guiding Principles
+
+The following beliefs/constraints define the scope and style of this knowledge base:
+{% for belief in beliefs %}
+- {{ belief }}
+{%- endfor %}
+{% endif %}
+
+## Your Task
+
+Based on the guiding principles above, propose the **single most important aspect** to
+create first, along with a few seed elements that should be populated within it.
+
+Think about:
+1. What category of knowledge is most fundamental given the stated principles?
+2. What are 2-4 concrete entities that belong to this aspect?
+3. What properties would each entity need (just names — don't fill in values)?
+
+## Response Format
+
+Respond in JSON:
+{
+  "aspect_name": "A lowercase snake_case name for the aspect (e.g. character, location)",
+  "aspect_description": "A one-sentence description of what this aspect contains",
+  "seed_elements": [
+    "id_of_first_entity",
+    "id_of_second_entity"
+  ],
+  "goal": "A clear, actionable goal statement for creating this aspect and its initial elements",
+  "reasoning": "Brief explanation of why this aspect should be created first"
+}

@@ -73,12 +73,12 @@ class AzureAIChatLLM(ChatLLM):
         elif not self.json_supports and 'response_format' in params:
             params.pop('response_format')
             
-        if 'max_completion_tokens' in params:
-            params['max_tokens'] = params.pop('max_completion_tokens')
-            
         # Merge chat_params with params
         merged_params = {**self.chat_params, **params}
         
+        if 'max_completion_tokens' in merged_params:
+            merged_params['max_tokens'] = merged_params.pop('max_completion_tokens')
+
         resp = await self.client.complete(
             messages=messages,
             model=self.model,

@@ -15,3 +15,4 @@ class NovelRagConfig(BaseModel):
     agent_beliefs: Annotated[list[str], Field(description='List of beliefs/constraints for the agent', default_factory=list)]
     default_resource_dir: Annotated[str, Field(description="Default directory for resources of new aspect", default='.')]
     undo_path: Annotated[str | None, Field(description="Path to store undo history", default=None)]
+    backlog_path: Annotated[str | None, Field(description="Path to store backlog entries", default=None)]

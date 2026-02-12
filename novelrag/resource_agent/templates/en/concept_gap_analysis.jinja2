@@ -1,0 +1,107 @@
+You are analysing a resource element and its surrounding context to identify **concept gaps** —
+entities or categories referenced in the content that do not yet exist in the repository.
+
+## Target Element
+- **URI**: {{ element.uri }}
+- **ID**: {{ element.id }}
+- **Aspect**: {{ element.aspect }}
+{% if element.properties %}
+### Properties
+{% for key, value in element.properties.items() %}
+- **{{ key }}**: {{ value }}
+{%- endfor %}
+{% endif %}
+{% if element.relationships %}
+### Declared Relationships
+{% for target_uri, descriptions in element.relationships.items() %}
+- **{{ target_uri }}**: {{ descriptions | join("; ") }}
+{%- endfor %}
+{% endif %}
+
+## Context — Resolved References
+
+These relationship targets were found in the repository:
+{% if resolved_refs %}
+{% for ref in resolved_refs %}
+- **{{ ref.uri }}** (aspect: {{ ref.aspect }}){% if ref.properties %}: {{ ref.properties }}{% endif %}
+{%- endfor %}
+{% else %}
+No relationship targets resolved to existing resources.
+{% endif %}
+
+## Context — Unresolved References
+
+These relationship targets are declared but **do not exist** in the repository:
+{% if unresolved_refs %}
+{% for ref in unresolved_refs %}
+- **{{ ref.uri }}**: {{ ref.declared_descriptions | join("; ") }}
+{%- endfor %}
+{% else %}
+All declared relationship targets exist.
+{% endif %}
+
+## Context — Related Resources (from vector search)
+{% if related_resources %}
+{% for res in related_resources %}
+- **{{ res.uri }}** (ID: {{ res.id }}, distance: {{ "%.3f"|format(res.distance) }})
+{%- endfor %}
+{% else %}
+No related resources found via search.
+{% endif %}
+
+## Existing Aspects in the Repository
+{% for summary in aspect_summaries %}
+- **{{ summary.name }}**{% if summary.description %} — {{ summary.description }}{% endif %} ({{ summary.element_count }} elements{% if summary.sample_element_ids %}, e.g. {{ summary.sample_element_ids | join(", ") }}{% endif %})
+{%- endfor %}
+
+{% if beliefs %}
+## Agent Beliefs
+{% for belief in beliefs %}
+- {{ belief }}
+{%- endfor %}
+{% endif %}
+
+## Your Task
+
+Analyse the target element's content (properties, relationships) and the context above to
+identify concepts that are referenced but missing from the repository.
+
+1. **Referenced concepts**: List entities, places, items, events, etc. mentioned in the
+   element's properties or relationships that could be standalone resources.
+2. **Unresolved references**: The references listed above are already confirmed missing.
+   Incorporate them.
+3. **Missing aspects**: Are there entirely new categories of knowledge implied by the
+   content that have no corresponding aspect? (e.g. element mentions a weapon but
+   no "item" or "weapon" aspect exists.)
+4. **Missing elements**: Are there entities that should exist within an *existing* aspect
+   but don't? Check the sample element IDs for each aspect.
+5. **Priority concern**: What is the single most impactful thing to address right now?
+
+## Response Format
+
+Respond in JSON:
+{
+  "referenced_concepts": ["concept_1", "concept_2"],
+  "unresolved_references": [
+    {"reference": "/aspect/entity_id", "context": "Why this is referenced"}
+  ],
+  "missing_aspects": [
+    {"name": "aspect_name", "description": "What it would contain", "reason": "Why it's needed"}
+  ],
+  "missing_elements": [
+    {"aspect": "existing_aspect", "id": "missing_entity_id", "reason": "Why it should exist"}
+  ],
+  "priority_concern": "creation_aspect | creation_element | enrichment | verification",
+  "reasoning": "Why this concern is the most impactful to address now"
+}
+
+## Priority Guidelines
+
+- **creation_aspect**: Choose this if an important category of knowledge is entirely absent
+  and the element's content strongly depends on it.
+- **creation_element**: Choose this if a specific entity is clearly referenced but missing
+  within an existing aspect.
+- **enrichment**: Choose this if no critical gaps exist but the element itself is sparse
+  and would benefit from richer content.
+- **verification**: Choose this if the element is already rich but may have consistency
+  issues with related resources.

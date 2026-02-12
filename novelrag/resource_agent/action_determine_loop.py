@@ -62,20 +62,6 @@ class RefinementDecision:
     refinement: dict | None = None  # Refer to Pursuit Assessment structure
 
 
-@dataclass(frozen=True)
-class OrchestrationExecutionPlan:
-    reason: str
-    tool: str
-    params: dict = field(default_factory=dict)
-
-
-@dataclass(frozen=True)
-class OrchestrationFinalization:
-    reason: str
-    response: str
-    status: str  # success, failed, abandoned
-
-
 class ActionDetermineLoop(ActionDeterminer, LLMMixin):
     """Resource-aware action determiner using multi-phase orchestration.
     
@@ -154,9 +140,9 @@ class ActionDetermineLoop(ActionDeterminer, LLMMixin):
             # Process refinement verdict
             if refinement_decision.verdict == "approve":
                 # Return approved action if min iterations met
-                if isinstance(planned_action, OrchestrationExecutionPlan) and iter_num >= self.min_iter:
+                if isinstance(planned_action, OperationPlan) and iter_num >= self.min_iter:
                     return planned_action
-                elif isinstance(planned_action, OrchestrationFinalization):
+                elif isinstance(planned_action, Resolution):
                     return planned_action
             else:
                 # Refine goal and continue iteration
@@ -344,7 +330,7 @@ class ActionDetermineLoop(ActionDeterminer, LLMMixin):
             approval=result.get("approval"),
             refinement=result.get("refinement")
         )
-    
+
     def _convert_to_orchestration_action(
             self, 
             action_decision: ActionDecision
@@ -371,7 +357,7 @@ class ActionDetermineLoop(ActionDeterminer, LLMMixin):
                 response="Unable to process the action decision.",
                 status="failed"
             )
-    
+
     async def _get_workspace_segments(self):
         """Prepare workspace segments with enriched property information."""
         segments = []
@@ -395,7 +381,7 @@ class ActionDetermineLoop(ActionDeterminer, LLMMixin):
                 nonexisted.append(segment.uri)
         
         return segments, nonexisted
-    
+
     def _get_expanded_tools(self, available_tools: dict[str, SchematicTool]):
         """Prepare only expanded tools with full schema details."""
         tools = {}
