@@ -14,8 +14,6 @@ from novelrag.config.llm import (
 )
 from novelrag.exceptions import NoChatLLMConfigError, NoEmbeddingConfigError
 
-logger = logging.getLogger(__name__)
-
 
 class ChatLLMFactory:
     def __init__(self, default: BaseChatModel | None = None):

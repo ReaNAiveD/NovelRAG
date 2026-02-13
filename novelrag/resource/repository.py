@@ -279,8 +279,7 @@ class LanceDBResourceRepository(ResourceRepository):
         return self.lut.find_by_uri(resource_uri)
 
     async def vector_search(self, query: str, *, aspect: str | None = None, limit: int | None = 20) -> list[SearchResult]:
-        vectors = await self.embedding_llm.aembed_documents([query])
-        vector = vectors[0]
+        vector = await self.embedding_llm.aembed_query(query)
         result = await self.vector_store.vector_search(vector, aspect=aspect, limit=limit)
         return [SearchResult(distance=item.distance, element=self.lut[item.resource_uri]) for item in result]
 

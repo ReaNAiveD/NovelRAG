@@ -235,10 +235,10 @@ class LanceDBStore:
             sort_keys=True
         )
         hash_str = self.hasher.hash(serialized_data)
-        vectors = await self.embedder.aembed_documents([serialized_data])
+        vector = await self.embedder.aembed_query(serialized_data)
 
         return EmbeddingSearch(
-            vector=vectors[0],
+            vector=vector,
             resource_uri=element.uri,
             aspect=element.aspect,
             hash=hash_str
