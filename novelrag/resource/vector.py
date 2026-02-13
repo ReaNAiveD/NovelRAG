@@ -9,7 +9,7 @@ import lancedb
 from lancedb import AsyncConnection, AsyncTable
 from lancedb.pydantic import LanceModel, Vector
 
-from novelrag.llm import EmbeddingLLM
+from langchain_core.embeddings import Embeddings
 from novelrag.resource import Element
 
 logger = logging.getLogger(__name__)
@@ -66,7 +66,7 @@ class LanceDBStore:
     """
 
     def __init__(self, connection: AsyncConnection, table: AsyncTable,
-                 embedder: EmbeddingLLM, hasher: Hasher):
+                 embedder: Embeddings, hasher: Hasher):
         """Initialize with pre-configured dependencies."""
         self.connection = connection
         self.table = table
@@ -74,7 +74,7 @@ class LanceDBStore:
         self.hasher = hasher
 
     @classmethod
-    async def create(cls, uri: str, table_name: str, embedder: EmbeddingLLM,
+    async def create(cls, uri: str, table_name: str, embedder: Embeddings,
                      hasher: Optional[Hasher] = None) -> 'LanceDBStore':
         """Factory method to create and initialize a store instance.
 
@@ -235,10 +235,10 @@ class LanceDBStore:
             sort_keys=True
         )
         hash_str = self.hasher.hash(serialized_data)
-        embedding = await self.embedder.embedding(serialized_data, dimensions=3072)
+        vector = await self.embedder.aembed_query(serialized_data)
 
         return EmbeddingSearch(
-            vector=embedding[0],
+            vector=vector,
             resource_uri=element.uri,
             aspect=element.aspect,
             hash=hash_str
@@ -256,8 +256,8 @@ class LanceDBStore:
             if existing and existing.hash == hash_str:
                 return None
 
-        embedding = await self.embedder.embedding(serialized_data, dimensions=3072)
-        vector = embedding[0]
+        vectors = await self.embedder.aembed_documents([serialized_data])
+        vector = vectors[0]
 
         if existing:
             return await self._update_record(resource_uri, vector, hash_str)
@@ -273,11 +273,11 @@ class LanceDBStore:
         """Internal method to handle element updates."""
         serialized_data = json.dumps(data, ensure_ascii=False, sort_keys=True)
         hash_str = self.hasher.hash(serialized_data)
-        embedding = await self.embedder.embedding(serialized_data, dimensions=3072)
+        vectors = await self.embedder.aembed_documents([serialized_data])
 
         return await self._update_record(
             resource_uri,
-            embedding[0],
+            vectors[0],
             hash_str,
             aspect
         )

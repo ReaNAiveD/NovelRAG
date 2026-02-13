@@ -17,7 +17,7 @@ from typing import Any
 
 from novelrag.agenturn.goal import Goal, AutonomousSource
 from novelrag.llm.mixin import LLMMixin
-from novelrag.llm.types import ChatLLM
+from langchain_core.language_models import BaseChatModel
 from novelrag.resource.aspect import ResourceAspect
 from novelrag.resource.element import DirectiveElement
 from novelrag.resource.repository import ResourceRepository
@@ -84,7 +84,7 @@ class ExplorationGoalDecider(LLMMixin):
     def __init__(
         self,
         repo: ResourceRepository,
-        chat_llm: ChatLLM,
+        chat_llm: BaseChatModel,
         template_env: TemplateEnvironment,
         recency: RecencyWeighter | None = None,
     ):

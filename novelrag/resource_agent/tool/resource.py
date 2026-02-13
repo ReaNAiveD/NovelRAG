@@ -9,7 +9,7 @@ from novelrag.agenturn.tool import SchematicTool, ToolRuntime
 from novelrag.agenturn.tool.types import ToolOutput
 from novelrag.exceptions import OperationError
 from novelrag.llm import LLMMixin
-from novelrag.llm.types import ChatLLM
+from langchain_core.language_models import BaseChatModel
 from novelrag.resource.element import DirectiveElement
 from novelrag.resource.repository import ResourceRepository
 from novelrag.resource.operation import validate_op
@@ -26,7 +26,7 @@ from ..llm_content_proposer import LLMContentProposer
 class ResourceWriteTool(LLMMixin, SchematicTool):
     """Tool for editing existing content in the resource repository."""
     
-    def __init__(self, repo: ResourceRepository, context: ResourceContext, template_env: TemplateEnvironment, chat_llm: ChatLLM,
+    def __init__(self, repo: ResourceRepository, context: ResourceContext, template_env: TemplateEnvironment, chat_llm: BaseChatModel,
                  backlog: Backlog[BacklogEntry] | None = None, undo_queue: UndoQueue | None = None):
         self.content_proposers: list[ContentProposer] = [LLMContentProposer(template_env=template_env, chat_llm=chat_llm)]
         self.context = context

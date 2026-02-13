@@ -5,7 +5,8 @@ import logging
 from typing import Any
 
 from novelrag.llm import LLMMixin
-from novelrag.llm.types import ChatLLM
+from langchain_core.language_models import BaseChatModel
+from langchain_core.messages import HumanMessage, SystemMessage
 from novelrag.template import TemplateEnvironment
 
 from .proposals import ContentProposal, ContentProposer
@@ -16,7 +17,7 @@ logger = logging.getLogger(__name__)
 class LLMContentProposer(LLMMixin, ContentProposer):
     """LLM-based content proposer using Sequential Diverse Prompting with dynamic perspective generation."""
 
-    def __init__(self, template_env: TemplateEnvironment, chat_llm: ChatLLM, num_proposals: int = 3):
+    def __init__(self, template_env: TemplateEnvironment, chat_llm: BaseChatModel, num_proposals: int = 3):
         """Initialize the LLM content proposer.
 
         Args:
@@ -151,10 +152,11 @@ class LLMContentProposer(LLMMixin, ContentProposer):
         Generate coherent, engaging content that addresses the step requirements.
         """
 
-        content = await self.chat_llm.chat(messages=[
-            {'role': 'system', 'content': 'You are a creative writing assistant. Generate story content based on the provided requirements.'},
-            {'role': 'user', 'content': fallback_prompt}
+        result = await self.chat_llm.ainvoke([
+            SystemMessage(content='You are a creative writing assistant. Generate story content based on the provided requirements.'),
+            HumanMessage(content=fallback_prompt),
         ])
+        content = result.content if isinstance(result.content, str) else str(result.content)
 
         if content.strip():
             return [ContentProposal(

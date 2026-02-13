@@ -23,6 +23,7 @@ classifiers = [
 dependencies = [
     "jinja2",
     "lancedb",
+    "langchain-core>=0.3",
     "numpy",
     "pandas",
     "pyarrow",
@@ -42,14 +43,10 @@ test = [
     "pytest-cov>=4.1.0",
 ]
 openai = [
-    "openai"
-]
-azure-ai = [
-    "azure-ai-inference",
-    "aiohttp"
+    "langchain-openai>=0.3",
 ]
 azure-identity = [
-    "azure-identity"
+    "azure-identity",
 ]
 
 [build-system]

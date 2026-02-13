@@ -3,7 +3,7 @@ import logging
 
 from novelrag.agenturn.goal import Goal, AutonomousSource, GoalDecider
 from novelrag.llm.mixin import LLMMixin
-from novelrag.llm.types import ChatLLM
+from langchain_core.language_models import BaseChatModel
 from novelrag.resource_agent.backlog.types import Backlog, BacklogEntry
 from novelrag.template import TemplateEnvironment
 
@@ -21,7 +21,7 @@ class BacklogGoalDecider(LLMMixin):
     TEMPLATE_NAME = "goal_from_backlog.jinja2"
     TOP_N = 5
 
-    def __init__(self, backlog: Backlog[BacklogEntry], chat_llm: ChatLLM, template_env: TemplateEnvironment):
+    def __init__(self, backlog: Backlog[BacklogEntry], chat_llm: BaseChatModel, template_env: TemplateEnvironment):
         LLMMixin.__init__(self, template_env=template_env, chat_llm=chat_llm)
         self.backlog = backlog
 

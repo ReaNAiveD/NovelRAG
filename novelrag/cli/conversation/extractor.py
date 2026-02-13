@@ -1,4 +1,5 @@
-from novelrag.llm import ChatLLM
+from langchain_core.language_models import BaseChatModel
+from langchain_core.messages import HumanMessage, SystemMessage
 from novelrag.utils.const import LANGUAGE_INSTRUCTION
 
 SYSTEM_PROMPT = """
@@ -46,7 +47,7 @@ Conversation History:
 
 
 class Extractor:
-    def __init__(self, chat_llm: ChatLLM):
+    def __init__(self, chat_llm: BaseChatModel):
         self.chat_llm = chat_llm
 
     async def extract(self, task: str, messages: list[str], *, limit=800) -> str:
@@ -60,14 +61,8 @@ class Extractor:
             conversation=conversation_text,
         )
 
-        response = await self.chat_llm.chat([
-            {
-                "role": "system",
-                "content": system_prompt
-            },
-            {
-                "role": "user",
-                "content": "Please identify the latest user requirements, constraints, and relevant assistant-generated content according to the guidelines provided."
-            }
+        result = await self.chat_llm.ainvoke([
+            SystemMessage(content=system_prompt),
+            HumanMessage(content="Please identify the latest user requirements, constraints, and relevant assistant-generated content according to the guidelines provided."),
         ])
-        return response.strip()
+        return result.content.strip()

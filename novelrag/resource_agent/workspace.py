@@ -11,7 +11,7 @@ used during orchestration:
 from dataclasses import dataclass, field
 
 from novelrag.llm import LLMMixin
-from novelrag.llm.types import ChatLLM
+from langchain_core.language_models import BaseChatModel
 from novelrag.resource.aspect import ResourceAspect
 from novelrag.resource.repository import ResourceRepository
 from novelrag.template import TemplateEnvironment
@@ -79,7 +79,7 @@ class ResourceContext(LLMMixin):
     - Building context dictionaries for LLM consumption
     """
     
-    def __init__(self, resource_repo: ResourceRepository, template_env: TemplateEnvironment, chat_llm: ChatLLM):
+    def __init__(self, resource_repo: ResourceRepository, template_env: TemplateEnvironment, chat_llm: BaseChatModel):
         super().__init__(template_env, chat_llm)
         self.search_limit = 5
         self.resource_repo = resource_repo
