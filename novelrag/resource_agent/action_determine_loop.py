@@ -12,7 +12,7 @@ from novelrag.agenturn.pursuit import ActionDeterminer, PursuitAssessment, Pursu
 from novelrag.agenturn.step import OperationPlan, OperationOutcome, Resolution
 from novelrag.agenturn.tool import SchematicTool
 from novelrag.llm import LLMMixin
-from novelrag.llm.types import ChatLLM
+from langchain_core.language_models import BaseChatModel
 from novelrag.template import TemplateEnvironment
 
 from .workspace import ResourceContext
@@ -73,7 +73,7 @@ class ActionDetermineLoop(ActionDeterminer, LLMMixin):
     4. Refinement Analysis - Validate decision or refine goal
     """
     
-    def __init__(self, context: ResourceContext, chat_llm: ChatLLM, template_lang: str = 'en', max_iter: int | None = 5, min_iter: int | None = None):
+    def __init__(self, context: ResourceContext, chat_llm: BaseChatModel, template_lang: str = 'en', max_iter: int | None = 5, min_iter: int | None = None):
         template_env = TemplateEnvironment(package_name="novelrag.resource_agent", default_lang=template_lang,)
         LLMMixin.__init__(self, template_env=template_env, chat_llm=chat_llm)
         self.assessor = PursuitAssessor(chat_llm=chat_llm, lang=template_lang)

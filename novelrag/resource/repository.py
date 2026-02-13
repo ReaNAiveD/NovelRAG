@@ -7,7 +7,7 @@ import yaml
 
 from novelrag.config.resource import AspectConfig, VectorStoreConfig
 from novelrag.exceptions import ElementNotFoundError, OperationError
-from novelrag.llm import EmbeddingLLM
+from langchain_core.embeddings import Embeddings
 from .aspect import ResourceAspect
 from .element import DirectiveElement, Element
 from .lut import ElementLookUpTable
@@ -93,7 +93,7 @@ class LanceDBResourceRepository(ResourceRepository):
             config_path: str,
             resource_aspects: dict[str, ResourceAspect],
             vector_store: LanceDBStore,
-            embedder: EmbeddingLLM,
+            embedder: Embeddings,
             default_resource_dir: str = '.',
     ):
         self.config_path = config_path
@@ -113,7 +113,7 @@ class LanceDBResourceRepository(ResourceRepository):
             cls,
             config_path: str,
             vector_store_config: VectorStoreConfig,
-            embedder: EmbeddingLLM,
+            embedder: Embeddings,
             default_resource_dir: str = '.',
             cleanup_invalid_vectors: bool | None = None,
     ) -> 'LanceDBResourceRepository':
@@ -279,8 +279,8 @@ class LanceDBResourceRepository(ResourceRepository):
         return self.lut.find_by_uri(resource_uri)
 
     async def vector_search(self, query: str, *, aspect: str | None = None, limit: int | None = 20) -> list[SearchResult]:
-        embeddings = await self.embedding_llm.embedding(query)
-        vector = embeddings[0]
+        vectors = await self.embedding_llm.aembed_documents([query])
+        vector = vectors[0]
         result = await self.vector_store.vector_search(vector, aspect=aspect, limit=limit)
         return [SearchResult(distance=item.distance, element=self.lut[item.resource_uri]) for item in result]
 

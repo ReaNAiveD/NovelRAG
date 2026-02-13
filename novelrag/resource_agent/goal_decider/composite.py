@@ -2,7 +2,7 @@ import logging
 import random
 
 from novelrag.agenturn.goal import Goal, GoalDecider
-from novelrag.llm.types import ChatLLM
+from langchain_core.language_models import BaseChatModel
 from novelrag.resource.repository import ResourceRepository
 from novelrag.resource_agent.backlog.types import Backlog, BacklogEntry
 from novelrag.resource_agent.undo import UndoQueue
@@ -36,7 +36,7 @@ class CompositeGoalDecider:
     def __init__(
         self,
         repo: ResourceRepository,
-        chat_llm: ChatLLM,
+        chat_llm: BaseChatModel,
         template_lang: str = "en",
         backlog: Backlog[BacklogEntry] | None = None,
         undo_queue: UndoQueue | None = None,

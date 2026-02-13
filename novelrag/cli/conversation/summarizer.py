@@ -1,4 +1,5 @@
-from novelrag.llm import ChatLLM
+from langchain_core.language_models import BaseChatModel
+from langchain_core.messages import HumanMessage, SystemMessage
 from novelrag.utils.const import LANGUAGE_INSTRUCTION
 
 SYSTEM_PROMPT = """
@@ -44,7 +45,7 @@ Existing Summary: {existing_summary}
 
 
 class Summarizer:
-    def __init__(self, chat_llm: ChatLLM):
+    def __init__(self, chat_llm: BaseChatModel):
         self.chat_llm = chat_llm
 
     async def summarize(self, messages: list[str], *, existing_summary: str | None = None, limit=800) -> str:
@@ -58,16 +59,10 @@ class Summarizer:
             conversation=conversation_text
         )
         
-        # Get response from LLM using proper message format
-        response = await self.chat_llm.chat([
-            {
-                "role": "system",
-                "content": system_prompt
-            },
-            {
-                "role": "user",
-                "content": "Please summarize the conversation according to the guidelines provided."
-            }
+        # Get response from LLM using LangChain messages
+        result = await self.chat_llm.ainvoke([
+            SystemMessage(content=system_prompt),
+            HumanMessage(content="Please summarize the conversation according to the guidelines provided."),
         ])
 
-        return response.strip()
+        return result.content.strip()

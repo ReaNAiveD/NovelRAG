@@ -1,15 +1,11 @@
-"""LLM Mixin for template-based LLM interactions.
-
-This module provides a mixin class that enables LLM template calling functionality
-for classes that need to interact with language models.
-"""
-
 import json
 import logging
 import time
 from typing import Any
 
-from novelrag.llm.types import ChatLLM
+from langchain_core.language_models import BaseChatModel
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+
 from novelrag.llm.logger import LLMRequest, LLMResponse, log_llm_call
 from novelrag.template import TemplateEnvironment
 
@@ -19,7 +15,7 @@ logger = logging.getLogger(__name__)
 class LLMMixin:
     """Mixin that provides LLM template calling functionality"""
     
-    def __init__(self, template_env: TemplateEnvironment, chat_llm: ChatLLM):
+    def __init__(self, template_env: TemplateEnvironment, chat_llm: BaseChatModel):
         self.template_env = template_env
         self.chat_llm = chat_llm
 
@@ -43,10 +39,15 @@ class LLMMixin:
         
         # Call LLM and measure time
         start_time = time.time()
-        response = await self.chat_llm.chat(
-            messages=messages,
-            response_format='json_object' if json_format else None
-        )
+        lc_messages = [
+            SystemMessage(content=prompt),
+            HumanMessage(content=user_question or 'Please answer the question.'),
+        ]
+        invoke_kwargs: dict[str, Any] = {}
+        if json_format and getattr(self.chat_llm, '_json_supports', True):
+            invoke_kwargs["response_format"] = {"type": "json_object"}
+        result: AIMessage = await self.chat_llm.ainvoke(lc_messages, **invoke_kwargs)
+        response = result.content if isinstance(result.content, str) else json.dumps(result.content)
         duration_ms = int((time.time() - start_time) * 1000)
         
         # Log the call
@@ -98,10 +99,15 @@ class LLMMixin:
         
         # Call LLM and measure time
         start_time = time.time()
-        response = await self.chat_llm.chat(
-            messages=messages,
-            response_format=response_format_config
-        )
+        lc_messages = [
+            SystemMessage(content=prompt),
+            HumanMessage(content=user_question or 'Please provide a response that conforms to the specified JSON schema.'),
+        ]
+        invoke_kwargs: dict[str, Any] = {}
+        if getattr(self.chat_llm, '_json_supports', True):
+            invoke_kwargs["response_format"] = response_format_config
+        result: AIMessage = await self.chat_llm.ainvoke(lc_messages, **invoke_kwargs)
+        response = result.content if isinstance(result.content, str) else json.dumps(result.content)
         duration_ms = int((time.time() - start_time) * 1000)
         
         # Log the call

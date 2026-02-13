@@ -9,7 +9,7 @@ from typing import Any, Protocol
 from novelrag.agenturn.goal import Goal
 from novelrag.agenturn.tool.schematic import SchematicTool
 from novelrag.llm.mixin import LLMMixin
-from novelrag.llm.types import ChatLLM
+from langchain_core.language_models import BaseChatModel
 from novelrag.template import TemplateEnvironment
 
 from .step import OperationOutcome, OperationPlan, Resolution
@@ -138,7 +138,7 @@ class PursuitAssessor(LLMMixin):
 
     TEMPLATE_NAME = "assess_pursuit_progress.jinja2"
 
-    def __init__(self, chat_llm: ChatLLM, lang: str = "en"):
+    def __init__(self, chat_llm: BaseChatModel, lang: str = "en"):
         template_env = TemplateEnvironment(package_name="novelrag.agenturn", default_lang=lang)
         super().__init__(template_env, chat_llm)
 

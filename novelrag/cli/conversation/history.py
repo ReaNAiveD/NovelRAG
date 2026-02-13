@@ -1,4 +1,4 @@
-from novelrag.llm import ChatLLM
+from langchain_core.language_models import BaseChatModel
 from .extractor import Extractor
 from .item import ConversationItem
 from .summarizer import Summarizer
@@ -26,7 +26,7 @@ class ConversationHistory:
         self.extractor = extractor
 
     @classmethod
-    def empty(cls, *, chat_llm: ChatLLM | None = None) -> "ConversationHistory":
+    def empty(cls, *, chat_llm: BaseChatModel | None = None) -> "ConversationHistory":
         """
         Create an empty conversation history.
         """

@@ -9,7 +9,7 @@ from novelrag.config.llm import AzureOpenAIEmbeddingConfig, EmbeddingLLMType
 from novelrag.config.resource import AspectConfig, VectorStoreConfig
 from novelrag.resource import LanceDBResourceRepository
 from novelrag.resource.operation import ResourceOperation, PropertyOperation, ResourceLocation, OperationTarget
-from novelrag.llm import EmbeddingLLM
+from langchain_core.embeddings import Embeddings
 from novelrag.resource.element import Element, DirectiveElement, DirectiveElementList
 
 
@@ -34,20 +34,30 @@ class TestData:
         }
 
 
-class MockEmbeddingLLM(EmbeddingLLM):
+class MockEmbeddingLLM(Embeddings):
     """Mock embedder for testing"""
     def __init__(self, dimension: int = 3072):
         self.dimension = dimension
         self.embedding_calls = AsyncMock()
 
-    async def embedding(self, message: str, **params) -> list[list[float]]:
-        await self.embedding_calls(message, **params)
-        # Return a fixed-size vector of zeros for testing
-        return [[0.0] * self.dimension]
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        return [[0.0] * self.dimension for _ in texts]
+
+    def embed_query(self, text: str) -> list[float]:
+        return [0.0] * self.dimension
+
+    async def aembed_documents(self, texts: list[str]) -> list[list[float]]:
+        for text in texts:
+            await self.embedding_calls(text)
+        return [[0.0] * self.dimension for _ in texts]
+
+    async def aembed_query(self, text: str) -> list[float]:
+        await self.embedding_calls(text)
+        return [0.0] * self.dimension
 
 
 class DummyVectorStore:
-    def __init__(self, embedder: EmbeddingLLM | None = None):
+    def __init__(self, embedder: Embeddings | None = None):
         self.embedder = embedder
         self._store: dict[str, dict[str, Any]] = {}
 
@@ -134,7 +144,7 @@ async def create_test_repository(*, use_mock: bool = True):
     if use_mock:
         embedder = MockEmbeddingLLM()
     else:
-        from novelrag.llm.oai import OpenAIEmbeddingLLM
+        from novelrag.llm.factory import EmbeddingLLMFactory
         embedding_config = AzureOpenAIEmbeddingConfig(
             endpoint='https://novel-rag.openai.azure.com',
             deployment='text-embedding-3-large',
@@ -144,7 +154,7 @@ async def create_test_repository(*, use_mock: bool = True):
             timeout=180.0,
             type=EmbeddingLLMType.AzureOpenAI,
         )
-        embedder = OpenAIEmbeddingLLM.from_config(embedding_config)
+        embedder = EmbeddingLLMFactory.build(embedding_config)
 
     os.makedirs('resource', exist_ok=True)
     cfg_path = os.path.join('resource', 'test_resources.yml')

@@ -6,7 +6,7 @@ from typing import Any
 from novelrag.agenturn.tool import SchematicTool, ToolRuntime
 from novelrag.agenturn.tool.types import ToolOutput
 from novelrag.llm import LLMMixin
-from novelrag.llm.types import ChatLLM
+from langchain_core.language_models import BaseChatModel
 from novelrag.resource.aspect import ResourceAspect
 from novelrag.resource.element import DirectiveElement
 from novelrag.resource.repository import ResourceRepository
@@ -17,7 +17,7 @@ from novelrag.template import TemplateEnvironment
 class ResourceRelationWriteTool(LLMMixin, SchematicTool):
     """Tool for writing relations between resources in the repository."""
     
-    def __init__(self, repo: ResourceRepository, template_env: TemplateEnvironment, chat_llm: ChatLLM, undo_queue: UndoQueue | None = None):
+    def __init__(self, repo: ResourceRepository, template_env: TemplateEnvironment, chat_llm: BaseChatModel, undo_queue: UndoQueue | None = None):
         self.repo = repo
         self.undo = undo_queue
         super().__init__(template_env=template_env, chat_llm=chat_llm)

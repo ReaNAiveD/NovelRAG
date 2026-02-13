@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Protocol
 
 from novelrag.llm.mixin import LLMMixin
-from novelrag.llm.types import ChatLLM
+from langchain_core.language_models import BaseChatModel
 from novelrag.template import TemplateEnvironment
 
 
@@ -65,7 +65,7 @@ class LLMGoalTranslator(GoalTranslator, LLMMixin):
 
     TEMPLATE_NAME = "translate_request_to_goal.jinja2"
 
-    def __init__(self, chat_llm: ChatLLM, lang: str = "en"):
+    def __init__(self, chat_llm: BaseChatModel, lang: str = "en"):
         template_env = TemplateEnvironment(package_name="novelrag.agenturn", default_lang=lang)
         LLMMixin.__init__(self, template_env=template_env, chat_llm=chat_llm)
 
