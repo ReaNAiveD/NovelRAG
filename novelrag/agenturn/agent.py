@@ -6,7 +6,7 @@ from typing import Any
 
 from novelrag.agenturn.channel import AgentChannel
 from novelrag.agenturn.goal import Goal, GoalDecider, GoalTranslator
-from novelrag.agenturn.pursuit import ActionDeterminer, PursuitAssessment, PursuitAssessor, PursuitOutcome, PursuitProgress, PursuitStatus
+from novelrag.agenturn.pursuit import ActionDeterminer, PursuitAssessment, LLMPursuitAssessor, PursuitOutcome, PursuitProgress, PursuitStatus
 from novelrag.agenturn.step import OperationPlan, OperationOutcome, Resolution, StepStatus
 from novelrag.agenturn.tool import SchematicTool, ToolRuntime
 from novelrag.llm import get_logger

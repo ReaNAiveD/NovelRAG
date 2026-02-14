@@ -3,12 +3,14 @@
 This module provides classes for managing the dynamic resource context
 used during orchestration:
 - ResourceSegment: Partially loaded resource with selective properties
+- SegmentData: Enriched view of a resource segment for LLM consumption
 - ContextWorkspace: Evolving set of resource segments
 - ResourceContext: High-level context management with search and query
 - SearchHistoryItem: Tracks search queries and results
 """
 
 from dataclasses import dataclass, field
+from typing import Any
 
 from novelrag.llm import LLMMixin
 from langchain_core.language_models import BaseChatModel
@@ -19,9 +21,27 @@ from novelrag.template import TemplateEnvironment
 
 @dataclass
 class ResourceSegment:
-    """Represents a partially loaded resource with selective properties."""
+    """Represents a partially loaded resource with selective properties.
+    
+    This is the workspace's internal state tracker. Use SegmentData for
+    the enriched view suitable for LLM/template consumption.
+    """
     uri: str
     excluded_properties: set[str] = field(default_factory=set)
+
+
+@dataclass
+class SegmentData:
+    """Enriched view of a resource segment for LLM consumption.
+    
+    Built from a ResourceSegment by loading its resource data,
+    applying property exclusions, and resolving children/relations.
+    """
+    uri: str
+    included_data: dict[str, Any]
+    excluded_properties: list[str]
+    child_ids: dict[str, list[str]]
+    relations: dict[str, str]
 
 
 @dataclass
@@ -38,7 +58,7 @@ class ContextWorkspace:
     def filter_children_ids(self, base_uri: str, children_ids: list[str]) -> list[str]:
         """Filter out children IDs that are excluded in the workspace."""
         return [uri for uri in children_ids if f"{base_uri}/{uri}" not in self.excluded_uris]
-    
+
     def sorted_segments(self) -> list[ResourceSegment]:
         """Get the list of resource segments in sorted order."""
         return [self.segments[uri] for uri in self.sorted_uris if uri in self.segments and uri not in self.excluded_uris]
@@ -69,7 +89,7 @@ class SearchHistoryItem:
     uris: list[str]
 
 
-class ResourceContext(LLMMixin):
+class ResourceContext:
     """High-level resource context management for orchestration.
     
     Provides methods for:
@@ -79,40 +99,44 @@ class ResourceContext(LLMMixin):
     - Building context dictionaries for LLM consumption
     """
     
-    def __init__(self, resource_repo: ResourceRepository, template_env: TemplateEnvironment, chat_llm: BaseChatModel):
-        super().__init__(template_env, chat_llm)
+    def __init__(self, resource_repo: ResourceRepository):
         self.search_limit = 5
         self.resource_repo = resource_repo
         self.workspace = ContextWorkspace()
         self.workspace.ensure_segment("/")
         self.search_history: list[SearchHistoryItem] = []
     
-    async def build_segment_data(self, segment: ResourceSegment) -> dict | None:
+    async def build_segment_data(self, segment: ResourceSegment) -> SegmentData | None:
+        """Build an enriched view of a resource segment.
+        
+        Returns None if the resource does not exist.
+        """
         resource = await self.resource_repo.find_by_uri(segment.uri)
         if not resource:
             return None
         if isinstance(resource, list):
             child_ids = [aspect.name for aspect in resource]
             filtered_child_ids = self.workspace.filter_children_ids("", child_ids)
-            return {
-                "uri": segment.uri,
-                "pending_properties": [],
-                "included_data": {},
-                "relations": {},
-                "child_ids": {"aspects": filtered_child_ids},
-            }
+            return SegmentData(
+                uri=segment.uri,
+                included_data={},
+                excluded_properties=sorted(segment.excluded_properties),
+                child_ids={"aspects": filtered_child_ids},
+                relations={},
+            )
         elif isinstance(resource, ResourceAspect):
             data = resource.aspect_dict
             child_ids = [element.id for element in resource.root_elements]
             filtered_child_ids = self.workspace.filter_children_ids(segment.uri, child_ids)
             included_properties = set(data.keys()) - segment.excluded_properties
             included_data = {k: v for k, v in data.items() if k in included_properties}
-            return {
-                "uri": segment.uri,
-                "included_data": included_data,
-                "relations": {},
-                "child_ids": {"top_child_resources": filtered_child_ids},
-            }
+            return SegmentData(
+                uri=segment.uri,
+                included_data=included_data,
+                excluded_properties=sorted(segment.excluded_properties),
+                child_ids={"top_child_resources": filtered_child_ids},
+                relations={},
+            )
         else:
             data = resource.props
             child_ids = resource.flattened_child_ids
@@ -120,12 +144,29 @@ class ResourceContext(LLMMixin):
             included_properties = set(data.keys()) - segment.excluded_properties
             included_data = {k: v for k, v in data.items() if k in included_properties}
             relations = self.workspace.filter_relationships({uri: " ".join(desc) for uri, desc in resource.relationships.items()})
-            return {
-                "uri": segment.uri,
-                "included_data": included_data,
-                "relations": relations,
-                "child_ids": filtered_child_ids,
-            }
+            return SegmentData(
+                uri=segment.uri,
+                included_data=included_data,
+                excluded_properties=sorted(segment.excluded_properties),
+                child_ids=filtered_child_ids,
+                relations=relations,
+            )
+    
+    async def build_workspace_view(self) -> tuple[list[SegmentData], list[str]]:
+        """Build enriched segment views for all loaded resources.
+        
+        Returns:
+            A tuple of (segment_data_list, nonexistent_uris).
+        """
+        segments: list[SegmentData] = []
+        nonexisted: list[str] = []
+        for segment in self.workspace.sorted_segments():
+            data = await self.build_segment_data(segment)
+            if data:
+                segments.append(data)
+            else:
+                nonexisted.append(segment.uri)
+        return segments, nonexisted
     
     async def query_resource(self, uri: str):
         self.workspace.ensure_segment(uri)
@@ -148,17 +189,15 @@ class ResourceContext(LLMMixin):
     
     async def dict_context(self) -> dict[str, list[str]]:
         """Generate final context from workspace segments."""
-        
         context = {}
-        for segment in self.workspace.sorted_segments():
-            if segment_data := await self.build_segment_data(segment):
-                if segment.uri not in context:
-                    context[segment.uri] = []
-                for property_name, property_value in segment_data["included_data"].items():
-                    context[segment.uri].append(f"{property_name}: {property_value}")
-                for rel_uri, rel_desc in segment_data["relations"].items():
-                    context[segment.uri].append(f"Related to {rel_uri}: {rel_desc}")
-        
+        segments, _ = await self.build_workspace_view()
+        for segment_data in segments:
+            if segment_data.uri not in context:
+                context[segment_data.uri] = []
+            for property_name, property_value in segment_data.included_data.items():
+                context[segment_data.uri].append(f"{property_name}: {property_value}")
+            for rel_uri, rel_desc in segment_data.relations.items():
+                context[segment_data.uri].append(f"Related to {rel_uri}: {rel_desc}")
         return context
 
     def reset_workspace(self):

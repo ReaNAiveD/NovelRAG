@@ -1,18 +1,23 @@
 """Data structures for goal pursuit and execution tracking."""
 
-import json
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Protocol
+import logging
+from typing import Annotated, Protocol
+
+from pydantic import BaseModel, Field
 
 from novelrag.agenturn.goal import Goal
 from novelrag.agenturn.tool.schematic import SchematicTool
 from novelrag.llm.mixin import LLMMixin
-from langchain_core.language_models import BaseChatModel
 from novelrag.template import TemplateEnvironment
+from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_core.language_models import BaseChatModel
 
 from .step import OperationOutcome, OperationPlan, Resolution
+
+logger = logging.getLogger(__name__)
 
 
 class PursuitStatus(Enum):
@@ -73,74 +78,35 @@ class ActionDeterminer(Protocol):
         ...
 
 
-@dataclass
-class PursuitAssessment:
+class PursuitAssessment(BaseModel):
     """Assessment of current pursuit progress toward a goal."""
-    finished_tasks: list[str]
-    remaining_work_summary: str
-    required_context: str
-    expected_actions: str
-    boundary_conditions: list[str]
-    exception_conditions: list[str]
-    success_criteria: list[str]
+    finished_tasks: Annotated[list[str], Field(description="List of tasks that have been completed toward the goal")]
+    remaining_work_summary: Annotated[str, Field(description="Summary of what still needs to be done to achieve the goal")]
+    required_context: Annotated[str, Field(description="Context still needed to complete the goal")]
+    expected_actions: Annotated[str, Field(description="Actions expected to complete the goal")]
+    boundary_conditions: Annotated[list[str], Field(description="Constraints for the remaining work")]
+    exception_conditions: Annotated[list[str], Field(description="Edge cases or error conditions to handle going forward")]
+    success_criteria: Annotated[list[str], Field(description="Conditions that indicate the goal is achieved")]
 
 
-PURSUIT_ASSESSMENT_SCHEMA: dict[str, Any] = {
-    "type": "object",
-    "properties": {
-        "finished_tasks": {
-            "type": "array",
-            "items": {"type": "string"},
-            "description": "List of tasks that have been completed toward the goal"
-        },
-        "remaining_work_summary": {
-            "type": "string",
-            "description": "Summary of what still needs to be done to achieve the goal"
-        },
-        "required_context": {
-            "type": "string",
-            "description": "Context still needed to complete the goal"
-        },
-        "expected_actions": {
-            "type": "string",
-            "description": "Actions expected to complete the goal"
-        },
-        "boundary_conditions": {
-            "type": "array",
-            "items": {"type": "string"},
-            "description": "Constraints for the remaining work"
-        },
-        "exception_conditions": {
-            "type": "array",
-            "items": {"type": "string"},
-            "description": "Edge cases or error conditions to handle going forward"
-        },
-        "success_criteria": {
-            "type": "array",
-            "items": {"type": "string"},
-            "description": "Conditions that indicate the goal is achieved"
-        }
-    },
-    "required": [
-        "finished_tasks",
-        "remaining_work_summary",
-        "required_context",
-        "expected_actions",
-        "boundary_conditions",
-        "exception_conditions",
-        "success_criteria"
-    ],
-    "additionalProperties": False
-}
+class PursuitAssessor(Protocol):
+    async def assess_progress(
+            self,
+            pursuit: PursuitProgress,
+            beliefs: list[str] | None = None,
+            previous_assessment: PursuitAssessment | None = None
+    ) -> PursuitAssessment:
+        ...
 
 
-class PursuitAssessor(LLMMixin):
+class LLMPursuitAssessor:
 
     TEMPLATE_NAME = "assess_pursuit_progress.jinja2"
 
     def __init__(self, chat_llm: BaseChatModel, lang: str = "en"):
+        self.chat_llm = chat_llm.with_structured_output(PursuitAssessment)
         template_env = TemplateEnvironment(package_name="novelrag.agenturn", default_lang=lang)
-        super().__init__(template_env, chat_llm)
+        self.template = template_env.load_template(self.TEMPLATE_NAME)
 
     async def assess_progress(
             self,
@@ -159,23 +125,15 @@ class PursuitAssessor(LLMMixin):
         Returns:
             A PursuitAssessment summarizing progress and remaining work
         """
-        response = await self.call_template_structured(
-            template_name=self.TEMPLATE_NAME,
-            response_schema=PURSUIT_ASSESSMENT_SCHEMA,
-            user_question="Assess the current pursuit progress.",
+        prompt = self.template.render(
             pursuit=pursuit,
             beliefs=beliefs or [],
             previous_assessment=previous_assessment
         )
 
-        data = json.loads(response)
-        
-        return PursuitAssessment(
-            finished_tasks=data["finished_tasks"],
-            remaining_work_summary=data["remaining_work_summary"],
-            required_context=data["required_context"],
-            expected_actions=data["expected_actions"],
-            boundary_conditions=data["boundary_conditions"],
-            exception_conditions=data["exception_conditions"],
-            success_criteria=data["success_criteria"]
-        )
+        response = await self.chat_llm.ainvoke([
+            SystemMessage(content=prompt),
+            HumanMessage(content="Assess the current pursuit progress.")
+        ])
+        assert isinstance(response, PursuitAssessment), "Expected PursuitAssessment from LLM response"
+        return response

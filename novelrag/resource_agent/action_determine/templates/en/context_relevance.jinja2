@@ -1,0 +1,109 @@
+# Context Relevance Evaluator
+
+Filter and prioritize the loaded context to maximize relevant signal for achieving the goal.
+
+## Current Goal
+{{ goal.description }}
+
+## Goal Source
+{{ goal.source }}
+
+## Current Assessment
+{%- if pursuit_assessment %}
+- **Finished Tasks**: {{ pursuit_assessment.finished_tasks | join("; ") }}
+- **Remaining Work**: {{ pursuit_assessment.remaining_work_summary }}
+- **Required Context**: {{ pursuit_assessment.required_context }}
+- **Expected Actions**: {{ pursuit_assessment.expected_actions }}
+- **Success Criteria**: {{ pursuit_assessment.success_criteria | join("; ") }}
+- **Boundary Conditions**: {{ pursuit_assessment.boundary_conditions | join("; ") }}
+- **Exception Conditions**: {{ pursuit_assessment.exception_conditions | join("; ") }}
+{%- else %}
+No assessment available yet.
+{%- endif %}
+
+{%- if discovery_analysis %}
+
+## Discovery Phase Insights
+
+The previous context discovery phase analyzed the workspace and made these observations:
+
+{{ discovery_analysis }}
+
+**How to use these insights:**
+- Resources mentioned as potentially relevant should be carefully evaluated before exclusion
+- Identified context gaps or missing information should influence your filtering decisions
+- Patterns or relationships discovered provide important semantic connections
+- Tool expansion decisions were based on what information is available or needed
+
+Use this analysis to make informed decisions about what context to keep, exclude, or prioritize.
+{%- endif %}
+
+## Expanded Tools (Currently Preparing to Use)
+{%- if expanded_tools %}
+{%- for tool_name, tool in expanded_tools.items() %}
+### {{ tool_name }}
+- **What it does**: {{ tool.description }}
+- **Requirements**: {{ tool.prerequisites }}
+- **Output**: {{ tool.output_description }}
+{%- if tool.input_schema and tool.input_schema.get("properties") %}
+- **Needs these inputs**:
+{%- for param, details in tool.input_schema["properties"].items() %}
+  - `{{ param }}` ({{ details.get("type", "any") }}{% if param in tool.input_schema.get("required", []) %}, required{% endif %}): {{ details.get("description", "") }}
+{%- endfor %}
+{%- endif %}
+{%- endfor %}
+{%- else %}
+No tools currently expanded. Focus on general goal relevance.
+{%- endif %}
+
+## Other Available Tools (Not Yet Expanded)
+{%- if collapsed_tools %}
+{%- for tool_name, tool in collapsed_tools.items() %}
+- **{{ tool_name }}**: {{ tool.description }}
+{%- endfor %}
+{%- else %}
+All tools are expanded.
+{%- endif %}
+
+## Loaded Resources
+
+The following resources are currently loaded in the workspace:
+
+{%- for segment in workspace_segment %}
+### {{ loop.index }}. **{{ segment.uri }}**
+{%- if segment.included_data %}
+**Visible Properties**:
+{%- for key, value in segment.included_data.items() %}
+- {{ key }}: {{ value }}
+{%- endfor %}
+{%- endif %}
+{%- if segment.child_ids %}
+**Children** (construct URI by appending to parent: `{{ segment.uri }}/child_name`):
+{%- for type, ids in segment.child_ids.items() %}
+- {{ type }}: {{ ids | join(", ") }}
+{%- endfor %}
+{%- endif %}
+{%- if segment.relations %}
+**Relations** (these are full URIs in key, use as-is):
+{%- for uri, desc in segment.relations.items() %}
+- {{ uri }}: {{ desc }}
+{%- endfor %}
+{%- endif %}
+{%- endfor %}
+
+## Relevance Scale
+
+- **CRITICAL**: Directly mentioned in goal or required by expanded tool inputs
+- **HIGH**: Closely related concepts or helpful context
+- **MEDIUM**: Background information that might be useful
+- **LOW**: Tangentially related — exclude noisy properties
+- **NONE**: Completely unrelated — exclude whole resource
+
+## Critical Rules
+
+1. **Semantic Awareness**: Consider translations and synonyms (protagonist ↔ 主角, homecoming ↔ 归乡)
+2. **Conservative Exclusion**: When in doubt, keep the resource — only exclude clearly irrelevant items
+3. **Tool-Driven Filtering**: Retain anything that might supply inputs to expanded tools
+4. **Complete Sorting**: `sorted_segments` must list every loaded URI, not a subset
+
+Analyze the loaded resources and produce a refinement plan.

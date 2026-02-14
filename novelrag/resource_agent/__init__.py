@@ -1,17 +1,23 @@
+from novelrag.agenturn.pursuit import LLMPursuitAssessor
 from novelrag.resource_agent.backlog.types import Backlog, BacklogEntry
 from novelrag.resource_agent.undo import UndoQueue
 from .goal_decider import CompositeGoalDecider
-from .action_determine_loop import (
+from .action_determine import (
     ActionDetermineLoop,
-    DiscoveryPlan,
-    RefinementPlan,
-    ActionDecision,
-    RefinementDecision,
+    ActionDecider,
+    LLMActionDecider,
+    ContextAnalyser,
+    LLMContextAnalyzer,
+    ContextDiscoverer,
+    LLMContextDiscoverer,
+    RefinementAnalyzer,
+    LLMRefinementAnalyzer,
 )
 from .workspace import (
     ResourceContext,
     ContextWorkspace,
     ResourceSegment,
+    SegmentData,
     SearchHistoryItem,
 )
 from .proposals import ContentProposal, ContentProposer
@@ -32,12 +38,20 @@ __all__ = [
     "DiscoveryPlan",
     "RefinementPlan",
     "ActionDecision",
+    "ExecutionDetail",
+    "FinalizationDetail",
     "RefinementDecision",
+    "RefinementApproval",
+    "LLMContextDiscoverer",
+    "LLMContextAnalyzer",
+    "LLMActionDecider",
+    "LLMRefinementAnalyzer",
     
     # Workspace
     "ResourceContext",
     "ContextWorkspace",
     "ResourceSegment",
+    "SegmentData",
     "SearchHistoryItem",
     
     # Content proposers
@@ -88,16 +102,28 @@ def create_executor(
     resource_template_env = TemplateEnvironment("novelrag.resource_agent", lang)
     
     # Create workspace and orchestrator
-    context = ResourceContext(resource_repo, resource_template_env, chat_llm)
-    orchestrator = ActionDetermineLoop(context, chat_llm, template_lang=lang or "en")
-    
+    context = ResourceContext(resource_repo)
+    pursuit_assessor = LLMPursuitAssessor(chat_llm=chat_llm, lang=lang or "en")
+    discoverer = LLMContextDiscoverer(chat_llm, lang=lang or "en")
+    analyser = LLMContextAnalyzer(chat_llm, lang=lang or "en")
+    decider = LLMActionDecider(chat_llm, lang=lang or "en")
+    refiner = LLMRefinementAnalyzer(chat_llm, lang=lang or "en")
+    orchestrator = ActionDetermineLoop(
+        context=context,
+        pursuit_assessor=pursuit_assessor,
+        discoverer=discoverer,
+        analyser=analyser,
+        decider=decider,
+        refiner=refiner,
+    )
+
     # Create resource tools
     tools = {
         "AspectCreateTool": AspectCreateTool(resource_repo, resource_template_env, chat_llm),
         "ResourceWriteTool": ResourceWriteTool(resource_repo, context, resource_template_env, chat_llm, backlog=backlog, undo_queue=undo_queue),
         "ResourceRelationWriteTool": ResourceRelationWriteTool(resource_repo, resource_template_env, chat_llm),
     }
-    
+
     return GoalExecutor(
         beliefs=beliefs or [],
         tools=tools,

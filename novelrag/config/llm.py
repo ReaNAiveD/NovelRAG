@@ -34,30 +34,7 @@ class OpenAIChatConfig(BaseModel):
         default=False,
     )]
 
-    max_tokens: Annotated[int | None, Field(
-        description="The maximum number of tokens to generate in the response",
-        default=4000,
-    )]
-    temperature: Annotated[float | None, Field(
-        description="Controls randomness in the model's output (0.0 to 2.0)",
-        default=0.0,
-    )]
-    top_p: Annotated[float | None, Field(
-        description="Controls diversity via nucleus sampling (0.0 to 1.0)",
-        default=1.0,
-    )]
-    n: Annotated[int | None, Field(
-        description="Number of chat completion choices to generate",
-        default=1,
-    )]
-    frequency_penalty: Annotated[float | None, Field(
-        description="Penalizes repeated tokens (-2.0 to 2.0)",
-        default=0.0,
-    )]
-    presence_penalty: Annotated[float | None, Field(
-        description="Penalizes repeated topics (-2.0 to 2.0)",
-        default=0.0,
-    )]
+
 
     def langchain_kwargs(self) -> dict:
         """Return kwargs suitable for ``ChatOpenAI(...)``."""
@@ -66,12 +43,6 @@ class OpenAIChatConfig(BaseModel):
             "base_url": self.endpoint,
             "api_key": self.api_key,
             "timeout": self.timeout,
-            "max_tokens": self.max_tokens,
-            "temperature": self.temperature,
-            "top_p": self.top_p,
-            "n": self.n,
-            "frequency_penalty": self.frequency_penalty,
-            "presence_penalty": self.presence_penalty,
         }
 
 
@@ -98,12 +69,6 @@ class AzureOpenAIChatConfig(OpenAIChatConfig):
             "azure_deployment": self.deployment,
             "api_version": self.api_version,
             "timeout": self.timeout,
-            "max_tokens": self.max_tokens,
-            "temperature": self.temperature,
-            "top_p": self.top_p,
-            "n": self.n,
-            "frequency_penalty": self.frequency_penalty,
-            "presence_penalty": self.presence_penalty,
         }
         if self.api_key:
             kw["api_key"] = self.api_key

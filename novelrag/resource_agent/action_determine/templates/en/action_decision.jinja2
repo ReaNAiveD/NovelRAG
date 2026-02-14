@@ -45,8 +45,8 @@ No assessment available yet.
 {%- if completed_steps %}
 ### Completed Actions
 {%- for step in completed_steps %}
-- **{{ step.tool }}**: {{ step.intent }}
-  - Status: {{ step.status }}
+- **{{ step.operation.tool }}**: {{ step.operation.reason }}
+  - Status: {{ step.status.value }}
   {%- if step.results %}
   - Results: {{ step.results | join(", ") }}
   {%- endif %}
@@ -56,41 +56,36 @@ No actions taken yet.
 {%- endif %}
 
 ## Tools Ready for Use
-{%- if available_tools %}
-{%- for tool_name, tool_info in available_tools.items() %}
+
+You have access to the tools listed below as callable functions. When you decide to execute a tool, call it directly with the appropriate parameters. To finalize (provide a response instead of executing a tool), call the `Finalize` function.
+
+{%- if expanded_tools %}
+{%- for tool_name, tool in expanded_tools.items() %}
 ### {{ tool_name }}
 
-**Purpose**: {{ tool_info.description }}
+**Purpose**: {{ tool.description }}
 
 **Prerequisites** (Must be satisfied before use):
-{{ tool_info.prerequisites }}
+{{ tool.prerequisites }}
 
-**Input Parameters**:
-```json
-{{ tool_info.input_schema | tojson(indent=2) }}
-```
-
-**Expected Output**: {{ tool_info.output_description }}
+**Expected Output**: {{ tool.output_description }}
 {%- endfor %}
 {%- else %}
-No tools currently prepared. You should finalize with a response from context or explain limitations.
+No tools currently prepared. You should call `Finalize` to provide a response from context or explain limitations.
 {%- endif %}
 
 ## Current Knowledge Base
 
-{%- for segment in workspace_segments %}
+{%- for segment in workspace_segment %}
 ### Resource Segment #{{ loop.index }}: **{{ segment.uri }}**
-{%- if segment.included_data.get("description") %}
-**Description**: {{ segment.included_data.get("description") }}
-{%- endif %}
-{%- if segment.pending_properties %}
-**Hidden Properties**: {{ segment.pending_properties | join(", ") }}
-{%- endif %}
 {%- if segment.included_data %}
 **Visible Properties**:
 {%- for key, value in segment.included_data.items() %}
   - {{ key }}: {{ value }}
 {%- endfor %}
+{%- endif %}
+{%- if segment.excluded_properties %}
+**Excluded Properties**: {{ segment.excluded_properties | join(", ") }}
 {%- endif %}
 {%- if segment.child_ids %}
 **Children** (construct URI by appending to parent: `{{ segment.uri }}/child_name`):
@@ -139,48 +134,5 @@ No tools currently prepared. You should finalize with a response from context or
 5. **Semantic Understanding** - Recognize related concepts (主角 = protagonist, 大纲 = outline)
 6. **Context First** - If answerable from context alone, finalize with success
 7. **Explain Gaps** - If finalizing incomplete, detail what's missing and why
-
-## Output Format
-```json
-{
-  "situation_analysis": "Comprehensive assessment: what we have, what we need, what we can do",
-  
-  "context_verification": {
-    "prerequisites_met": {
-      "prerequisite_1": "✓ Satisfied by segment #X: [specific evidence]",
-      "prerequisite_2": "✗ Not satisfied: [specific missing information]"
-    },
-    "parameter_mapping": {
-      "param_1": "✓ Can use 'exact_value' from segment #Y property Z",
-      "param_2": "✗ Cannot determine: [what's needed]"
-    }
-  },
-  
-  "decision": "execute|finalize",
-  
-  "execution": {  // ONLY if decision is "execute"
-    "tool": "tool_name",
-    "params": {
-      "param1": "actual_value_from_context",
-      "param2": "another_value"
-    },
-    "confidence": "high|medium|low",
-    "reasoning": "Why this execution will achieve the goal with current context"
-  },
-  
-  "finalization": {  // ONLY if decision is "finalize"
-    "status": "success|failed|incomplete",
-    "response": "Complete user-facing response explaining the outcome",
-    "evidence": [
-      "Reference to segment #X with specific information",
-      "Reference to segment #Y with additional details"
-    ],
-    "gaps": [  // ONLY if status is "incomplete"
-      "Specific missing information 1",
-      "Specific missing information 2"
-    ]
-  }
-}
-```
 
 Focus on making confident, well-justified decisions based on thorough context analysis.

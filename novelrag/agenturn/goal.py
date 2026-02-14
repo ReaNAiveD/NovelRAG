@@ -5,8 +5,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Protocol
 
-from novelrag.llm.mixin import LLMMixin
 from langchain_core.language_models import BaseChatModel
+from langchain_core.messages import SystemMessage, HumanMessage
 from novelrag.template import TemplateEnvironment
 
 
@@ -60,14 +60,15 @@ class GoalDecider(Protocol):
     async def next_goal(self, beliefs: list[str]) -> Goal | None: ...
 
 
-class LLMGoalTranslator(GoalTranslator, LLMMixin):
+class LLMGoalTranslator(GoalTranslator):
     """LLM-based implementation of GoalTranslator."""
 
     TEMPLATE_NAME = "translate_request_to_goal.jinja2"
 
     def __init__(self, chat_llm: BaseChatModel, lang: str = "en"):
         template_env = TemplateEnvironment(package_name="novelrag.agenturn", default_lang=lang)
-        LLMMixin.__init__(self, template_env=template_env, chat_llm=chat_llm)
+        self.template = template_env.load_template(self.TEMPLATE_NAME)
+        self.chat_llm = chat_llm
 
     async def translate(self, request: str, beliefs: list[str]) -> Goal:
         """Translate a user request into a structured Goal using LLM.
@@ -79,13 +80,16 @@ class LLMGoalTranslator(GoalTranslator, LLMMixin):
         Returns:
             A Goal object representing the translated goal.
         """
-        response = await self.call_template(
-            template_name=self.TEMPLATE_NAME,
-            user_question="Translate the user request into a clear and concise goal.",
-            request=request,
+        prompt = self.template.render(
+            user_request=request,
             beliefs=beliefs
         )
-        goal_description = self._extract_goal(response)
+        response = await self.chat_llm.ainvoke([
+            SystemMessage(content=prompt),
+            HumanMessage(content="Translate the user request into a clear, concise goal statement.")
+        ])
+        assert isinstance(response.content, str), "Expected string response from LLM"
+        goal_description = self._extract_goal(response.content)
         return Goal(
             description=goal_description,
             source=UserRequestSource(request=request)
