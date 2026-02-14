@@ -1,12 +1,14 @@
 import asyncio
 import logging
 from argparse import ArgumentParser
+from pathlib import Path
 
 from pyaml_env import parse_config as parse_config_with_env
 
 from novelrag.cli.session import Session
 from novelrag.config.novel_rag import NovelRagConfig
 from novelrag.cli.shell import NovelShell
+from novelrag.tracer import Tracer, YAMLExporter
 
 logger = logging.getLogger(__name__)
 
@@ -22,17 +24,26 @@ async def run(config_path: str, verbosity: int, request: str | None = None):
         level = logging.DEBUG
     logging.basicConfig(level=level)
 
+    # Initialize the tracer before any LLM models are built so that
+    # ChatLLMFactory.build() can attach the callback handler.
+    log_dir = Path(config_path).parent / "logs"
+    exporter = YAMLExporter(output_dir=log_dir)
+    tracer = Tracer(exporter=exporter)
+    tracer_token = tracer.activate()
 
-    with open(config_path, 'r', encoding='utf-8') as f:
-        config = parse_config_with_env(data=f, tag=None)
-        config = NovelRagConfig.model_validate(config)
-        logger.debug(f"Loaded config: {config}")
-        session = await Session.from_config(config)
-        shell = NovelShell(session)
-        if request:
-            await shell.handle_command(request)
-        else:
-            await shell.run()
+    try:
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = parse_config_with_env(data=f, tag=None)
+            config = NovelRagConfig.model_validate(config)
+            logger.debug(f"Loaded config: {config}")
+            session = await Session.from_config(config)
+            shell = NovelShell(session)
+            if request:
+                await shell.handle_command(request)
+            else:
+                await shell.run()
+    finally:
+        tracer.deactivate(tracer_token)
 
 
 if __name__ == "__main__":

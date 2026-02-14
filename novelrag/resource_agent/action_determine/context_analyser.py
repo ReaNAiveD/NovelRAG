@@ -7,6 +7,7 @@ from novelrag.agenturn.tool.schematic import SchematicTool
 from novelrag.resource_agent.action_determine.action_determine_loop import ContextAnalyser, RefinementPlan
 from novelrag.resource_agent.workspace import SegmentData
 from novelrag.template import TemplateEnvironment
+from novelrag.tracer import trace_llm
 
 class LLMContextAnalyzer(ContextAnalyser):
     TEMPLATE_NAME = "context_relevance.jinja2"
@@ -16,6 +17,7 @@ class LLMContextAnalyzer(ContextAnalyser):
         template_env = TemplateEnvironment(package_name="novelrag.resource_agent.action_determine", default_lang=lang)
         self.template = template_env.load_template(self.TEMPLATE_NAME, lang=lang)
 
+    @trace_llm("context_analysis")
     async def analyse(
         self,
         goal: Goal,

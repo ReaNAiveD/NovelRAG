@@ -9,7 +9,7 @@ from novelrag.agenturn.goal import Goal, GoalDecider, GoalTranslator
 from novelrag.agenturn.pursuit import ActionDeterminer, PursuitAssessment, LLMPursuitAssessor, PursuitOutcome, PursuitProgress, PursuitStatus
 from novelrag.agenturn.step import OperationPlan, OperationOutcome, Resolution, StepStatus
 from novelrag.agenturn.tool import SchematicTool, ToolRuntime
-from novelrag.llm import get_logger
+from novelrag.tracer import trace_intent, trace_pursuit, trace_tool
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +77,7 @@ class GoalExecutor:
         self.determiner = determiner
         self.channel = channel
 
+    @trace_pursuit("handle_goal")
     async def handle_goal(self, goal: Goal) -> PursuitOutcome:
         await self.channel.info(f"Starting handle goal: {goal}")
 
@@ -135,6 +136,7 @@ class GoalExecutor:
                 resolve_at=datetime.now()
             )
 
+    @trace_tool()
     async def _execute_tool(self, tool_name: str, params: dict[str, Any], reason: str) -> OperationOutcome:
         """Execute a single tool and return the outcome."""
         start_time = datetime.now()
@@ -206,6 +208,7 @@ class RequestHandler:
         self.executor = executor
         self.goal_translator = goal_translator
     
+    @trace_intent("handle_request")
     async def handle_request(self, request: str) -> str:
         """Translate request to goal, execute, and return response."""        
         goal = await self.goal_translator.translate(request, self.executor.beliefs)
@@ -224,6 +227,7 @@ class AutonomousAgent:
         self.executor = executor
         self.goal_decider = goal_decider
     
+    @trace_intent("autonomous_pursuit")
     async def pursue_next_goal(self) -> PursuitOutcome | None:
         """Decide on the next goal and pursue it."""
         goal = await self.goal_decider.next_goal(self.executor.beliefs)

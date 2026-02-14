@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import SystemMessage, HumanMessage
 from novelrag.template import TemplateEnvironment
+from novelrag.tracer import trace_llm
 
 
 @dataclass(kw_only=True)
@@ -77,6 +78,7 @@ class LLMGoalTranslator(GoalTranslator):
         self.template = template_env.load_template(self.TEMPLATE_NAME)
         self._goal_llm = chat_llm.with_structured_output(GoalTranslation)
 
+    @trace_llm("goal_translation")
     async def translate(self, request: str, beliefs: list[str]) -> Goal:
         """Translate a user request into a structured Goal using LLM.
 

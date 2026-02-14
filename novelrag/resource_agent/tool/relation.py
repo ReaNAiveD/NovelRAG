@@ -14,6 +14,7 @@ from novelrag.resource.element import DirectiveElement
 from novelrag.resource.repository import ResourceRepository
 from novelrag.resource_agent.undo import ReversibleAction, UndoQueue
 from novelrag.template import TemplateEnvironment
+from novelrag.tracer import trace_llm
 
 
 class GetUpdatedRelationsResponse(BaseModel):
@@ -128,6 +129,7 @@ class ResourceRelationWriteTool(SchematicTool):
             await runtime.error(f"Source resource URI '{source_resource_uri}' does not point to a valid resource. Please check the URI.")
             return self.error(f"Source resource URI '{source_resource_uri}' does not point to a valid resource. Please check the URI.")
 
+    @trace_llm("update_relations")
     async def get_updated_relations(self, source_resource: DirectiveElement, target_resource: DirectiveElement | ResourceAspect, existing_relation: list[str], operation: str, relation_description: str) -> list[str]:
         prompt = self._template.render(
             source_resource=source_resource.context_dict,

@@ -24,6 +24,7 @@ from novelrag.resource.element import DirectiveElement
 from novelrag.resource.repository import ResourceRepository
 from novelrag.resource_agent.goal_decider.recency import RecencyWeighter
 from novelrag.template import TemplateEnvironment
+from novelrag.tracer import trace_llm, get_active_tracer
 
 logger = logging.getLogger(__name__)
 
@@ -143,6 +144,7 @@ class ExplorationGoalDecider:
 
         return await self._explore(aspects, all_elements, beliefs)
 
+    @trace_llm("exploration_bootstrap")
     async def _bootstrap(self, beliefs: list[str]) -> Goal | None:
         logger.info("ExplorationGoalDecider: no aspects – bootstrapping from beliefs.")
 
@@ -165,6 +167,7 @@ class ExplorationGoalDecider:
             ),
         )
 
+    @trace_llm("exploration_populate")
     async def _populate(
         self,
         aspects: list[ResourceAspect],
@@ -264,10 +267,18 @@ class ExplorationGoalDecider:
             ],
             beliefs=beliefs,
         )
-        response = await self._goal_llm.ainvoke([
-            SystemMessage(content=prompt),
-            HumanMessage(content="Generate an exploration goal."),
-        ])
+        tracer = get_active_tracer()
+        if tracer is not None:
+            async with tracer.llm_span("exploration_goal"):
+                response = await self._goal_llm.ainvoke([
+                    SystemMessage(content=prompt),
+                    HumanMessage(content="Generate an exploration goal."),
+                ])
+        else:
+            response = await self._goal_llm.ainvoke([
+                SystemMessage(content=prompt),
+                HumanMessage(content="Generate an exploration goal."),
+            ])
         assert isinstance(response, GoalResponse)
 
         goal_description = response.goal.strip()
@@ -285,6 +296,7 @@ class ExplorationGoalDecider:
             ),
         )
 
+    @trace_llm("exploration_context")
     async def _expand_context(
         self,
         element: DirectiveElement,
@@ -418,6 +430,7 @@ class ExplorationGoalDecider:
             aspect_summaries=summaries,
         )
 
+    @trace_llm("exploration_gaps")
     async def _analyse_gaps(
         self,
         element: DirectiveElement,

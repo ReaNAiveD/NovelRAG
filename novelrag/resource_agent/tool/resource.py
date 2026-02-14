@@ -18,6 +18,7 @@ from novelrag.resource.operation import validate_op
 from novelrag.resource_agent.backlog.types import Backlog, BacklogEntry
 from novelrag.resource_agent.undo import ReversibleAction, UndoQueue
 from novelrag.template import TemplateEnvironment
+from novelrag.tracer import trace_llm
 
 from .types import ContentGenerationTask
 from ..workspace import ResourceContext
@@ -310,6 +311,7 @@ class ResourceWriteTool(SchematicTool):
 
         return self.result(json.dumps([op.model_dump() for op in operations], ensure_ascii=False))
 
+    @trace_llm("proposal_ranking")
     async def _rank_proposals(self, proposals: list[str]) -> list[str]:
         prompt = self._sort_proposals_tmpl.render(proposals=proposals)
         response = await self._rank_llm.ainvoke([
@@ -343,6 +345,7 @@ class ResourceWriteTool(SchematicTool):
         selected_proposal = random.choices(proposals, weights=weights, k=1)[0]
         return selected_proposal
 
+    @trace_llm("build_operations")
     async def build_operations(self, action: str, context: dict[str, list[str]], content_results: list[dict] | None = None) -> list[dict]:
         """Build operations from action description and optional content results.
         
@@ -366,6 +369,7 @@ class ResourceWriteTool(SchematicTool):
         assert isinstance(response.content, str), "Expected string content from LLM response"
         return json.loads(response.content)["operations"]
 
+    @trace_llm("discover_updates")
     async def _discover_required_updates(self, step_description: str, operations: list[dict], undo_operations: list[dict], context: dict[str, list[str]]) -> DiscoverRequiredUpdatesResponse:
         """Discover cascade content updates and relation updates that need to be applied immediately."""
         prompt = self._discover_updates_tmpl.render(
@@ -381,6 +385,7 @@ class ResourceWriteTool(SchematicTool):
         assert isinstance(response, DiscoverRequiredUpdatesResponse)
         return response
     
+    @trace_llm("discover_backlog")
     async def _discover_backlog(self, step_description: str, operations: list[dict], undo_operations: list[dict], context: dict[str, list[str]]) -> list[BacklogItem]:
         """Discover backlog items including dependency items and other future work items."""
         prompt = self._discover_backlog_tmpl.render(
@@ -396,6 +401,7 @@ class ResourceWriteTool(SchematicTool):
         assert isinstance(response, DiscoverBacklogResponse)
         return response.backlog_items
     
+    @trace_llm("perspective_update")
     async def _build_perspective_update_operation(self, update: CascadeUpdate, step_description: str, operations: list[dict], undo_operations: list[dict], context: dict[str, list[str]]) -> dict:
         """Build a perspective update operation from the update description."""
         prompt = self._build_perspective_tmpl.render(
@@ -500,6 +506,7 @@ class ResourceWriteTool(SchematicTool):
                 ), clear_redo=True)
             await runtime.message(f"Updated relations: {target_uri} → {source_uri}")
 
+    @trace_llm("parse_relation_uris")
     async def _parse_relation_update_uris(self, update: dict[str, str], context: dict[str, list[str]]) -> ParseRelationUrisResponse:
         """Parse source and target URIs from a relation update description."""
         prompt = self._parse_relation_uris_tmpl.render(
@@ -513,6 +520,7 @@ class ResourceWriteTool(SchematicTool):
         assert isinstance(response, ParseRelationUrisResponse)
         return response
 
+    @trace_llm("build_relation_update")
     async def _build_relation_update(
         self,
         update: dict[str, str],

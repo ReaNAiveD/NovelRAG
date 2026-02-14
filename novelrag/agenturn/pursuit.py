@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from novelrag.agenturn.goal import Goal
 from novelrag.agenturn.tool.schematic import SchematicTool
 from novelrag.template import TemplateEnvironment
+from novelrag.tracer import trace_llm
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.language_models import BaseChatModel
 
@@ -107,6 +108,7 @@ class LLMPursuitAssessor:
         template_env = TemplateEnvironment(package_name="novelrag.agenturn", default_lang=lang)
         self.template = template_env.load_template(self.TEMPLATE_NAME)
 
+    @trace_llm("pursuit_assessment")
     async def assess_progress(
             self,
             pursuit: PursuitProgress,

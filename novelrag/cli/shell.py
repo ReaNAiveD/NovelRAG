@@ -2,6 +2,7 @@ import logging
 
 from novelrag.exceptions import SessionQuitError, NovelRagError
 from novelrag.cli import Session, Command
+from novelrag.tracer import trace_session
 
 
 logger = logging.getLogger(__name__)
@@ -48,6 +49,7 @@ class NovelShell:
                     logger.info(f"Redirecting to command: {response.redirect.text}")
                 current_command = response.redirect
 
+    @trace_session("shell_session")
     async def run(self):
         """Start the interactive shell"""
         self.running = True

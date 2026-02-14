@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 from novelrag.template import TemplateEnvironment
+from novelrag.tracer import trace_llm
 
 from .proposals import ContentProposal, ContentProposer
 
@@ -82,6 +83,7 @@ class LLMContentProposer(ContentProposer):
 
         return proposals
 
+    @trace_llm("content_perspectives")
     async def _generate_perspectives(self, believes: list[str], content_description: str, context: dict[str, list[str]]) -> list[Perspective]:
         """Generate diverse perspectives for content creation.
 
@@ -101,6 +103,7 @@ class LLMContentProposer(ContentProposer):
         assert isinstance(response, PerspectivesResponse)
         return response.perspectives
 
+    @trace_llm("content_generation")
     async def _generate_content_from_perspective(
         self,
         perspective: Perspective,
@@ -141,6 +144,7 @@ class LLMContentProposer(ContentProposer):
 
         return None
 
+    @trace_llm("content_fallback")
     async def _generate_fallback_proposal(
         self,
         believes: list[str],

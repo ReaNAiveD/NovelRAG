@@ -8,6 +8,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import SystemMessage, HumanMessage
 from novelrag.resource_agent.backlog.types import Backlog, BacklogEntry
 from novelrag.template import TemplateEnvironment
+from novelrag.tracer import trace_llm
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,7 @@ class BacklogGoalDecider:
         template_env = TemplateEnvironment(package_name=self.PACKAGE_NAME, default_lang=lang)
         self._template = template_env.load_template(self.TEMPLATE_NAME)
 
+    @trace_llm("backlog_goal")
     async def next_goal(self, beliefs: list[str]) -> Goal | None:
         if len(self.backlog) == 0:
             logger.debug("BacklogGoalDecider: backlog is empty, skipping.")

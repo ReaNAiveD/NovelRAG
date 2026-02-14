@@ -11,6 +11,7 @@ from novelrag.agenturn.tool.types import ToolOutput
 from novelrag.resource.repository import ResourceRepository
 from novelrag.resource_agent.undo import ReversibleAction, UndoQueue
 from novelrag.template import TemplateEnvironment
+from novelrag.tracer import trace_llm
 
 
 class AspectCreateTool(SchematicTool):
@@ -79,6 +80,7 @@ class AspectCreateTool(SchematicTool):
             )
         return self.result(json.dumps(aspect.context_dict, ensure_ascii=False))
 
+    @trace_llm("aspect_metadata")
     async def initialize_aspect_metadata(self, name: str, description: list[str]) -> dict[str, Any]:
         prompt = self._template.render(
             aspect_name=name,

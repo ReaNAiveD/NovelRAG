@@ -1,6 +1,7 @@
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 from novelrag.utils.const import LANGUAGE_INSTRUCTION
+from novelrag.tracer import trace_llm
 
 SYSTEM_PROMPT = """
 {language_instruction}
@@ -50,6 +51,7 @@ class Extractor:
     def __init__(self, chat_llm: BaseChatModel):
         self.chat_llm = chat_llm
 
+    @trace_llm("conversation_extract")
     async def extract(self, task: str, messages: list[str], *, limit=800) -> str:
         conversation_text = "\n".join(messages)
 

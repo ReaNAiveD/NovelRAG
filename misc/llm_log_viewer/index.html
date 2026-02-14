@@ -3,15 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LLM Log Viewer</title>
+    <title>Trace Viewer</title>
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>LLM Log Viewer</h1>
-            <p>View and explore LLM request/response logs from agent pursuits</p>
+            <h1>Trace Viewer</h1>
+            <p>Explore hierarchical trace spans from NovelRAG agent sessions</p>
         </header>
 
         <div class="controls">
@@ -22,38 +22,48 @@
                 <label for="singleFileInput" class="file-label secondary">Select File</label>
                 <span id="fileName" class="file-name">No directory selected</span>
             </div>
-            
+
             <div class="stats" id="stats" style="display: none;">
-                <span class="stat-item">Pursuits: <span id="pursuitCount">0</span></span>
-                <span class="stat-item">Total LLM Calls: <span id="totalCalls">0</span></span>
-                <span class="stat-item">Unique Templates: <span id="uniqueTemplates">0</span></span>
+                <span class="stat-item">Total Spans: <span id="totalSpans">0</span></span>
+                <span class="stat-item">LLM Calls: <span id="llmCallCount">0</span></span>
+                <span class="stat-item">Total Tokens: <span id="totalTokens">0</span></span>
+                <span class="stat-item">Errors: <span id="errorCount">0</span></span>
             </div>
         </div>
 
         <div class="main-content">
             <div class="directory-panel" id="directoryPanel">
                 <div class="directory-header">
-                    <h3>YAML Files</h3>
+                    <h3>Trace Files</h3>
                     <div class="directory-path" id="directoryPath">Select a directory to browse files</div>
                 </div>
                 <div class="directory-content" id="directoryContent">
                     <div class="directory-empty">
                         <p>No directory selected</p>
-                        <p class="help-text">Use "Select Directory" button above to browse YAML log files</p>
+                        <p class="help-text">Use "Select Directory" button above to browse trace files</p>
                     </div>
                 </div>
             </div>
-            
+
             <div class="log-content" id="logContent">
-            <div class="welcome">
-                <h2>Welcome to LLM Log Viewer</h2>
-                <p>Select a YAML log file to view the LLM request/response history from agent pursuits.</p>
-                <ul>
-                    <li>Each pursuit shows the goal and can be expanded to view LLM calls</li>
-                    <li>Each LLM call shows the template used and can be expanded to view details</li>
-                    <li>Requests are collapsed by default, responses are expanded</li>
-                </ul>
-            </div>
+                <div class="welcome">
+                    <h2>Welcome to Trace Viewer</h2>
+                    <p>Select a YAML trace file to explore the hierarchical span tree.</p>
+                    <div class="span-legend">
+                        <span class="legend-item"><span class="legend-dot kind-session"></span>Session</span>
+                        <span class="legend-item"><span class="legend-dot kind-intent"></span>Intent</span>
+                        <span class="legend-item"><span class="legend-dot kind-pursuit"></span>Pursuit</span>
+                        <span class="legend-item"><span class="legend-dot kind-tool_call"></span>Tool Call</span>
+                        <span class="legend-item"><span class="legend-dot kind-llm_call"></span>LLM Call</span>
+                    </div>
+                    <ul>
+                        <li>Spans are organized in a tree: Session → Intent → Pursuit → Tool Call → LLM Call</li>
+                        <li>Click any span header to expand/collapse its children</li>
+                        <li>LLM call spans show request messages, response content, and token usage</li>
+                        <li>Error spans are highlighted in red</li>
+                        <li>Double-click any content block to copy to clipboard</li>
+                    </ul>
+                </div>
             </div>
         </div>
     </div>
