@@ -31,7 +31,7 @@ class ChatLLMFactory:
         else:
             raise ValueError(f"Unsupported chat config type: {type(config)}")
 
-        # Attach json_supports flag so downstream code (LLMMixin) can detect it
+        # Attach json_supports flag so downstream code (call_llm_template) can detect it
         object.__setattr__(model, '_json_supports', config.json_supports)
         return model
 

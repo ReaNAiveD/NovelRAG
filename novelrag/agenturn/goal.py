@@ -3,7 +3,9 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Protocol
+from typing import Annotated, Protocol
+
+from pydantic import BaseModel, Field
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import SystemMessage, HumanMessage
@@ -60,6 +62,11 @@ class GoalDecider(Protocol):
     async def next_goal(self, beliefs: list[str]) -> Goal | None: ...
 
 
+class GoalTranslation(BaseModel):
+    """LLM response containing a translated goal statement."""
+    goal: Annotated[str, Field(description="A clear, concise goal statement translated from the user request.")]
+
+
 class LLMGoalTranslator(GoalTranslator):
     """LLM-based implementation of GoalTranslator."""
 
@@ -68,7 +75,7 @@ class LLMGoalTranslator(GoalTranslator):
     def __init__(self, chat_llm: BaseChatModel, lang: str = "en"):
         template_env = TemplateEnvironment(package_name="novelrag.agenturn", default_lang=lang)
         self.template = template_env.load_template(self.TEMPLATE_NAME)
-        self.chat_llm = chat_llm
+        self._goal_llm = chat_llm.with_structured_output(GoalTranslation)
 
     async def translate(self, request: str, beliefs: list[str]) -> Goal:
         """Translate a user request into a structured Goal using LLM.
@@ -84,26 +91,12 @@ class LLMGoalTranslator(GoalTranslator):
             user_request=request,
             beliefs=beliefs
         )
-        response = await self.chat_llm.ainvoke([
+        response = await self._goal_llm.ainvoke([
             SystemMessage(content=prompt),
             HumanMessage(content="Translate the user request into a clear, concise goal statement.")
         ])
-        assert isinstance(response.content, str), "Expected string response from LLM"
-        goal_description = self._extract_goal(response.content)
+        assert isinstance(response, GoalTranslation)
         return Goal(
-            description=goal_description,
+            description=response.goal.strip(),
             source=UserRequestSource(request=request)
         )
-
-    @staticmethod
-    def _extract_goal(response: str) -> str:
-        """Extract the goal statement from LLM response."""
-        # Look for "**Goal**:" or "Goal:" pattern
-        lines = response.strip().split("\n")
-        for line in lines:
-            line_stripped = line.strip()
-            if line_stripped.lower().startswith("**goal**:"):
-                return line_stripped[9:].strip()
-            if line_stripped.lower().startswith("goal:"):
-                return line_stripped[5:].strip()
-        return response.strip()

@@ -1,5 +1,4 @@
 from .factory import EmbeddingLLMFactory, ChatLLMFactory
-from .mixin import LLMMixin
 from .logger import (
     LLMLogger,
     LLMRequest,

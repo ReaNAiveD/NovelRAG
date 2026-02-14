@@ -3,22 +3,28 @@
 import json
 from typing import Any
 
+from langchain_core.language_models import BaseChatModel
+from langchain_core.messages import SystemMessage, HumanMessage
+
 from novelrag.agenturn.tool import SchematicTool, ToolRuntime
 from novelrag.agenturn.tool.types import ToolOutput
-from novelrag.llm import LLMMixin
-from langchain_core.language_models import BaseChatModel
 from novelrag.resource.repository import ResourceRepository
 from novelrag.resource_agent.undo import ReversibleAction, UndoQueue
 from novelrag.template import TemplateEnvironment
 
 
-class AspectCreateTool(LLMMixin, SchematicTool):
+class AspectCreateTool(SchematicTool):
     """Tool for creating new aspects in the resource repository."""
-    
-    def __init__(self, repo: ResourceRepository, template_env: TemplateEnvironment, chat_llm: BaseChatModel, undo_queue: UndoQueue | None = None):
+
+    PACKAGE_NAME = "novelrag.resource_agent.tool"
+    TEMPLATE_NAME = "initialize_aspect_metadata.jinja2"
+
+    def __init__(self, repo: ResourceRepository, chat_llm: BaseChatModel, lang: str = "en", undo_queue: UndoQueue | None = None):
         self.repo = repo
         self.undo = undo_queue
-        super().__init__(template_env=template_env, chat_llm=chat_llm)
+        self.chat_llm = chat_llm
+        template_env = TemplateEnvironment(package_name=self.PACKAGE_NAME, default_lang=lang)
+        self._template = template_env.load_template(self.TEMPLATE_NAME)
     
     @property
     def name(self):
@@ -74,9 +80,14 @@ class AspectCreateTool(LLMMixin, SchematicTool):
         return self.result(json.dumps(aspect.context_dict, ensure_ascii=False))
 
     async def initialize_aspect_metadata(self, name: str, description: list[str]) -> dict[str, Any]:
-        return json.loads(await self.call_template(
-            'initialize_aspect_metadata.jinja2',
-            json_format=True,
+        prompt = self._template.render(
             aspect_name=name,
             aspect_description=description,
-        ))
+        )
+        response = await self.chat_llm.ainvoke([
+            SystemMessage(content=prompt),
+            HumanMessage(content=f"Generate metadata for the aspect '{name}' based on the description provided."),
+        ], response_format={"type": "json_object"})
+        assert isinstance(response.content, str)
+        
+        return json.loads(response.content)

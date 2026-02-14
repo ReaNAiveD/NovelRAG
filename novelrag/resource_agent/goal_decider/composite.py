@@ -6,7 +6,6 @@ from langchain_core.language_models import BaseChatModel
 from novelrag.resource.repository import ResourceRepository
 from novelrag.resource_agent.backlog.types import Backlog, BacklogEntry
 from novelrag.resource_agent.undo import UndoQueue
-from novelrag.template import TemplateEnvironment
 
 from .backlog_source import BacklogGoalDecider
 from .exploration import ExplorationGoalDecider
@@ -47,10 +46,6 @@ class CompositeGoalDecider:
         self.undo_queue = undo_queue
         self.base_weights = {**DEFAULT_WEIGHTS, **(weight_overrides or {})}
 
-        template_env = TemplateEnvironment(
-            package_name="novelrag.resource_agent", default_lang=template_lang
-        )
-
         # Build recency weighter from undo queue (used by exploration deciders)
         recency = RecencyWeighter(undo_queue) if undo_queue is not None else None
 
@@ -58,10 +53,10 @@ class CompositeGoalDecider:
         self._deciders: dict[str, GoalDecider] = {}
 
         if backlog is not None:
-            self._deciders["backlog"] = BacklogGoalDecider(backlog, chat_llm, template_env)
+            self._deciders["backlog"] = BacklogGoalDecider(backlog, chat_llm, lang=template_lang)
 
         self._deciders["exploration"] = ExplorationGoalDecider(
-            repo, chat_llm, template_env, recency=recency
+            repo, chat_llm, lang=template_lang, recency=recency
         )
 
     async def next_goal(self, beliefs: list[str]) -> Goal | None:

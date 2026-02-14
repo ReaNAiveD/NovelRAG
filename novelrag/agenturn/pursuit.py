@@ -10,7 +10,6 @@ from pydantic import BaseModel, Field
 
 from novelrag.agenturn.goal import Goal
 from novelrag.agenturn.tool.schematic import SchematicTool
-from novelrag.llm.mixin import LLMMixin
 from novelrag.template import TemplateEnvironment
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.language_models import BaseChatModel

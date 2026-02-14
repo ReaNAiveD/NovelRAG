@@ -1,16 +1,27 @@
-import json
 import logging
+from typing import Annotated
+
+from pydantic import BaseModel, Field
 
 from novelrag.agenturn.goal import Goal, AutonomousSource, GoalDecider
-from novelrag.llm.mixin import LLMMixin
 from langchain_core.language_models import BaseChatModel
+from langchain_core.messages import SystemMessage, HumanMessage
 from novelrag.resource_agent.backlog.types import Backlog, BacklogEntry
 from novelrag.template import TemplateEnvironment
 
 logger = logging.getLogger(__name__)
 
 
-class BacklogGoalDecider(LLMMixin):
+class BacklogGoalResponse(BaseModel):
+    """LLM response for backlog-based goal generation."""
+    goal: Annotated[str, Field(description="A clear, actionable goal statement derived from backlog entries.")]
+    selected_entries: Annotated[list[int], Field(
+        default=[1],
+        description="1-based indices of the backlog entries selected for this goal.",
+    )]
+
+
+class BacklogGoalDecider:
     """Generates goals from the backlog of pending work items.
 
     Reads the highest-priority backlog entries and uses the LLM to
@@ -18,12 +29,15 @@ class BacklogGoalDecider(LLMMixin):
     after goal creation.
     """
 
+    PACKAGE_NAME = "novelrag.resource_agent.goal_decider"
     TEMPLATE_NAME = "goal_from_backlog.jinja2"
     TOP_N = 5
 
-    def __init__(self, backlog: Backlog[BacklogEntry], chat_llm: BaseChatModel, template_env: TemplateEnvironment):
-        LLMMixin.__init__(self, template_env=template_env, chat_llm=chat_llm)
+    def __init__(self, backlog: Backlog[BacklogEntry], chat_llm: BaseChatModel, lang: str = "en"):
+        self._goal_llm = chat_llm.with_structured_output(BacklogGoalResponse)
         self.backlog = backlog
+        template_env = TemplateEnvironment(package_name=self.PACKAGE_NAME, default_lang=lang)
+        self._template = template_env.load_template(self.TEMPLATE_NAME)
 
     async def next_goal(self, beliefs: list[str]) -> Goal | None:
         if len(self.backlog) == 0:
@@ -41,21 +55,18 @@ class BacklogGoalDecider(LLMMixin):
             for entry in top_entries
         ]
 
-        response = await self.call_template(
-            template_name=self.TEMPLATE_NAME,
-            json_format=True,
+        prompt = self._template.render(
             backlog_entries=entry_summaries,
             beliefs=beliefs,
         )
+        response = await self._goal_llm.ainvoke([
+            SystemMessage(content=prompt),
+            HumanMessage(content="Generate a goal from the backlog."),
+        ])
+        assert isinstance(response, BacklogGoalResponse)
 
-        try:
-            result = json.loads(response)
-            goal_description = result.get("goal", "").strip()
-            # LLM reports 1-based entry numbers it selected
-            selected = result.get("selected_entries", [1])
-        except (json.JSONDecodeError, AttributeError):
-            goal_description = response.strip()
-            selected = [1]
+        goal_description = response.goal.strip()
+        selected = response.selected_entries
 
         if not goal_description:
             return None

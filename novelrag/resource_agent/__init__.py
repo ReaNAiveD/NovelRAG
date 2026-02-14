@@ -35,13 +35,10 @@ from .tool import (
 __all__ = [
     # Orchestration
     "ActionDetermineLoop",
-    "DiscoveryPlan",
-    "RefinementPlan",
-    "ActionDecision",
-    "ExecutionDetail",
-    "FinalizationDetail",
-    "RefinementDecision",
-    "RefinementApproval",
+    "ActionDecider",
+    "ContextAnalyser",
+    "ContextDiscoverer",
+    "RefinementAnalyzer",
     "LLMContextDiscoverer",
     "LLMContextAnalyzer",
     "LLMActionDecider",
@@ -97,10 +94,7 @@ def create_executor(
         GoalExecutor configured with resource tools and OrchestrationLoop
     """
     from novelrag.agenturn import GoalExecutor
-    from novelrag.template import TemplateEnvironment
 
-    resource_template_env = TemplateEnvironment("novelrag.resource_agent", lang)
-    
     # Create workspace and orchestrator
     context = ResourceContext(resource_repo)
     pursuit_assessor = LLMPursuitAssessor(chat_llm=chat_llm, lang=lang or "en")
@@ -119,9 +113,9 @@ def create_executor(
 
     # Create resource tools
     tools = {
-        "AspectCreateTool": AspectCreateTool(resource_repo, resource_template_env, chat_llm),
-        "ResourceWriteTool": ResourceWriteTool(resource_repo, context, resource_template_env, chat_llm, backlog=backlog, undo_queue=undo_queue),
-        "ResourceRelationWriteTool": ResourceRelationWriteTool(resource_repo, resource_template_env, chat_llm),
+        "AspectCreateTool": AspectCreateTool(resource_repo, chat_llm, lang=lang or "en"),
+        "ResourceWriteTool": ResourceWriteTool(resource_repo, context, chat_llm, lang=lang or "en", backlog=backlog, undo_queue=undo_queue),
+        "ResourceRelationWriteTool": ResourceRelationWriteTool(resource_repo, chat_llm, lang=lang or "en"),
     }
 
     return GoalExecutor(

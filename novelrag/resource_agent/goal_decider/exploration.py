@@ -9,15 +9,16 @@ single decider that handles three tiers of repository state:
   analyse concept gaps, and produce a focused goal.
 """
 
-import json
 import logging
 import random
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Annotated, Any, Literal
+
+from pydantic import BaseModel, Field
 
 from novelrag.agenturn.goal import Goal, AutonomousSource
-from novelrag.llm.mixin import LLMMixin
 from langchain_core.language_models import BaseChatModel
+from langchain_core.messages import SystemMessage, HumanMessage
 from novelrag.resource.aspect import ResourceAspect
 from novelrag.resource.element import DirectiveElement
 from novelrag.resource.repository import ResourceRepository
@@ -27,9 +28,31 @@ from novelrag.template import TemplateEnvironment
 logger = logging.getLogger(__name__)
 
 
-# ---------------------------------------------------------------------------
-# Context bundle produced by the expansion step
-# ---------------------------------------------------------------------------
+class GoalResponse(BaseModel):
+    """LLM response containing a single goal statement."""
+    goal: Annotated[str, Field(description="A clear, actionable goal statement.")]
+
+
+class ContextDiscoveryResponse(BaseModel):
+    """LLM response for context discovery around an element."""
+    query_resources: Annotated[list[str], Field(
+        default_factory=list,
+        description="Resource URIs to load from the workspace.",
+    )]
+    search_queries: Annotated[list[str], Field(
+        default_factory=list,
+        description="New search terms for finding resources whose URIs are unknown.",
+    )]
+
+
+class GapAnalysisResponse(BaseModel):
+    """LLM response for concept-gap analysis."""
+    priority_concern: Annotated[
+        Literal["creation_aspect", "creation_element", "enrichment", "verification"],
+        Field(description="The highest-priority concern type identified."),
+    ]
+    reasoning: Annotated[str, Field(description="Explanation of why this concern was selected.")]
+
 
 @dataclass
 class _ResolvedReference:
@@ -64,7 +87,7 @@ class _ContextBundle:
     aspect_summaries: list[_AspectSummary]
 
 
-class ExplorationGoalDecider(LLMMixin):
+class ExplorationGoalDecider:
     """Generates autonomous goals by exploring the resource repository.
 
     Three operational branches based on repository state:
@@ -75,6 +98,7 @@ class ExplorationGoalDecider(LLMMixin):
       run concept-gap analysis, then generate and refine a goal.
     """
 
+    PACKAGE_NAME = "novelrag.resource_agent.goal_decider"
     BOOTSTRAP_TEMPLATE = "bootstrap_from_beliefs.jinja2"
     CONTEXT_DISCOVERY_TEMPLATE = "exploration_context_discovery.jinja2"
     GAP_ANALYSIS_TEMPLATE = "concept_gap_analysis.jinja2"
@@ -85,12 +109,22 @@ class ExplorationGoalDecider(LLMMixin):
         self,
         repo: ResourceRepository,
         chat_llm: BaseChatModel,
-        template_env: TemplateEnvironment,
+        lang: str = "en",
         recency: RecencyWeighter | None = None,
     ):
-        LLMMixin.__init__(self, template_env=template_env, chat_llm=chat_llm)
         self.repo = repo
         self.recency = recency
+
+        # Structured-output LLM wrappers (one per response schema)
+        self._goal_llm = chat_llm.with_structured_output(GoalResponse)
+        self._context_llm = chat_llm.with_structured_output(ContextDiscoveryResponse)
+        self._gap_llm = chat_llm.with_structured_output(GapAnalysisResponse)
+
+        template_env = TemplateEnvironment(package_name=self.PACKAGE_NAME, default_lang=lang)
+        self._bootstrap_tmpl = template_env.load_template(self.BOOTSTRAP_TEMPLATE)
+        self._context_discovery_tmpl = template_env.load_template(self.CONTEXT_DISCOVERY_TEMPLATE)
+        self._gap_analysis_tmpl = template_env.load_template(self.GAP_ANALYSIS_TEMPLATE)
+        self._goal_tmpl = template_env.load_template(self.GOAL_TEMPLATE)
 
     async def next_goal(self, beliefs: list[str]) -> Goal | None:
         aspects = await self.repo.all_aspects()
@@ -112,18 +146,14 @@ class ExplorationGoalDecider(LLMMixin):
     async def _bootstrap(self, beliefs: list[str]) -> Goal | None:
         logger.info("ExplorationGoalDecider: no aspects – bootstrapping from beliefs.")
 
-        response = await self.call_template(
-            template_name=self.BOOTSTRAP_TEMPLATE,
-            json_format=True,
-            beliefs=beliefs,
-        )
+        prompt = self._bootstrap_tmpl.render(beliefs=beliefs)
+        response = await self._goal_llm.ainvoke([
+            SystemMessage(content=prompt),
+            HumanMessage(content="Generate a bootstrap goal."),
+        ])
+        assert isinstance(response, GoalResponse)
 
-        try:
-            result = json.loads(response)
-            goal_description = result.get("goal", "").strip()
-        except (json.JSONDecodeError, AttributeError):
-            goal_description = response.strip()
-
+        goal_description = response.goal.strip()
         if not goal_description:
             return None
 
@@ -149,9 +179,7 @@ class ExplorationGoalDecider(LLMMixin):
         else:
             aspect = random.choice(aspects)
 
-        response = await self.call_template(
-            template_name=self.GOAL_TEMPLATE,
-            json_format=True,
+        prompt = self._goal_tmpl.render(
             element=None,
             gap_analysis=None,
             focus="populate",
@@ -162,13 +190,13 @@ class ExplorationGoalDecider(LLMMixin):
             ],
             beliefs=beliefs,
         )
+        response = await self._goal_llm.ainvoke([
+            SystemMessage(content=prompt),
+            HumanMessage(content="Generate a goal to populate this aspect."),
+        ])
+        assert isinstance(response, GoalResponse)
 
-        try:
-            result = json.loads(response)
-            goal_description = result.get("goal", "").strip()
-        except (json.JSONDecodeError, AttributeError):
-            goal_description = response.strip()
-
+        goal_description = response.goal.strip()
         if not goal_description:
             return None
 
@@ -206,7 +234,7 @@ class ExplorationGoalDecider(LLMMixin):
         # 3. Concept-gap analysis (LLM call #1)
         gap_analysis = await self._analyse_gaps(element, aspect, ctx, beliefs)
 
-        focus = gap_analysis.get("priority_concern", "enrichment")
+        focus = gap_analysis.priority_concern
         if focus not in (
             "creation_aspect", "creation_element", "enrichment", "verification",
         ):
@@ -221,11 +249,9 @@ class ExplorationGoalDecider(LLMMixin):
             "relationships": element.inner.relationships,
         }
 
-        response = await self.call_template(
-            template_name=self.GOAL_TEMPLATE,
-            json_format=True,
+        prompt = self._goal_tmpl.render(
             element=element_content,
-            gap_analysis=gap_analysis,
+            gap_analysis=gap_analysis.model_dump(),
             focus=focus,
             aspect=aspect.aspect_dict,
             aspect_summaries=[
@@ -238,13 +264,13 @@ class ExplorationGoalDecider(LLMMixin):
             ],
             beliefs=beliefs,
         )
+        response = await self._goal_llm.ainvoke([
+            SystemMessage(content=prompt),
+            HumanMessage(content="Generate an exploration goal."),
+        ])
+        assert isinstance(response, GoalResponse)
 
-        try:
-            result = json.loads(response)
-            goal_description = result.get("goal", "").strip()
-        except (json.JSONDecodeError, AttributeError):
-            goal_description = response.strip()
-
+        goal_description = response.goal.strip()
         if not goal_description:
             return None
 
@@ -306,22 +332,19 @@ class ExplorationGoalDecider(LLMMixin):
             for s in summaries
         ]
 
-        response = await self.call_template(
-            template_name=self.CONTEXT_DISCOVERY_TEMPLATE,
-            json_format=True,
+        prompt = self._context_discovery_tmpl.render(
             element=element_content,
             aspect_summaries=aspect_summary_dicts,
             beliefs=beliefs,
         )
+        discovery = await self._context_llm.ainvoke([
+            SystemMessage(content=prompt),
+            HumanMessage(content="Discover relevant context."),
+        ])
+        assert isinstance(discovery, ContextDiscoveryResponse)
 
-        try:
-            discovery = json.loads(response)
-        except (json.JSONDecodeError, AttributeError):
-            logger.warning("ExplorationGoalDecider: context discovery returned non-JSON; falling back.")
-            discovery = {}
-
-        query_uris: list[str] = discovery.get("query_resources", [])
-        search_queries: list[str] = discovery.get("search_queries", [])
+        query_uris: list[str] = discovery.query_resources
+        search_queries: list[str] = discovery.search_queries
 
         # Always include declared relationship URIs so we get
         # factual resolved/unresolved data for gap analysis.
@@ -401,7 +424,7 @@ class ExplorationGoalDecider(LLMMixin):
         aspect: ResourceAspect,
         ctx: _ContextBundle,
         beliefs: list[str],
-    ) -> dict[str, Any]:
+    ) -> GapAnalysisResponse:
         """Run concept-gap analysis over the expanded context (LLM call)."""
 
         element_content = {
@@ -430,9 +453,7 @@ class ExplorationGoalDecider(LLMMixin):
             for s in ctx.aspect_summaries
         ]
 
-        response = await self.call_template(
-            template_name=self.GAP_ANALYSIS_TEMPLATE,
-            json_format=True,
+        prompt = self._gap_analysis_tmpl.render(
             element=element_content,
             related_resources=ctx.related_resources,
             resolved_refs=resolved_refs,
@@ -440,9 +461,9 @@ class ExplorationGoalDecider(LLMMixin):
             aspect_summaries=aspect_summaries,
             beliefs=beliefs,
         )
-
-        try:
-            return json.loads(response)
-        except (json.JSONDecodeError, AttributeError):
-            logger.warning("ExplorationGoalDecider: gap analysis returned non-JSON; defaulting to enrichment.")
-            return {"priority_concern": "enrichment", "reasoning": response.strip()}
+        response = await self._gap_llm.ainvoke([
+            SystemMessage(content=prompt),
+            HumanMessage(content="Analyse concept gaps."),
+        ])
+        assert isinstance(response, GapAnalysisResponse)
+        return response
