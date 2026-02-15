@@ -64,6 +64,68 @@ children:
       end_time: '2026-02-15T02:19:08.457679'
       duration_ms: 10149.18
       status: ok
+      attributes:
+        model: gpt-4o
+        request:
+          messages:
+          - role: system
+            content: 'You are an action decision agent. Given the current goal, pursuit
+              assessment, completed steps, and available tools, decide whether to
+              execute a tool or finalize the goal.'
+          - role: human
+            content: 'Based on the above information, make a decisive action choice:
+              either execute a tool or finalize with a response.'
+          tools:
+          - name: ResourceWriteTool
+            description: Write or update a resource segment in the repository.
+            parameters:
+              type: object
+              properties:
+                resource_type:
+                  type: string
+                  description: The type of resource to write.
+                segment_id:
+                  type: string
+                  description: The ID of the segment to update.
+              required:
+              - resource_type
+              - segment_id
+          - name: ResourceReadTool
+            description: Read a resource segment from the repository.
+            parameters:
+              type: object
+              properties:
+                resource_type:
+                  type: string
+                segment_id:
+                  type: string
+              required:
+              - resource_type
+          - name: Finalize
+            description: Finalize the goal with a response.
+            parameters:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [success, failed, incomplete]
+                response:
+                  type: string
+              required:
+              - status
+              - response
+        response:
+          content: ''
+          tool_calls:
+          - name: ResourceWriteTool
+            args:
+              resource_type: character
+              segment_id: char_001
+            id: call_abc123def456
+        token_usage:
+          prompt_tokens: 1842
+          completion_tokens: 56
+          total_tokens: 1898
     - kind: llm_call
       name: refinement_analysis
       span_id: dd8fc33d712e

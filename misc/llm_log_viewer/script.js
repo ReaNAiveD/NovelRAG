@@ -295,6 +295,21 @@ class TraceViewer {
     formatRequest(request) {
         if (!request) return '<div class="msg-block no-data">No request data</div>';
         let html = '';
+
+        // Tools provided to the model
+        if (request.tools && request.tools.length) {
+            html += '<div class="tools-provided">';
+            html += '<div class="tools-header">🛠 Tools Provided</div>';
+            html += '<div class="tools-list">';
+            request.tools.forEach(tool => {
+                html += `<div class="tool-def">
+                    <span class="tool-def-name">${this.escapeHtml(tool.name)}</span>
+                    <span class="tool-def-desc">${this.escapeHtml(tool.description || '')}</span>
+                </div>`;
+            });
+            html += '</div></div>';
+        }
+
         if (request.messages) {
             request.messages.forEach(msg => {
                 const role = msg.role || 'unknown';
@@ -308,6 +323,23 @@ class TraceViewer {
                     </div>
                     <div class="msg-body">${this.escapeHtml(msg.content || '')}</div>
                 </div>`;
+
+                // Inline tool calls on AI messages
+                if (msg.tool_calls && msg.tool_calls.length) {
+                    msg.tool_calls.forEach(tc => {
+                        html += `<div class="tool-call-block">
+                            <div class="tool-call-header">🔧 Tool Call: <strong>${this.escapeHtml(tc.name)}</strong>
+                                ${tc.id ? `<span class="tool-call-id">${this.escapeHtml(tc.id)}</span>` : ''}
+                            </div>
+                            <pre class="tool-call-args">${this.escapeHtml(JSON.stringify(tc.args, null, 2))}</pre>
+                        </div>`;
+                    });
+                }
+
+                // Tool message metadata
+                if (msg.tool_call_id) {
+                    html += `<div class="tool-meta">↩ tool_call_id: <code>${this.escapeHtml(msg.tool_call_id)}</code></div>`;
+                }
             });
         }
         return html || '<div class="msg-block no-data">No messages</div>';
@@ -315,7 +347,28 @@ class TraceViewer {
 
     formatResponse(response) {
         if (!response) return '<div class="no-data">No response data</div>';
-        return `<div class="response-body">${this.escapeHtml(response.content || '')}</div>`;
+        let html = '';
+
+        // Text content
+        if (response.content) {
+            html += `<div class="response-body">${this.escapeHtml(response.content)}</div>`;
+        }
+
+        // Tool calls selected by the model
+        if (response.tool_calls && response.tool_calls.length) {
+            html += '<div class="tool-calls-response">';
+            response.tool_calls.forEach(tc => {
+                html += `<div class="tool-call-block">
+                    <div class="tool-call-header">🔧 Tool Call: <strong>${this.escapeHtml(tc.name)}</strong>
+                        ${tc.id ? `<span class="tool-call-id">${this.escapeHtml(tc.id)}</span>` : ''}
+                    </div>
+                    <pre class="tool-call-args">${this.escapeHtml(JSON.stringify(tc.args, null, 2))}</pre>
+                </div>`;
+            });
+            html += '</div>';
+        }
+
+        return html || '<div class="no-data">No response data</div>';
     }
 
     // ------------------------------------------------------------------

@@ -90,7 +90,7 @@ class LLMGoalTranslator(GoalTranslator):
             A Goal object representing the translated goal.
         """
         prompt = self.template.render(
-            user_request=request,
+            request=request,
             beliefs=beliefs
         )
         response = await self._goal_llm.ainvoke([

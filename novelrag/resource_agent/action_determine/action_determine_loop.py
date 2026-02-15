@@ -4,6 +4,7 @@ This module provides the OrchestrationLoop which implements ActionDeterminer
 using multi-phase context discovery, refinement, and decision-making.
 """
 
+import logging
 from typing import Annotated, Protocol
 
 from pydantic import BaseModel, Field
@@ -13,6 +14,8 @@ from novelrag.agenturn.pursuit import ActionDeterminer, PursuitAssessment, Pursu
 from novelrag.agenturn.step import OperationPlan, OperationOutcome, Resolution
 from novelrag.agenturn.tool import SchematicTool
 from novelrag.resource_agent.workspace import ResourceContext, SegmentData, SearchHistoryItem
+
+logger = logging.getLogger(__name__)
 
 
 class DiscoveryPlan(BaseModel):
@@ -306,6 +309,7 @@ class ActionDetermineLoop(ActionDeterminer):
             iter_num = await self._context_discovery_loop(
                 goal, pursuit_assessment, available_tools, iter_num,
             )
+            logger.info(f"Context discovery completed for iteration {iter_num}.")
 
             # Make action decision
             segments, _ = await self.context.build_workspace_view()
@@ -318,6 +322,7 @@ class ActionDetermineLoop(ActionDeterminer):
                 expanded_tools=expanded_tools,
             )
             planned_action = self._convert_to_orchestration_action(action_decision)
+            logger.info(f"Action decision made: {planned_action} on iteration {iter_num}.")
             last_planned_action = planned_action
 
             # Analyze and refine decision
@@ -336,11 +341,13 @@ class ActionDetermineLoop(ActionDeterminer):
 
             # Process refinement verdict
             if refinement_decision.verdict == "approve":
+                logger.info(f"Action decision approved.")
                 if isinstance(planned_action, OperationPlan) and iter_num >= self.min_iter:
                     return planned_action
                 elif isinstance(planned_action, Resolution):
                     return planned_action
             else:
+                logger.info(f"Action decision requires refinement: {refinement_decision.analysis}")
                 if refinement_decision.refinement:
                     pursuit_assessment = refinement_decision.refinement
 
@@ -377,6 +384,10 @@ class ActionDetermineLoop(ActionDeterminer):
                 collapsed_tools=collapsed_tools,
             )
             await self._apply_discovery_plan(discovery_plan)
+            if discovery_plan.refinement_needed:
+                logger.info(f"Identified need for resource: {discovery_plan.query_resources} and {discovery_plan.search_queries} on iteration {iter_num}.")
+                if discovery_plan.expand_tools:
+                    logger.info(f"Expanding tools: {discovery_plan.expand_tools}")
 
             if not discovery_plan.refinement_needed:
                 break
@@ -395,6 +406,7 @@ class ActionDetermineLoop(ActionDeterminer):
                 collapsed_tools=collapsed_tools,
                 discovery_analysis=discovery_plan.discovery_analysis,
             )
+            logger.info(f"Excluded resources: {refinement_plan.exclude_resources} and properties: {[f'{item.uri}:{item.property}' for item in refinement_plan.exclude_properties]} on iteration {iter_num}.")
             await self._apply_refinement_plan(refinement_plan)
 
         return iter_num
