@@ -30,7 +30,7 @@ from .goal import Goal
 # Action determination and pursuit assessment
 from .pursuit import (
     ActionDeterminer,
-    PursuitAssessor,
+    LLMPursuitAssessor,
     PursuitAssessment,
     PursuitOutcome,
     PursuitProgress,
@@ -67,7 +67,7 @@ __all__ = [
 
     # Action determination and pursuit
     "ActionDeterminer",
-    "PursuitAssessor",
+    "LLMPursuitAssessor",
     "PursuitAssessment",
     "PursuitOutcome", 
     "PursuitProgress",

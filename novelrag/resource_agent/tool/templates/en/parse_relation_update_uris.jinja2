@@ -27,11 +27,14 @@ Resource URIs follow Linux-style path format:
 ```
 
 **Available Context** (to help identify valid URIs):
-{% for facet, items in context.items() %}
-{%- if items %}
-### {{ facet }}
-{% for item in items %}
-- {{ item }}
+{% for segment in context.segments %}
+{%- if segment.included_data or segment.relations %}
+### {{ segment.uri }}
+{%- for key, value in segment.included_data.items() %}
+- {{ key }}: {{ value }}
+{%- endfor %}
+{%- for rel_uri, rel_desc in segment.relations.items() %}
+- Related to {{ rel_uri }}: {{ rel_desc }}
 {%- endfor %}
 {%- endif %}
 {%- endfor %}

@@ -223,8 +223,16 @@ No content results provided.
 {% endif %}
 
 **Context**:
-```
-{{ context }}
-```
+{% for segment in context.segments %}
+{%- if segment.included_data or segment.relations %}
+### {{ segment.uri }}
+{%- for key, value in segment.included_data.items() %}
+- {{ key }}: {{ value }}
+{%- endfor %}
+{%- for rel_uri, rel_desc in segment.relations.items() %}
+- Related to {{ rel_uri }}: {{ rel_desc }}
+{%- endfor %}
+{%- endif %}
+{%- endfor %}
 
 Generate your response as valid JSON with the "operations" key containing a list of operations.

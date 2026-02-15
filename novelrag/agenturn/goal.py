@@ -3,11 +3,14 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Protocol
+from typing import Annotated, Protocol
 
-from novelrag.llm.mixin import LLMMixin
+from pydantic import BaseModel, Field
+
 from langchain_core.language_models import BaseChatModel
+from langchain_core.messages import SystemMessage, HumanMessage
 from novelrag.template import TemplateEnvironment
+from novelrag.tracer import trace_llm
 
 
 @dataclass(kw_only=True)
@@ -60,15 +63,22 @@ class GoalDecider(Protocol):
     async def next_goal(self, beliefs: list[str]) -> Goal | None: ...
 
 
-class LLMGoalTranslator(GoalTranslator, LLMMixin):
+class GoalTranslation(BaseModel):
+    """LLM response containing a translated goal statement."""
+    goal: Annotated[str, Field(description="A clear, concise goal statement translated from the user request.")]
+
+
+class LLMGoalTranslator(GoalTranslator):
     """LLM-based implementation of GoalTranslator."""
 
     TEMPLATE_NAME = "translate_request_to_goal.jinja2"
 
     def __init__(self, chat_llm: BaseChatModel, lang: str = "en"):
         template_env = TemplateEnvironment(package_name="novelrag.agenturn", default_lang=lang)
-        LLMMixin.__init__(self, template_env=template_env, chat_llm=chat_llm)
+        self.template = template_env.load_template(self.TEMPLATE_NAME)
+        self._goal_llm = chat_llm.with_structured_output(GoalTranslation)
 
+    @trace_llm("goal_translation")
     async def translate(self, request: str, beliefs: list[str]) -> Goal:
         """Translate a user request into a structured Goal using LLM.
 
@@ -79,27 +89,16 @@ class LLMGoalTranslator(GoalTranslator, LLMMixin):
         Returns:
             A Goal object representing the translated goal.
         """
-        response = await self.call_template(
-            template_name=self.TEMPLATE_NAME,
-            user_question="Translate the user request into a clear and concise goal.",
+        prompt = self.template.render(
             request=request,
             beliefs=beliefs
         )
-        goal_description = self._extract_goal(response)
+        response = await self._goal_llm.ainvoke([
+            SystemMessage(content=prompt),
+            HumanMessage(content="Translate the user request into a clear, concise goal statement.")
+        ])
+        assert isinstance(response, GoalTranslation)
         return Goal(
-            description=goal_description,
+            description=response.goal.strip(),
             source=UserRequestSource(request=request)
         )
-
-    @staticmethod
-    def _extract_goal(response: str) -> str:
-        """Extract the goal statement from LLM response."""
-        # Look for "**Goal**:" or "Goal:" pattern
-        lines = response.strip().split("\n")
-        for line in lines:
-            line_stripped = line.strip()
-            if line_stripped.lower().startswith("**goal**:"):
-                return line_stripped[9:].strip()
-            if line_stripped.lower().startswith("goal:"):
-                return line_stripped[5:].strip()
-        return response.strip()

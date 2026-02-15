@@ -104,11 +104,14 @@ Return a JSON object with updated relationship lists for both directions:
 ```
 
 **Additional Context**:
-{% for facet, items in context.items() %}
-{%- if items %}
-### {{ facet }}
-{% for item in items %}
-- {{ item }}
+{% for segment in context.segments %}
+{%- if segment.included_data or segment.relations %}
+### {{ segment.uri }}
+{%- for key, value in segment.included_data.items() %}
+- {{ key }}: {{ value }}
+{%- endfor %}
+{%- for rel_uri, rel_desc in segment.relations.items() %}
+- Related to {{ rel_uri }}: {{ rel_desc }}
 {%- endfor %}
 {%- endif %}
 {%- endfor %}

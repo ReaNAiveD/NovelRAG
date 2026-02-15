@@ -1,487 +1,455 @@
 /**
- * LLM Log Viewer - JavaScript functionality
- * Handles YAML log file parsing, directory browsing, and UI interactions
+ * Trace Viewer – JavaScript functionality
+ * Renders hierarchical span trees (SESSION → INTENT → PURSUIT → TOOL_CALL → LLM_CALL)
+ * produced by the NovelRAG tracer framework.
  */
 
-class LLMLogViewer {
+class TraceViewer {
     constructor() {
-        this.currentLog = null;
+        this.currentTrace = null;
         this.currentDirectory = null;
         this.selectedFile = null;
-        this.files = new Map(); // filename -> File object
-        
+        this.files = new Map();
+
         this.initializeElements();
         this.bindEvents();
     }
-    
+
+    // ------------------------------------------------------------------
+    // Initialization
+    // ------------------------------------------------------------------
+
     initializeElements() {
-        // File inputs
         this.fileInput = document.getElementById('fileInput');
         this.singleFileInput = document.getElementById('singleFileInput');
         this.fileName = document.getElementById('fileName');
-        
-        // Directory panel
+
         this.directoryPath = document.getElementById('directoryPath');
         this.directoryContent = document.getElementById('directoryContent');
-        
-        // Stats
+
         this.stats = document.getElementById('stats');
-        this.pursuitCount = document.getElementById('pursuitCount');
-        this.totalCalls = document.getElementById('totalCalls');
-        this.uniqueTemplates = document.getElementById('uniqueTemplates');
-        
-        // Log content
+        this.totalSpans = document.getElementById('totalSpans');
+        this.llmCallCount = document.getElementById('llmCallCount');
+        this.totalTokens = document.getElementById('totalTokens');
+        this.errorCount = document.getElementById('errorCount');
+
         this.logContent = document.getElementById('logContent');
-        
-        // Show welcome message initially
-        this.showWelcomeMessage();
     }
-    
+
     bindEvents() {
-        // Directory selection (multiple files)
         this.fileInput.addEventListener('change', (e) => {
-            if (e.target.files.length > 0) {
-                this.loadDirectory(e.target.files);
-            }
+            if (e.target.files.length > 0) this.loadDirectory(e.target.files);
         });
-        
-        // Single file selection
         this.singleFileInput.addEventListener('change', (e) => {
-            if (e.target.files.length > 0) {
-                this.loadSingleFile(e.target.files[0]);
-            }
+            if (e.target.files.length > 0) this.loadSingleFile(e.target.files[0]);
         });
     }
-    
+
+    // ------------------------------------------------------------------
+    // File / directory handling  (unchanged logic, cleaned up)
+    // ------------------------------------------------------------------
+
     loadDirectory(fileList) {
         this.files.clear();
-        const yamlFiles = Array.from(fileList).filter(file => 
-            file.name.toLowerCase().endsWith('.yaml') || 
-            file.name.toLowerCase().endsWith('.yml')
+        const yamlFiles = Array.from(fileList).filter(f =>
+            f.name.toLowerCase().endsWith('.yaml') || f.name.toLowerCase().endsWith('.yml')
         );
-        
         if (yamlFiles.length === 0) {
             this.fileName.textContent = 'No YAML files found in directory';
             this.showDirectoryEmpty('No YAML files found');
             return;
         }
-        
-        // Store files and get directory path
-        yamlFiles.forEach(file => {
-            this.files.set(file.name, file);
-        });
-        
-        // Extract directory path from first file
-        const firstFile = yamlFiles[0];
-        const relativePath = firstFile.webkitRelativePath || firstFile.name;
-        const directoryPath = relativePath.includes('/') ? 
-            relativePath.substring(0, relativePath.lastIndexOf('/')) : 
-            'Selected Directory';
-            
-        this.currentDirectory = directoryPath;
-        this.directoryPath.textContent = directoryPath;
+        yamlFiles.forEach(f => this.files.set(f.name, f));
+        const rel = yamlFiles[0].webkitRelativePath || yamlFiles[0].name;
+        const dir = rel.includes('/') ? rel.substring(0, rel.lastIndexOf('/')) : 'Selected Directory';
+        this.currentDirectory = dir;
+        this.directoryPath.textContent = dir;
         this.fileName.textContent = `${yamlFiles.length} YAML files found`;
-        
         this.displayDirectoryContents(yamlFiles);
     }
-    
+
     loadSingleFile(file) {
         this.files.clear();
         this.files.set(file.name, file);
-        
         this.currentDirectory = 'Single File';
         this.directoryPath.textContent = 'Single File';
         this.fileName.textContent = file.name;
-        
         this.displayDirectoryContents([file]);
         this.selectFile(file.name);
     }
-    
+
     displayDirectoryContents(files) {
-        // Sort files by name
         files.sort((a, b) => a.name.localeCompare(b.name));
-        
-        this.directoryContent.innerHTML = files.map(file => `
-            <div class="file-item" data-filename="${file.name}">
+        this.directoryContent.innerHTML = files.map(f => `
+            <div class="file-item" data-filename="${f.name}">
                 <span class="file-icon">📄</span>
-                <span class="file-name-text">${file.name}</span>
-                <span class="file-size">${this.formatFileSize(file.size)}</span>
+                <span class="file-name-text">${f.name}</span>
+                <span class="file-size">${this.formatFileSize(f.size)}</span>
             </div>
         `).join('');
-        
-        // Bind click events to file items
         this.directoryContent.querySelectorAll('.file-item').forEach(item => {
-            item.addEventListener('click', () => {
-                const filename = item.dataset.filename;
-                this.selectFile(filename);
-            });
+            item.addEventListener('click', () => this.selectFile(item.dataset.filename));
         });
     }
-    
+
     showDirectoryEmpty(message = 'No directory selected') {
         this.directoryContent.innerHTML = `
             <div class="directory-empty">
                 <p>${message}</p>
-                <p class="help-text">Use "Select Directory" button to browse YAML log files</p>
-            </div>
-        `;
+                <p class="help-text">Use "Select Directory" button to browse trace files</p>
+            </div>`;
     }
-    
+
     async selectFile(filename) {
-        // Update UI selection
         this.directoryContent.querySelectorAll('.file-item').forEach(item => {
-            item.classList.remove('selected');
-            if (item.dataset.filename === filename) {
-                item.classList.add('selected');
-            }
+            item.classList.toggle('selected', item.dataset.filename === filename);
         });
-        
         this.selectedFile = filename;
-        
-        // Load and display the file
         const file = this.files.get(filename);
-        if (file) {
-            try {
-                const content = await this.readFileContent(file);
-                this.parseAndDisplayLog(content, filename);
-            } catch (error) {
-                console.error('Error reading file:', error);
-                this.showError(`Error reading file: ${error.message}`);
-            }
+        if (!file) return;
+        try {
+            const content = await this.readFileContent(file);
+            this.parseAndDisplay(content, filename);
+        } catch (error) {
+            this.showError(`Error reading file: ${error.message}`);
         }
     }
-    
+
     readFileContent(file) {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = (e) => resolve(e.target.result);
-            reader.onerror = (e) => reject(new Error('Failed to read file'));
+            reader.onerror = () => reject(new Error('Failed to read file'));
             reader.readAsText(file);
         });
     }
-    
-    parseAndDisplayLog(content, filename) {
+
+    // ------------------------------------------------------------------
+    // Parse & render
+    // ------------------------------------------------------------------
+
+    parseAndDisplay(content, filename) {
         try {
-            // Parse YAML content
-            const logData = jsyaml.load(content);
-            
-            if (!logData || !logData.pursuits || !Array.isArray(logData.pursuits)) {
-                throw new Error('Invalid log format: missing or invalid pursuits array');
+            const data = jsyaml.load(content);
+            if (!data || !data.kind) {
+                throw new Error('Invalid trace format: missing "kind" field on root span');
             }
-            
-            this.currentLog = logData;
-            this.updateStats();
-            this.displayPursuits();
-            
+            this.currentTrace = data;
+            this.updateStats(data);
+            this.displayTrace(data);
         } catch (error) {
-            console.error('Error parsing YAML:', error);
             this.showError(`Error parsing ${filename}: ${error.message}`);
         }
     }
-    
-    updateStats() {
-        if (!this.currentLog) return;
-        
-        const pursuits = this.currentLog.pursuits;
-        const totalCalls = pursuits.reduce((sum, p) => sum + (p.llm_calls?.length || 0), 0);
-        const allTemplates = new Set();
-        
-        pursuits.forEach(pursuit => {
-            if (pursuit.llm_calls) {
-                pursuit.llm_calls.forEach(call => {
-                    if (call.template_name) {
-                        allTemplates.add(call.template_name);
-                    }
-                });
+
+    // ------------------------------------------------------------------
+    // Stats
+    // ------------------------------------------------------------------
+
+    /** Recursively walk the tree to compute aggregate stats. */
+    updateStats(root) {
+        let spans = 0, llmCalls = 0, tokens = 0, errors = 0;
+        const walk = (span) => {
+            spans++;
+            if (span.kind === 'llm_call') {
+                llmCalls++;
+                const tu = span.attributes?.token_usage;
+                if (tu?.total_tokens) tokens += tu.total_tokens;
             }
-        });
-        
-        this.pursuitCount.textContent = pursuits.length;
-        this.totalCalls.textContent = totalCalls;
-        this.uniqueTemplates.textContent = allTemplates.size;
-        
+            if (span.status === 'error') errors++;
+            (span.children || []).forEach(walk);
+        };
+        walk(root);
+
+        this.totalSpans.textContent = spans;
+        this.llmCallCount.textContent = llmCalls;
+        this.totalTokens.textContent = tokens.toLocaleString();
+        this.errorCount.textContent = errors;
+        this.errorCount.parentElement.classList.toggle('has-errors', errors > 0);
         this.stats.style.display = 'flex';
     }
-    
-    displayPursuits() {
-        if (!this.currentLog) return;
-        
-        const pursuits = this.currentLog.pursuits;
-        
-        this.logContent.innerHTML = `
-            <div class="log-entries">
-                ${pursuits.map((pursuit, index) => this.renderPursuit(pursuit, index)).join('')}
-            </div>
-        `;
-        
-        this.bindPursuitEvents();
+
+    // ------------------------------------------------------------------
+    // Render span tree
+    // ------------------------------------------------------------------
+
+    displayTrace(root) {
+        this.logContent.innerHTML = `<div class="trace-tree">${this.renderSpan(root, 0)}</div>`;
+        this.bindSpanEvents();
     }
-    
-    renderPursuit(pursuit, index) {
-        const duration = pursuit.completed_at ? 
-            this.calculateDuration(pursuit.started_at, pursuit.completed_at) : 'N/A';
-        const callCount = pursuit.llm_calls?.length || 0;
-        
-        return `
-            <div class="pursuit" data-index="${index}">
-                <div class="pursuit-header">
-                    <div class="pursuit-title">
-                        <span class="expand-icon">▶</span>
-                        Goal: ${this.escapeHtml(pursuit.goal)}
-                        <span class="duration-info">(${duration})</span>
-                        <span class="badge">${callCount} calls</span>
-                    </div>
-                </div>
-                <div class="pursuit-content">
-                    ${pursuit.llm_calls ? pursuit.llm_calls.map((call, callIndex) => 
-                        this.renderLLMCall(call, callIndex)).join('') : ''}
-                </div>
-            </div>
-        `;
-    }
-    
-    renderLLMCall(call, index) {
-        const duration = call.duration_ms ? `${call.duration_ms}ms` : 'N/A';
-        
-        return `
-            <div class="llm-call" data-index="${index}">
-                <div class="llm-call-header">
-                    <div class="llm-call-title">
-                        <span class="expand-icon">▶</span>
-                        ${this.escapeHtml(call.template_name)}
-                        <span class="duration-info">(${duration})</span>
-                    </div>
-                </div>
-                <div class="llm-call-content">
-                    <div class="request-section">
-                        <div class="section-header">
-                            <span class="expand-icon">▶</span>
-                            Request
-                        </div>
-                        <div class="section-content collapsed">${this.formatRequestAsBlocks(call.request)}</div>
-                    </div>
-                    <div class="response-section">
-                        <div class="section-header expanded">
-                            <span class="expand-icon">▼</span>
-                            Response
-                        </div>
-                        <div class="section-content">${this.formatResponse(call.response)}</div>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-    
-    formatRequestAsBlocks(request) {
-        if (!request) return '<div class="request-block no-data">No request data</div>';
-        
-        let html = '';
-        
-        if (request.messages) {
-            request.messages.forEach((msg, i) => {
-                const roleClass = `request-block ${msg.role}-message`;
-                const roleLabel = msg.role.charAt(0).toUpperCase() + msg.role.slice(1);
-                
-                if (msg.role === 'system') {
-                    // System message gets special prominent treatment
-                    html += `<div class="${roleClass} system-prompt"><div class="block-header system-header"><span class="role-icon">🔧</span><strong>${roleLabel} Prompt</strong><span class="copy-hint">Double-click to copy</span></div><div class="block-content">${this.escapeHtml(msg.content)}</div></div>`;
-                } else if (msg.role === 'user') {
-                    // User message gets secondary treatment
-                    html += `<div class="${roleClass} user-query"><div class="block-header user-header"><span class="role-icon">👤</span><strong>${roleLabel} Query</strong><span class="copy-hint">Double-click to copy</span></div><div class="block-content">${this.escapeHtml(msg.content)}</div></div>`;
-                } else {
-                    // Other roles (assistant, etc.)
-                    html += `<div class="${roleClass}"><div class="block-header other-header"><span class="role-icon">🤖</span><strong>${roleLabel}</strong></div><div class="block-content">${this.escapeHtml(msg.content)}</div></div>`;
-                }
-            });
+
+    renderSpan(span, depth) {
+        const kind = span.kind || 'unknown';
+        const isLLM = kind === 'llm_call';
+        const isError = span.status === 'error';
+        const hasChildren = span.children && span.children.length > 0;
+        const duration = this.formatDuration(span.duration_ms);
+        const childCount = this.countDescendants(span);
+        const attrs = span.attributes || {};
+        const hasLLMData = isLLM && (attrs.request || attrs.response);
+
+        // Build subtitle parts
+        const subtitleParts = [];
+        if (attrs.goal) subtitleParts.push(attrs.goal);
+        if (attrs.tool_name) subtitleParts.push(`tool: ${attrs.tool_name}`);
+        if (attrs.model) subtitleParts.push(attrs.model);
+        const subtitle = subtitleParts.length ? ` — ${this.escapeHtml(subtitleParts.join(' · '))}` : '';
+
+        // Token badge for LLM calls with captured data
+        let tokenBadge = '';
+        const tu = attrs.token_usage;
+        if (tu?.total_tokens) {
+            tokenBadge = `<span class="badge token-badge">${tu.total_tokens} tok</span>`;
         }
-        
-        // Add other request parameters as a separate reference block
-        const otherParams = Object.keys(request).filter(key => key !== 'messages');
-        if (otherParams.length > 0) {
-            html += `<div class="request-block parameters-block"><div class="block-header params-header"><span class="role-icon">⚙️</span><strong>Request Parameters</strong><span class="copy-hint">Reference info</span></div><div class="block-content params-content">`;
-            
-            otherParams.forEach(key => {
-                const value = request[key];
-                if (value !== null && value !== undefined) {
-                    html += `<div class="param-item"><span class="param-key">${key}:</span> <span class="param-value">${this.escapeHtml(JSON.stringify(value))}</span></div>`;
-                }
-            });
-            
-            html += `</div></div>`;
+
+        // "no data" badge for LLM calls without captured attributes
+        let noDataBadge = '';
+        if (isLLM && !hasLLMData) {
+            noDataBadge = `<span class="badge muted">no data</span>`;
         }
-        
+
+        // Error badge
+        let errorBadge = '';
+        if (isError) {
+            errorBadge = `<span class="badge error">error</span>`;
+        }
+
+        // Children count badge (for non-leaf spans)
+        let childBadge = '';
+        if (hasChildren) {
+            childBadge = `<span class="badge">${childCount} spans</span>`;
+        }
+
+        // LLM detail block (only when request/response was captured)
+        let llmDetail = '';
+        if (hasLLMData) {
+            llmDetail = this.renderLLMDetail(span);
+        }
+
+        // Error detail
+        let errorDetail = '';
+        if (span.error) {
+            errorDetail = `<div class="error-detail">${this.escapeHtml(span.error)}</div>`;
+        }
+
+        // Recursively render children
+        let childrenHtml = '';
+        if (hasChildren) {
+            childrenHtml = span.children.map(c => this.renderSpan(c, depth + 1)).join('');
+        }
+
+        const expandable = hasChildren || hasLLMData;
+        const expandIcon = expandable ? '<span class="expand-icon">▶</span>' : '<span class="expand-icon-placeholder"></span>';
+
+        return `
+        <div class="span-node kind-${kind} ${isError ? 'span-error' : ''}" data-depth="${depth}">
+            <div class="span-header ${expandable ? 'expandable' : ''}">
+                ${expandIcon}
+                <span class="span-kind-badge kind-${kind}">${this.kindLabel(kind)}</span>
+                <span class="span-name">${this.escapeHtml(span.name)}</span>
+                <span class="span-subtitle">${subtitle}</span>
+                <span class="span-duration">${duration}</span>
+                ${tokenBadge}${noDataBadge}${errorBadge}${childBadge}
+            </div>
+            <div class="span-body">
+                ${errorDetail}
+                ${llmDetail}
+                ${childrenHtml ? `<div class="span-children">${childrenHtml}</div>` : ''}
+            </div>
+        </div>`;
+    }
+
+    renderLLMDetail(span) {
+        const attrs = span.attributes || {};
+        const request = attrs.request;
+        const response = attrs.response;
+
+        let html = '<div class="llm-detail">';
+
+        // Request section
+        html += `<div class="llm-section request-section">
+            <div class="section-header"><span class="expand-icon">▶</span>Request</div>
+            <div class="section-content collapsed">${this.formatRequest(request)}</div>
+        </div>`;
+
+        // Response section (expanded by default)
+        html += `<div class="llm-section response-section">
+            <div class="section-header expanded"><span class="expand-icon">▼</span>Response</div>
+            <div class="section-content">${this.formatResponse(response)}</div>
+        </div>`;
+
+        // Token usage
+        const tu = attrs.token_usage;
+        if (tu) {
+            html += `<div class="token-summary">
+                <span>Prompt: <b>${tu.prompt_tokens ?? '—'}</b></span>
+                <span>Completion: <b>${tu.completion_tokens ?? '—'}</b></span>
+                <span>Total: <b>${tu.total_tokens ?? '—'}</b></span>
+            </div>`;
+        }
+
+        html += '</div>';
         return html;
     }
-    
+
     formatRequest(request) {
-        if (!request) return 'No request data';
-        
-        let formatted = '';
-        
+        if (!request) return '<div class="msg-block no-data">No request data</div>';
+        let html = '';
+
+        // Tools provided to the model
+        if (request.tools && request.tools.length) {
+            html += '<div class="tools-provided">';
+            html += '<div class="tools-header">🛠 Tools Provided</div>';
+            html += '<div class="tools-list">';
+            request.tools.forEach(tool => {
+                html += `<div class="tool-def">
+                    <span class="tool-def-name">${this.escapeHtml(tool.name)}</span>
+                    <span class="tool-def-desc">${this.escapeHtml(tool.description || '')}</span>
+                </div>`;
+            });
+            html += '</div></div>';
+        }
+
         if (request.messages) {
-            request.messages.forEach((msg, i) => {
-                const roleLabel = msg.role.charAt(0).toUpperCase() + msg.role.slice(1);
-                
-                if (msg.role === 'system') {
-                    // System message gets special treatment - most important
-                    formatted += `=== ${roleLabel} Prompt ===\n`;
-                    formatted += `${msg.content}\n\n`;
-                } else if (msg.role === 'user') {
-                    // User message is secondary but still important
-                    formatted += `--- ${roleLabel} Query ---\n`;
-                    formatted += `${msg.content}\n\n`;
-                } else {
-                    // Other roles (assistant, etc.) - less common
-                    formatted += `[${roleLabel}]: ${msg.content}\n\n`;
+            request.messages.forEach(msg => {
+                const role = msg.role || 'unknown';
+                const label = this.roleLabel(role);
+                const icon = this.roleIcon(role);
+                const cls = `msg-block ${role}-message`;
+                html += `<div class="${cls}">
+                    <div class="msg-header ${role}-header">
+                        <span class="role-icon">${icon}</span><strong>${label}</strong>
+                        <span class="copy-hint">Double-click to copy</span>
+                    </div>
+                    <div class="msg-body">${this.escapeHtml(msg.content || '')}</div>
+                </div>`;
+
+                // Inline tool calls on AI messages
+                if (msg.tool_calls && msg.tool_calls.length) {
+                    msg.tool_calls.forEach(tc => {
+                        html += `<div class="tool-call-block">
+                            <div class="tool-call-header">🔧 Tool Call: <strong>${this.escapeHtml(tc.name)}</strong>
+                                ${tc.id ? `<span class="tool-call-id">${this.escapeHtml(tc.id)}</span>` : ''}
+                            </div>
+                            <pre class="tool-call-args">${this.escapeHtml(JSON.stringify(tc.args, null, 2))}</pre>
+                        </div>`;
+                    });
+                }
+
+                // Tool message metadata
+                if (msg.tool_call_id) {
+                    html += `<div class="tool-meta">↩ tool_call_id: <code>${this.escapeHtml(msg.tool_call_id)}</code></div>`;
                 }
             });
         }
-        
-        // Add other request parameters as reference info
-        const otherParams = Object.keys(request).filter(key => key !== 'messages');
-        if (otherParams.length > 0) {
-            formatted += '--- Request Parameters (Reference) ---\n';
-            otherParams.forEach(key => {
-                const value = request[key];
-                if (value !== null && value !== undefined) {
-                    if (typeof value === 'string' && value.length > 100) {
-                        // Long strings get abbreviated in reference section
-                        formatted += `${key}: ${value.substring(0, 100)}...\n`;
-                    } else {
-                        formatted += `${key}: ${JSON.stringify(value)}\n`;
-                    }
-                }
-            });
-        }
-        
-        return this.escapeHtml(formatted.trim());
+        return html || '<div class="msg-block no-data">No messages</div>';
     }
-    
+
     formatResponse(response) {
-        if (!response) return 'No response data';
-        
-        let formatted = response.content || '';
-        
-        // Add other response metadata if available
-        const otherParams = Object.keys(response).filter(key => key !== 'content');
-        if (otherParams.length > 0) {
-            if (formatted) formatted += '\n\n';
-            formatted += '--- Response Metadata ---\n';
-            otherParams.forEach(key => {
-                const value = response[key];
-                if (value !== null && value !== undefined) {
-                    formatted += `${key}: ${value}\n`;
-                }
-            });
+        if (!response) return '<div class="no-data">No response data</div>';
+        let html = '';
+
+        // Text content
+        if (response.content) {
+            html += `<div class="response-body">${this.escapeHtml(response.content)}</div>`;
         }
-        
-        return this.escapeHtml(formatted.trim());
+
+        // Tool calls selected by the model
+        if (response.tool_calls && response.tool_calls.length) {
+            html += '<div class="tool-calls-response">';
+            response.tool_calls.forEach(tc => {
+                html += `<div class="tool-call-block">
+                    <div class="tool-call-header">🔧 Tool Call: <strong>${this.escapeHtml(tc.name)}</strong>
+                        ${tc.id ? `<span class="tool-call-id">${this.escapeHtml(tc.id)}</span>` : ''}
+                    </div>
+                    <pre class="tool-call-args">${this.escapeHtml(JSON.stringify(tc.args, null, 2))}</pre>
+                </div>`;
+            });
+            html += '</div>';
+        }
+
+        return html || '<div class="no-data">No response data</div>';
     }
-    
-    bindPursuitEvents() {
-        // Pursuit expand/collapse
-        this.logContent.querySelectorAll('.pursuit-header').forEach(header => {
+
+    // ------------------------------------------------------------------
+    // Event binding
+    // ------------------------------------------------------------------
+
+    bindSpanEvents() {
+        // Span header expand / collapse
+        this.logContent.querySelectorAll('.span-header.expandable').forEach(header => {
             header.addEventListener('click', () => {
-                const pursuit = header.parentElement;
-                const content = pursuit.querySelector('.pursuit-content');
+                const node = header.closest('.span-node');
+                const body = node.querySelector(':scope > .span-body');
                 const icon = header.querySelector('.expand-icon');
-                
-                header.classList.toggle('expanded');
-                content.classList.toggle('expanded');
-                icon.textContent = content.classList.contains('expanded') ? '▼' : '▶';
+                const expanded = body.classList.toggle('expanded');
+                header.classList.toggle('expanded', expanded);
+                icon.textContent = expanded ? '▼' : '▶';
             });
         });
-        
-        // LLM call expand/collapse
-        this.logContent.querySelectorAll('.llm-call-header').forEach(header => {
-            header.addEventListener('click', () => {
-                const call = header.parentElement;
-                const content = call.querySelector('.llm-call-content');
-                const icon = header.querySelector('.expand-icon');
-                
-                header.classList.toggle('expanded');
-                content.classList.toggle('expanded');
-                icon.textContent = content.classList.contains('expanded') ? '▼' : '▶';
-            });
-        });
-        
-        // Section expand/collapse (Request/Response)
+
+        // Section (Request / Response) toggle
         this.logContent.querySelectorAll('.section-header').forEach(header => {
-            header.addEventListener('click', () => {
+            header.addEventListener('click', (e) => {
+                e.stopPropagation();
                 const content = header.nextElementSibling;
                 const icon = header.querySelector('.expand-icon');
-                
-                header.classList.toggle('expanded');
-                content.classList.toggle('collapsed');
-                icon.textContent = header.classList.contains('expanded') ? '▼' : '▶';
+                const expanded = header.classList.toggle('expanded');
+                content.classList.toggle('collapsed', !expanded);
+                icon.textContent = expanded ? '▼' : '▶';
             });
         });
-        
-        // Add double-click to copy functionality
-        this.logContent.querySelectorAll('.section-content').forEach(content => {
-            // Add double-click to copy to clipboard
-            content.addEventListener('dblclick', async (e) => {
-                const requestBlock = e.target.closest('.request-block');
-                let textToCopy;
-                
-                if (requestBlock) {
-                    const blockContent = requestBlock.querySelector('.block-content');
-                    textToCopy = blockContent ? blockContent.textContent : content.textContent;
-                } else {
-                    textToCopy = content.textContent;
-                }
-                
-                try {
-                    await navigator.clipboard.writeText(textToCopy);
-                    this.showCopyFeedback(e.target.closest('.request-block') || content);
-                } catch (err) {
-                    console.log('Copy to clipboard failed:', err);
-                }
-            });
-        });
-        
-        // Add specific handlers for request blocks
-        this.logContent.querySelectorAll('.block-content').forEach(blockContent => {
-            blockContent.addEventListener('dblclick', async (e) => {
+
+        // Double-click to copy
+        this.logContent.querySelectorAll('.msg-body, .response-body').forEach(el => {
+            el.addEventListener('dblclick', async (e) => {
                 e.stopPropagation();
                 try {
-                    await navigator.clipboard.writeText(blockContent.textContent);
-                    this.showCopyFeedback(blockContent.closest('.request-block'));
-                } catch (err) {
-                    console.log('Copy to clipboard failed:', err);
-                }
+                    await navigator.clipboard.writeText(el.textContent);
+                    this.showCopyFeedback(el);
+                } catch (err) { /* ignore */ }
             });
         });
     }
-    
-    showWelcomeMessage() {
-        this.logContent.innerHTML = `
-            <div class="welcome">
-                <h2>Welcome to LLM Log Viewer</h2>
-                <p>Select a directory or YAML log file to view LLM request/response history from agent pursuits.</p>
-                <ul>
-                    <li>Use "Select Directory" to browse multiple YAML files</li>
-                    <li>Use "Select File" to load a single YAML file</li>
-                    <li>Each pursuit shows the goal and can be expanded to view LLM calls</li>
-                    <li>Each LLM call shows the template used and can be expanded to view details</li>
-                    <li>Requests are collapsed by default, responses are expanded</li>
-                </ul>
-            </div>
-        `;
-        this.stats.style.display = 'none';
+
+    // ------------------------------------------------------------------
+    // Helpers
+    // ------------------------------------------------------------------
+
+    kindLabel(kind) {
+        const map = {
+            session: 'SESSION',
+            intent: 'INTENT',
+            pursuit: 'PURSUIT',
+            tool_call: 'TOOL',
+            llm_call: 'LLM',
+        };
+        return map[kind] || kind.toUpperCase();
     }
-    
-    showError(message) {
-        this.logContent.innerHTML = `
-            <div class="welcome">
-                <h2>Error</h2>
-                <p style="color: var(--error-color);">${this.escapeHtml(message)}</p>
-                <p>Please select a valid YAML log file.</p>
-            </div>
-        `;
-        this.stats.style.display = 'none';
+
+    roleLabel(role) {
+        const map = { system: 'System Prompt', human: 'User Query', user: 'User Query', ai: 'Assistant', assistant: 'Assistant' };
+        return map[role] || role.charAt(0).toUpperCase() + role.slice(1);
     }
-    
+
+    roleIcon(role) {
+        const map = { system: '🔧', human: '👤', user: '👤', ai: '🤖', assistant: '🤖' };
+        return map[role] || '💬';
+    }
+
+    countDescendants(span) {
+        let n = 0;
+        (span.children || []).forEach(c => { n += 1 + this.countDescendants(c); });
+        return n;
+    }
+
+    formatDuration(ms) {
+        if (ms == null) return '';
+        if (ms < 1000) return `${Math.round(ms)}ms`;
+        if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
+        return `${(ms / 60000).toFixed(1)}m`;
+    }
+
     formatFileSize(bytes) {
         if (bytes === 0) return '0 B';
         const k = 1024;
@@ -489,55 +457,40 @@ class LLMLogViewer {
         const i = Math.floor(Math.log(bytes) / Math.log(k));
         return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
     }
-    
-    calculateDuration(startTime, endTime) {
-        if (!endTime) return 'N/A';
-        
-        const start = new Date(startTime);
-        const end = new Date(endTime);
-        const diff = end - start;
-        
-        if (diff < 1000) return `${diff}ms`;
-        if (diff < 60000) return `${(diff / 1000).toFixed(1)}s`;
-        return `${(diff / 60000).toFixed(1)}m`;
-    }
-    
+
     escapeHtml(text) {
         const div = document.createElement('div');
-        div.textContent = text;
+        div.textContent = String(text);
         return div.innerHTML;
     }
-    
+
+    showError(message) {
+        this.logContent.innerHTML = `
+            <div class="welcome">
+                <h2>Error</h2>
+                <p style="color: var(--error-color);">${this.escapeHtml(message)}</p>
+                <p>Please select a valid trace YAML file.</p>
+            </div>`;
+        this.stats.style.display = 'none';
+    }
+
     showCopyFeedback(element) {
-        // Create a "Copied!" notification
-        const copyNotification = document.createElement('div');
-        copyNotification.className = 'copy-notification';
-        copyNotification.textContent = '✓ Copied!';
-        
-        // Position the notification at fixed position in upper right
-        copyNotification.style.position = 'fixed';
-        copyNotification.style.top = '20px';
-        copyNotification.style.right = '20px';
-        copyNotification.style.zIndex = '1000';
-        
-        document.body.appendChild(copyNotification);
-        
-        // Also add background color feedback
-        const originalBg = element.style.backgroundColor;
+        const note = document.createElement('div');
+        note.className = 'copy-notification';
+        note.textContent = '✓ Copied!';
+        note.style.cssText = 'position:fixed;top:20px;right:20px;z-index:1000';
+        document.body.appendChild(note);
+
+        const origBg = element.style.backgroundColor;
         element.style.backgroundColor = '#d4edda';
         element.style.transition = 'background-color 0.3s ease';
-        
-        // Remove notification and reset background after delay
         setTimeout(() => {
-            element.style.backgroundColor = originalBg;
-            if (copyNotification.parentNode) {
-                copyNotification.parentNode.removeChild(copyNotification);
-            }
+            element.style.backgroundColor = origBg;
+            note.parentNode?.removeChild(note);
         }, 1500);
     }
 }
 
-// Initialize the log viewer when the page loads
 document.addEventListener('DOMContentLoaded', () => {
-    window.logViewer = new LLMLogViewer();
+    window.traceViewer = new TraceViewer();
 });

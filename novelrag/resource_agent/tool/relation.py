@@ -1,26 +1,41 @@
 """Tool for writing relations between resources."""
 
 import json
-from typing import Any
+from typing import Annotated, Any
+
+from pydantic import BaseModel, Field
 
 from novelrag.agenturn.tool import SchematicTool, ToolRuntime
 from novelrag.agenturn.tool.types import ToolOutput
-from novelrag.llm import LLMMixin
 from langchain_core.language_models import BaseChatModel
+from langchain_core.messages import SystemMessage, HumanMessage
 from novelrag.resource.aspect import ResourceAspect
 from novelrag.resource.element import DirectiveElement
 from novelrag.resource.repository import ResourceRepository
 from novelrag.resource_agent.undo import ReversibleAction, UndoQueue
 from novelrag.template import TemplateEnvironment
+from novelrag.tracer import trace_llm
 
 
-class ResourceRelationWriteTool(LLMMixin, SchematicTool):
+class GetUpdatedRelationsResponse(BaseModel):
+    """LLM response containing updated relation descriptions."""
+    relations: Annotated[list[str], Field(
+        description="Updated list of relation descriptions between the resources.",
+    )]
+
+
+class ResourceRelationWriteTool(SchematicTool):
     """Tool for writing relations between resources in the repository."""
-    
-    def __init__(self, repo: ResourceRepository, template_env: TemplateEnvironment, chat_llm: BaseChatModel, undo_queue: UndoQueue | None = None):
+
+    PACKAGE_NAME = "novelrag.resource_agent.tool"
+    TEMPLATE_NAME = "get_updated_relations.jinja2"
+
+    def __init__(self, repo: ResourceRepository, chat_llm: BaseChatModel, lang: str = "en", undo_queue: UndoQueue | None = None):
         self.repo = repo
         self.undo = undo_queue
-        super().__init__(template_env=template_env, chat_llm=chat_llm)
+        self._relations_llm = chat_llm.with_structured_output(GetUpdatedRelationsResponse)
+        template_env = TemplateEnvironment(package_name=self.PACKAGE_NAME, default_lang=lang)
+        self._template = template_env.load_template(self.TEMPLATE_NAME)
 
     @property
     def name(self) -> str:
@@ -114,13 +129,18 @@ class ResourceRelationWriteTool(LLMMixin, SchematicTool):
             await runtime.error(f"Source resource URI '{source_resource_uri}' does not point to a valid resource. Please check the URI.")
             return self.error(f"Source resource URI '{source_resource_uri}' does not point to a valid resource. Please check the URI.")
 
+    @trace_llm("update_relations")
     async def get_updated_relations(self, source_resource: DirectiveElement, target_resource: DirectiveElement | ResourceAspect, existing_relation: list[str], operation: str, relation_description: str) -> list[str]:
-        return json.loads(await self.call_template(
-            'get_updated_relations.jinja2',
-            json_format=True,
+        prompt = self._template.render(
             source_resource=source_resource.context_dict,
             target_resource=target_resource.context_dict,
             existing_relation=existing_relation,
             operation=operation,
             relation_description=relation_description,
-        ))['relations']
+        )
+        response = await self._relations_llm.ainvoke([
+            SystemMessage(content=prompt),
+            HumanMessage(content="Generate the updated relations."),
+        ])
+        assert isinstance(response, GetUpdatedRelationsResponse)
+        return response.relations

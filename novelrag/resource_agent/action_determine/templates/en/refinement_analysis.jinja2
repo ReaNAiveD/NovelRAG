@@ -42,14 +42,30 @@ No assessment available yet.
 {%- endif %}
 
 ### Action Decision Made
-```json
-{{ action_decision | tojson(indent=2) }}
-```
+- **Situation Analysis**: {{ action_decision.situation_analysis }}
+- **Decision**: {{ action_decision.decision_type }}
+{%- if action_decision.execution %}
+- **Execution**:
+  - Tool: {{ action_decision.execution.tool }}
+  - Params: {{ action_decision.execution.params | tojson }}
+  - Confidence: {{ action_decision.execution.confidence }}
+  {%- if action_decision.execution.reasoning %}
+  - Reasoning: {{ action_decision.execution.reasoning }}
+  {%- endif %}
+{%- endif %}
+{%- if action_decision.finalization %}
+- **Finalization**:
+  - Status: {{ action_decision.finalization.status }}
+  - Response: {{ action_decision.finalization.response }}
+{%- endif %}
+{%- if action_decision.context_verification %}
+- **Context Verification**: {{ action_decision.context_verification | tojson(indent=2) }}
+{%- endif %}
 
 ### Execution History
 {%- if completed_steps %}
 {%- for step in completed_steps %}
-- **{{ step.tool }}**: {{ step.intent }} ({{ step.status }})
+- **{{ step.operation.tool }}**: {{ step.operation.reason }} ({{ step.status.value }})
   {%- if step.results %}
   - Results: {{ step.results | join(", ") }}
   {%- endif %}
@@ -61,21 +77,23 @@ No prior actions.
 ## Tools Available
 
 ### Expanded Tools (Ready for Use)
-{%- if available_tools %}
-{%- for tool_name, tool_info in available_tools.items() %}
+{%- if expanded_tools %}
+{%- for tool_name, tool in expanded_tools.items() %}
 #### {{ tool_name }}
 
-**Purpose**: {{ tool_info.description }}
+**Purpose**: {{ tool.description }}
 
 **Prerequisites** (Must be satisfied before use):
-{{ tool_info.prerequisites }}
+{{ tool.prerequisites }}
 
+{%- if tool.input_schema %}
 **Input Parameters**:
 ```json
-{{ tool_info.input_schema | tojson(indent=2) }}
+{{ tool.input_schema | tojson(indent=2) }}
 ```
+{%- endif %}
 
-**Expected Output**: {{ tool_info.output_description }}
+**Expected Output**: {{ tool.output_description }}
 {%- endfor %}
 {%- else %}
 No tools currently expanded.
@@ -83,26 +101,25 @@ No tools currently expanded.
 
 ### Collapsed Tools (Can be expanded if needed)
 {%- if collapsed_tools %}
-Tools available but not yet expanded: {{ collapsed_tools | join(", ") }}
+{%- for tool_name, tool in collapsed_tools.items() %}
+- **{{ tool_name }}**: {{ tool.description }}
+{%- endfor %}
 {%- else %}
 No additional tools available for expansion.
 {%- endif %}
 
 ## Current Knowledge Base
 
-{%- for segment in workspace_segments %}
+{%- for segment in workspace_segment %}
 ### Resource Segment #{{ loop.index }}: **{{ segment.uri }}**
-{%- if segment.included_data.get("description") %}
-**Description**: {{ segment.included_data.get("description") }}
-{%- endif %}
-{%- if segment.pending_properties %}
-**Hidden Properties**: {{ segment.pending_properties | join(", ") }}
-{%- endif %}
 {%- if segment.included_data %}
 **Visible Properties**:
 {%- for key, value in segment.included_data.items() %}
   - {{ key }}: {{ value }}
 {%- endfor %}
+{%- endif %}
+{%- if segment.excluded_properties %}
+**Excluded Properties**: {{ segment.excluded_properties | join(", ") }}
 {%- endif %}
 {%- if segment.child_ids %}
 **Children** (construct URI by appending to parent: `{{ segment.uri }}/child_name`):
@@ -182,65 +199,6 @@ List of edge cases or error conditions that should be handled going forward.
 
 #### success_criteria
 List of specific, verifiable conditions that indicate the goal has been fully achieved.
-
-## Output Format
-```json
-{
-  "analysis": {
-    "decision_quality": "Assessment of whether Phase 1 decision is sound",
-    "prerequisite_verification": {
-      "prerequisite_1": "✓/✗ Verified against segment #X: [specific evidence or issue]",
-      "prerequisite_2": "✓/✗ Verified against segment #Y: [specific evidence or issue]"
-    },
-    "parameter_verification": {
-      "param_1": "✓/✗ Value found in segment #X property Y",
-      "param_2": "✗ Missing from context: [what's needed]"
-    },
-    "discovered_issues": [
-      {
-        "type": "missing_prerequisite|context_gap|wrong_tool|parameter_dependency",
-        "description": "Specific issue identified",
-        "impact": "How this affects achieving the goal",
-        "evidence": "Reference to specific segments (#1, #2) or verification results"
-      }
-    ],
-    "alternative_approaches": [
-      "Different strategy if current approach is suboptimal",
-      "Consider expanding tool X for capability Y"
-    ]
-  },
-  
-  "verdict": "approve|refine",
-  
-  "approval": {  // ONLY if verdict is "approve"
-    "ready": true,
-    "confidence": "high|medium",
-    "notes": "Any caveats or considerations for execution"
-  },
-  
-  "refinement": {  // ONLY if verdict is "refine"
-    "finished_tasks": [
-      "completed task 1",
-      "completed task 2"
-    ],
-    "remaining_work_summary": "Comprehensive description of what still needs to be done to achieve the goal, including discovered prerequisites and context needs",
-    "required_context": "Description of context still needed: search terms to try, resource paths to explore, focus areas in segments",
-    "expected_actions": "Actions that will need to be performed: tools to expand, specific operations anticipated",
-    "boundary_conditions": [
-      "constraint 1",
-      "constraint 2"
-    ],
-    "exception_conditions": [
-      "edge case 1",
-      "error condition to handle"
-    ],
-    "success_criteria": [
-      "criterion 1 for goal completion",
-      "criterion 2"
-    ]
-  }
-}
-```
 
 ## Critical Principles
 

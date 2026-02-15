@@ -1,76 +1,87 @@
-# LLM Log Viewer
+# Trace Viewer
 
-A pure frontend web application for viewing and exploring LLM request/response logs from the NovelRAG agent system.
+A pure frontend web application for viewing and exploring hierarchical trace spans produced by the NovelRAG tracer framework.
 
 ## Features
 
-- **Directory Browsing**: Browse and select from multiple YAML files in a directory
-- **Single File Selection**: Load individual YAML log files directly in the browser
-- **Left Panel Directory View**: Navigate files with a dedicated directory panel showing only YAML files
-- **Hierarchical View**: Navigate through pursuits → LLM calls → request/response details
-- **Smart Request Formatting**: System prompts are prominently displayed with clear section headers, user queries are secondary, and technical parameters are shown as reference
-- **Easy Copy/Paste**: Click any content area to select all text, double-click to copy to clipboard
-- **Collapsible Interface**: 
-  - Pursuits are collapsed by default, showing goal and metadata
-  - LLM calls within pursuits are collapsed by default, showing template name and timing
-  - Requests are collapsed by default (since they're usually long prompts)
-  - Responses are expanded by default for easy reading
-- **Statistics**: View summary statistics including pursuit count, total LLM calls, and unique templates used
+- **Hierarchical Span Tree**: Navigate the full trace tree — Session → Intent → Pursuit → Tool Call → LLM Call
+- **Color-Coded Span Kinds**: Each span level has a distinct colour badge for quick visual scanning
+- **Directory Browsing**: Browse and select from multiple YAML trace files in a directory
+- **Single File Selection**: Load individual trace files directly in the browser
+- **LLM Call Details**: Expand LLM call spans to see request messages (system prompt, user query), response content, and token usage
+- **Error Highlighting**: Spans with errors are highlighted in red with the error message shown inline
+- **Collapsible Interface**:
+  - All spans are collapsed by default — click to reveal children
+  - Inside LLM calls, requests are collapsed and responses are expanded by default
+- **Statistics**: Total spans, LLM call count, total tokens, and error count
+- **Easy Copy/Paste**: Double-click any message or response block to copy to clipboard
 - **Responsive Design**: Works on desktop and mobile devices
-- **No Backend Required**: Pure HTML/CSS/JavaScript - works offline
+- **No Backend Required**: Pure HTML/CSS/JavaScript — works offline
 
 ## Usage
 
-1. **Open the Viewer**: 
+1. **Open the Viewer**:
    - Open `index.html` in any modern web browser
 
-2. **Load Log Files**:
+2. **Load Trace Files**:
    - **Directory Mode**: Click "Select Directory" to browse multiple YAML files in a folder
-   - **Single File Mode**: Click "Select File" to load one YAML file
+   - **Single File Mode**: Click "Select File" to load one trace file
 
-3. **Browse Files**:
-   - Use the left directory panel to see all available YAML files
-   - Click on any file in the directory panel to view its contents
-   - Selected file is highlighted in the directory panel
-
-4. **Navigate the Log**:
-   - Click on pursuit headers to expand/collapse pursuit details
-   - Click on LLM call headers to expand/collapse call details  
-   - Click on "Request" or "Response" headers to toggle their visibility
-   - **Click any content area to select all text** for easy copying
+3. **Navigate the Trace**:
+   - Click on any span header to expand/collapse its children
+   - LLM call spans show Request and Response sections inside
+   - Click "Request" or "Response" headers to toggle their visibility
    - **Double-click any content area to copy to clipboard**
-   - Use the statistics at the top to get an overview
+   - Use the statistics bar at the top for a quick overview
 
-## Log File Format
+## Trace File Format
 
-The viewer expects YAML files with the following structure:
+The viewer expects YAML files matching the `Span.to_dict()` output from the NovelRAG tracer:
 
 ```yaml
-pursuits:
-  - goal: "Create a character named John"
-    started_at: "2025-10-20T10:30:00"
-    completed_at: "2025-10-20T10:35:00"
-    llm_calls:
-      - template_name: "character_creation.jinja2"
-        timestamp: "2025-10-20T10:30:15"
-        duration_ms: 1250
+kind: session
+name: shell_session
+span_id: a1b2c3d4e5f6
+start_time: '2026-02-15T14:30:00.000000'
+end_time: '2026-02-15T14:35:42.123456'
+duration_ms: 342123.46
+status: ok
+children:
+- kind: intent
+  name: handle_request
+  span_id: b2c3d4e5f6a7
+  ...
+  children:
+  - kind: pursuit
+    name: handle_goal
+    attributes:
+      goal: Create a fantasy character
+    children:
+    - kind: llm_call
+      name: content_generation
+      attributes:
+        model: gpt-4o
         request:
           messages:
-            - role: "system"
-              content: "You are a creative writing assistant..."
-            - role: "user"
-              content: "Please create a character."
-          response_format: "json_object"
+          - role: system
+            content: "You are a creative writing assistant..."
+          - role: human
+            content: "Create a character."
         response:
-          content: "{\\"name\\": \\"John Smith\\", \\"age\\": 35...}"
+          content: '{"name": "Elena Brightforge", ...}'
+        token_usage:
+          prompt_tokens: 245
+          completion_tokens: 389
+          total_tokens: 634
 ```
 
 ## Files
 
-- `index.html` - Main HTML structure and layout
-- `styles.css` - All styling and responsive design
-- `script.js` - JavaScript functionality for parsing and displaying logs
-- `README.md` - This documentation
+- `index.html` — Main HTML structure and layout
+- `styles.css` — All styling, span-kind colours, and responsive design
+- `script.js` — JavaScript `TraceViewer` class for parsing and rendering span trees
+- `sample_log.yaml` — Example trace file for testing
+- `README.md` — This documentation
 
 ## Browser Compatibility
 
@@ -79,30 +90,16 @@ pursuits:
 - Safari 13+
 - Edge 80+
 
-Requires support for:
-- ES6+ JavaScript features
-- CSS Grid and Flexbox
-- File API for local file reading
-
-## Development
-
-To extend or modify the viewer:
-
-1. **Adding New Log Fields**: Update the `formatRequest()` and `formatResponse()` methods in `script.js`
-2. **Styling Changes**: Modify `styles.css` - uses CSS custom properties for easy theming
-3. **New Features**: Add to the `LLMLogViewer` class in `script.js`
-
 ## Troubleshooting
 
-**File won't load**: 
-- Ensure the file is valid YAML format
+**File won't load**:
+- Ensure the root object has a `kind` field (e.g. `kind: session`)
 - Check browser console for specific error messages
 
-**Display Issues**: 
+**Display Issues**:
 - Try refreshing the page
 - Ensure JavaScript is enabled
-- Check that all files are in the same directory
 
 **Performance with Large Files**:
-- Very large log files (>10MB) may load slowly
-- Consider splitting large logs into smaller files
+- Very large trace files (>10MB) may load slowly
+- Consider splitting traces by session
