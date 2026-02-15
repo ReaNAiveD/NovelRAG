@@ -14,6 +14,7 @@ from novelrag.resource_agent import create_executor
 from novelrag.resource_agent.backlog.local import LocalBacklog
 from novelrag.resource_agent.goal_decider import CompositeGoalDecider
 from novelrag.resource_agent.undo import LocalUndoQueue, MemoryUndoQueue, UndoQueue
+from novelrag.utils.language import content_directive
 from novelrag.cli.handler.builtin.agent import AgentHandler
 from novelrag.cli.conversation import ConversationHistory
 from novelrag.exceptions import HandlerNotFoundError, SessionQuitError
@@ -99,21 +100,23 @@ class Session:
             channel=channel,
             chat_llm=chat_llm,
             beliefs=config.agent_beliefs,
-            lang=config.template_lang,
+            lang=config.language,
             backlog=backlog,
             undo_queue=undo_queue,
         )
-        goal_translator = LLMGoalTranslator(chat_llm, lang=config.template_lang or "en")
+        goal_translator = LLMGoalTranslator(chat_llm, lang=config.language or "en", language=config.language)
         agent_request_handler = agent.create_request_handler(goal_translator)
         agent_handler = AgentHandler(agent_request_handler)
 
         # Create autonomous agent with CompositeGoalDecider
+        lang_directive = content_directive(language=config.language, beliefs=config.agent_beliefs)
         goal_decider = CompositeGoalDecider(
             repo=repository,
             chat_llm=chat_llm,
-            template_lang=config.template_lang or "en",
+            template_lang=config.language or "en",
             backlog=backlog,
             undo_queue=undo_queue,
+            lang_directive=lang_directive,
         )
         autonomous_agent = agent.create_autonomous_agent(goal_decider)
         next_handler = NextHandler(autonomous_agent)

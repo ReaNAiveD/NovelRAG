@@ -12,6 +12,7 @@ from novelrag.resource.repository import ResourceRepository
 from novelrag.resource_agent.undo import ReversibleAction, UndoQueue
 from novelrag.template import TemplateEnvironment
 from novelrag.tracer import trace_llm
+from novelrag.utils.language import schema_directive
 
 
 class AspectCreateTool(SchematicTool):
@@ -20,10 +21,12 @@ class AspectCreateTool(SchematicTool):
     PACKAGE_NAME = "novelrag.resource_agent.tool"
     TEMPLATE_NAME = "initialize_aspect_metadata.jinja2"
 
-    def __init__(self, repo: ResourceRepository, chat_llm: BaseChatModel, lang: str = "en", undo_queue: UndoQueue | None = None):
+    def __init__(self, repo: ResourceRepository, chat_llm: BaseChatModel, lang: str = "en", lang_directive: str = "", undo_queue: UndoQueue | None = None):
         self.repo = repo
         self.undo = undo_queue
         self.chat_llm = chat_llm
+        # For aspect schema, use schema_directive (keys English, descriptions in content lang)
+        self._lang_directive = lang_directive
         template_env = TemplateEnvironment(package_name=self.PACKAGE_NAME, default_lang=lang)
         self._template = template_env.load_template(self.TEMPLATE_NAME)
     
@@ -87,7 +90,7 @@ class AspectCreateTool(SchematicTool):
             aspect_description=description,
         )
         response = await self.chat_llm.ainvoke([
-            SystemMessage(content=prompt),
+            SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
             HumanMessage(content=f"Generate metadata for the aspect '{name}' based on the description provided."),
         ], response_format={"type": "json_object"})
         assert isinstance(response.content, str)

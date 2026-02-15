@@ -40,6 +40,7 @@ class CompositeGoalDecider:
         backlog: Backlog[BacklogEntry] | None = None,
         undo_queue: UndoQueue | None = None,
         weight_overrides: dict[str, float] | None = None,
+        lang_directive: str = "",
     ):
         self.repo = repo
         self.backlog = backlog
@@ -53,10 +54,10 @@ class CompositeGoalDecider:
         self._deciders: dict[str, GoalDecider] = {}
 
         if backlog is not None:
-            self._deciders["backlog"] = BacklogGoalDecider(backlog, chat_llm, lang=template_lang)
+            self._deciders["backlog"] = BacklogGoalDecider(backlog, chat_llm, lang=template_lang, lang_directive=lang_directive)
 
         self._deciders["exploration"] = ExplorationGoalDecider(
-            repo, chat_llm, lang=template_lang, recency=recency
+            repo, chat_llm, lang=template_lang, recency=recency, lang_directive=lang_directive
         )
 
     async def next_goal(self, beliefs: list[str]) -> Goal | None:

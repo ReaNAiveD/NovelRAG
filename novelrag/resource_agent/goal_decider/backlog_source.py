@@ -34,9 +34,10 @@ class BacklogGoalDecider:
     TEMPLATE_NAME = "goal_from_backlog.jinja2"
     TOP_N = 5
 
-    def __init__(self, backlog: Backlog[BacklogEntry], chat_llm: BaseChatModel, lang: str = "en"):
+    def __init__(self, backlog: Backlog[BacklogEntry], chat_llm: BaseChatModel, lang: str = "en", lang_directive: str = ""):
         self._goal_llm = chat_llm.with_structured_output(BacklogGoalResponse)
         self.backlog = backlog
+        self._lang_directive = lang_directive
         template_env = TemplateEnvironment(package_name=self.PACKAGE_NAME, default_lang=lang)
         self._template = template_env.load_template(self.TEMPLATE_NAME)
 
@@ -62,7 +63,7 @@ class BacklogGoalDecider:
             beliefs=beliefs,
         )
         response = await self._goal_llm.ainvoke([
-            SystemMessage(content=prompt),
+            SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
             HumanMessage(content="Generate a goal from the backlog."),
         ])
         assert isinstance(response, BacklogGoalResponse)

@@ -39,18 +39,20 @@ class LLMContentProposer(ContentProposer):
     PERSPECTIVES_TEMPLATE = "generate_content_perspectives.jinja2"
     CONTENT_TEMPLATE = "generate_content_from_perspective.jinja2"
 
-    def __init__(self, chat_llm: BaseChatModel, lang: str = "en", num_perspectives: int = 5, num_proposals: int = 2):
+    def __init__(self, chat_llm: BaseChatModel, lang: str = "en", lang_directive: str = "", num_perspectives: int = 5, num_proposals: int = 2):
         """Initialize the LLM content proposer.
 
         Args:
             chat_llm: Chat LLM for generating content
             lang: Language for prompt templates (default: "en")
-            num_proposals: Number of content proposals to generate (default: 3)
+            lang_directive: Language policy directive to prepend to prompts
+            num_proposals: Number of content proposals to generate (default: 2)
         """
         self.chat_llm = chat_llm
         self._perspectives_llm = chat_llm.with_structured_output(PerspectivesResponse)
         self.num_perspectives = num_perspectives
         self.num_proposals = num_proposals
+        self._lang_directive = lang_directive
         template_env = TemplateEnvironment(package_name=self.PACKAGE_NAME, default_lang=lang)
         self._perspectives_tmpl = template_env.load_template(self.PERSPECTIVES_TEMPLATE)
         self._content_tmpl = template_env.load_template(self.CONTENT_TEMPLATE)
@@ -100,7 +102,7 @@ class LLMContentProposer(ContentProposer):
             believes=believes,
         )
         response = await self._perspectives_llm.ainvoke([
-            SystemMessage(content=prompt),
+            SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
             HumanMessage(content="Generate diverse perspectives."),
         ])
         assert isinstance(response, PerspectivesResponse)
@@ -133,7 +135,7 @@ class LLMContentProposer(ContentProposer):
             believes=believes,
         )
         response = await self.chat_llm.ainvoke([
-            SystemMessage(content=prompt),
+            SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
             HumanMessage(content="Generate content based on the given perspective."),
         ])
         assert isinstance(response.content, str), "Expected string content from LLM response"
@@ -187,7 +189,7 @@ class LLMContentProposer(ContentProposer):
         """
 
         result = await self.chat_llm.ainvoke([
-            SystemMessage(content='You are a creative writing assistant. Generate story content based on the provided requirements.'),
+            SystemMessage(content=f"{self._lang_directive}\n\nYou are a creative writing assistant. Generate story content based on the provided requirements." if self._lang_directive else 'You are a creative writing assistant. Generate story content based on the provided requirements.'),
             HumanMessage(content=fallback_prompt),
         ])
         content = result.content if isinstance(result.content, str) else str(result.content)

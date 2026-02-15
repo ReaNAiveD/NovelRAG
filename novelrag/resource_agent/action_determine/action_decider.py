@@ -60,7 +60,10 @@ _FINALIZE_TOOL_DEF = {
                 },
                 "response": {
                     "type": "string",
-                    "description": "Complete user-facing response explaining the outcome.",
+                    "description": "Complete user-facing response explaining the outcome. "
+                                   "Respond in the same language as the user's input. "
+                                   "If the user writes in a specific language, provide your entire response "
+                                   "in that language.",
                 },
                 "evidence": {
                     "type": "array",
@@ -141,8 +144,9 @@ def _parse_tool_call_to_action_decision(
 class LLMActionDecider(ActionDecider):
     TEMPLATE_NAME = "action_decision.jinja2"
 
-    def __init__(self, chat_llm: BaseChatModel, lang: str = "en"):
+    def __init__(self, chat_llm: BaseChatModel, lang: str = "en", lang_directive: str = ""):
         self.chat_llm = chat_llm
+        self._lang_directive = lang_directive
         template_env = TemplateEnvironment(package_name="novelrag.resource_agent.action_determine", default_lang=lang)
         self.template = template_env.load_template(self.TEMPLATE_NAME, lang=lang)
 
@@ -169,7 +173,7 @@ class LLMActionDecider(ActionDecider):
 
         bound_llm = self.chat_llm.bind_tools(tool_defs)
         response = await bound_llm.ainvoke([
-            SystemMessage(content=prompt),
+            SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
             HumanMessage(content="Based on the above information, make a decisive action choice: either execute a tool or finalize with a response."),
         ])
 
