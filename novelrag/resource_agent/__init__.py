@@ -16,12 +16,12 @@ from .action_determine import (
 from .workspace import (
     ResourceContext,
     ContextWorkspace,
+    ContextSnapshot,
     ResourceSegment,
     SegmentData,
     SearchHistoryItem,
 )
-from .proposals import ContentProposal, ContentProposer
-from .llm_content_proposer import LLMContentProposer
+from .propose import ContentProposal, ContentProposer, LLMContentProposer
 
 from .tool import (
     ResourceFetchTool,
@@ -47,6 +47,7 @@ __all__ = [
     # Workspace
     "ResourceContext",
     "ContextWorkspace",
+    "ContextSnapshot",
     "ResourceSegment",
     "SegmentData",
     "SearchHistoryItem",

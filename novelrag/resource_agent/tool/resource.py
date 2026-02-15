@@ -20,10 +20,9 @@ from novelrag.resource_agent.undo import ReversibleAction, UndoQueue
 from novelrag.template import TemplateEnvironment
 from novelrag.tracer import trace_llm
 
-from .types import ContentGenerationTask
-from ..workspace import ResourceContext
-from ..proposals import ContentProposer
-from ..llm_content_proposer import LLMContentProposer
+from novelrag.resource_agent.tool.types import ContentGenerationTask
+from novelrag.resource_agent.workspace import ResourceContext, ContextSnapshot
+from novelrag.resource_agent.propose import ContentProposer, LLMContentProposer
 
 
 class RankedProposal(BaseModel):
@@ -211,7 +210,7 @@ class ResourceWriteTool(SchematicTool):
             proposals = [await proposer.propose(
                 believes=[],
                 content_description=content_description,
-                context=await self.context.dict_context()
+                context=await self.context.snapshot()
             ) for proposer in self.content_proposers]
             proposals = [proposal for proposal_set in proposals for proposal in proposal_set]
             if not proposals:
@@ -236,7 +235,7 @@ class ResourceWriteTool(SchematicTool):
         try:
             operations = await self.build_operations(
                 action=operation_specification,
-                context=await self.context.dict_context(),
+                context=await self.context.snapshot(),
                 content_results=content_results
             )            
             # Validate all operations first
@@ -259,7 +258,7 @@ class ResourceWriteTool(SchematicTool):
             step_description=operation_specification,
             operations=[op.model_dump() for op in operations],
             undo_operations=[op.model_dump() for op in undo_operations],
-            context=await self.context.dict_context(),
+            context=await self.context.snapshot(),
         )
 
         # Process perspective updates first (higher priority)
@@ -272,7 +271,7 @@ class ResourceWriteTool(SchematicTool):
                     step_description=operation_specification,
                     operations=[op.model_dump() for op in operations],
                     undo_operations=[op.model_dump() for op in undo_operations],
-                    context=await self.context.dict_context(),
+                    context=await self.context.snapshot(),
                 )
                 validated_operation = validate_op(operation)
                 await runtime.message(f"Applying perspective update operation: {validated_operation}")
@@ -294,7 +293,7 @@ class ResourceWriteTool(SchematicTool):
                     step_description=operation_specification,
                     operations=[op.model_dump() for op in operations],
                     undo_operations=[op.model_dump() for op in undo_operations],
-                    context=await self.context.dict_context(),
+                    context=await self.context.snapshot(),
                 )
 
         # Discover future work items for the backlog
@@ -302,7 +301,7 @@ class ResourceWriteTool(SchematicTool):
             step_description=operation_specification,
             operations=[op.model_dump() for op in operations],
             undo_operations=[op.model_dump() for op in undo_operations],
-            context=await self.context.dict_context(),
+            context=await self.context.snapshot(),
         )
         if backlog and self.backlog is not None:
             await runtime.message(f"Discovered {len(backlog)} backlog items.")
@@ -346,7 +345,7 @@ class ResourceWriteTool(SchematicTool):
         return selected_proposal
 
     @trace_llm("build_operations")
-    async def build_operations(self, action: str, context: dict[str, list[str]], content_results: list[dict] | None = None) -> list[dict]:
+    async def build_operations(self, action: str, context: ContextSnapshot, content_results: list[dict] | None = None) -> list[dict]:
         """Build operations from action description and optional content results.
         
         Args:
@@ -370,7 +369,7 @@ class ResourceWriteTool(SchematicTool):
         return json.loads(response.content)["operations"]
 
     @trace_llm("discover_updates")
-    async def _discover_required_updates(self, step_description: str, operations: list[dict], undo_operations: list[dict], context: dict[str, list[str]]) -> DiscoverRequiredUpdatesResponse:
+    async def _discover_required_updates(self, step_description: str, operations: list[dict], undo_operations: list[dict], context: ContextSnapshot) -> DiscoverRequiredUpdatesResponse:
         """Discover cascade content updates and relation updates that need to be applied immediately."""
         prompt = self._discover_updates_tmpl.render(
             step_description=step_description,
@@ -386,7 +385,7 @@ class ResourceWriteTool(SchematicTool):
         return response
     
     @trace_llm("discover_backlog")
-    async def _discover_backlog(self, step_description: str, operations: list[dict], undo_operations: list[dict], context: dict[str, list[str]]) -> list[BacklogItem]:
+    async def _discover_backlog(self, step_description: str, operations: list[dict], undo_operations: list[dict], context: ContextSnapshot) -> list[BacklogItem]:
         """Discover backlog items including dependency items and other future work items."""
         prompt = self._discover_backlog_tmpl.render(
             step_description=step_description,
@@ -402,7 +401,7 @@ class ResourceWriteTool(SchematicTool):
         return response.backlog_items
     
     @trace_llm("perspective_update")
-    async def _build_perspective_update_operation(self, update: CascadeUpdate, step_description: str, operations: list[dict], undo_operations: list[dict], context: dict[str, list[str]]) -> dict:
+    async def _build_perspective_update_operation(self, update: CascadeUpdate, step_description: str, operations: list[dict], undo_operations: list[dict], context: ContextSnapshot) -> dict:
         """Build a perspective update operation from the update description."""
         prompt = self._build_perspective_tmpl.render(
             update=update.model_dump(),
@@ -425,7 +424,7 @@ class ResourceWriteTool(SchematicTool):
         step_description: str,
         operations: list[dict],
         undo_operations: list[dict],
-        context: dict[str, list[str]],
+        context: ContextSnapshot,
     ) -> None:
         """Apply a relation update to both sides of the relationship."""
         # Parse URIs from the update content
@@ -507,7 +506,7 @@ class ResourceWriteTool(SchematicTool):
             await runtime.message(f"Updated relations: {target_uri} → {source_uri}")
 
     @trace_llm("parse_relation_uris")
-    async def _parse_relation_update_uris(self, update: dict[str, str], context: dict[str, list[str]]) -> ParseRelationUrisResponse:
+    async def _parse_relation_update_uris(self, update: dict[str, str], context: ContextSnapshot) -> ParseRelationUrisResponse:
         """Parse source and target URIs from a relation update description."""
         prompt = self._parse_relation_uris_tmpl.render(
             update=update,
@@ -531,7 +530,7 @@ class ResourceWriteTool(SchematicTool):
         step_description: str,
         operations: list[dict],
         undo_operations: list[dict],
-        context: dict[str, list[str]],
+        context: ContextSnapshot,
     ) -> BuildRelationUpdateResponse:
         """Build updated relation lists for both directions."""
         prompt = self._build_relation_tmpl.render(

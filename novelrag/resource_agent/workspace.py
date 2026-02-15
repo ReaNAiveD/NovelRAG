@@ -80,6 +80,18 @@ class ContextWorkspace:
 
 
 @dataclass
+class ContextSnapshot:
+    """Immutable snapshot of the current resource context state.
+    
+    Provides rich segment views for templates and callers.
+    Access `.segments` for the list of SegmentData, and
+    `.nonexistent_uris` for URIs that could not be resolved.
+    """
+    segments: list[SegmentData]
+    nonexistent_uris: list[str]
+
+
+@dataclass
 class SearchHistoryItem:
     query: str
     aspect: str | None
@@ -149,21 +161,21 @@ class ResourceContext:
                 relations=relations,
             )
     
-    async def build_workspace_view(self) -> tuple[list[SegmentData], list[str]]:
-        """Build enriched segment views for all loaded resources.
+    async def snapshot(self) -> ContextSnapshot:
+        """Build an immutable snapshot of the current context state.
         
-        Returns:
-            A tuple of (segment_data_list, nonexistent_uris).
+        Returns a ContextSnapshot that provides both rich segment access
+        and dict-like iteration for template rendering.
         """
         segments: list[SegmentData] = []
-        nonexisted: list[str] = []
+        nonexistent: list[str] = []
         for segment in self.workspace.sorted_segments():
             data = await self.build_segment_data(segment)
             if data:
                 segments.append(data)
             else:
-                nonexisted.append(segment.uri)
-        return segments, nonexisted
+                nonexistent.append(segment.uri)
+        return ContextSnapshot(segments=segments, nonexistent_uris=nonexistent)
     
     async def query_resource(self, uri: str):
         self.workspace.ensure_segment(uri)
@@ -184,19 +196,6 @@ class ResourceContext:
     async def sort_resources(self, sorted_uris: list[str]):
         self.workspace.sort_segments(sorted_uris)
     
-    async def dict_context(self) -> dict[str, list[str]]:
-        """Generate final context from workspace segments."""
-        context = {}
-        segments, _ = await self.build_workspace_view()
-        for segment_data in segments:
-            if segment_data.uri not in context:
-                context[segment_data.uri] = []
-            for property_name, property_value in segment_data.included_data.items():
-                context[segment_data.uri].append(f"{property_name}: {property_value}")
-            for rel_uri, rel_desc in segment_data.relations.items():
-                context[segment_data.uri].append(f"Related to {rel_uri}: {rel_desc}")
-        return context
-
     def reset_workspace(self):
         """Clear excluded properties (reset to pending) but keep included properties."""
         self.workspace.reset_excluded()

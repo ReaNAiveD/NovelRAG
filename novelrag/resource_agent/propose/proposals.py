@@ -1,4 +1,6 @@
-"""Content proposal classes for the resource agent system."""
+from typing import Protocol
+
+from novelrag.resource_agent.workspace import ContextSnapshot
 
 
 class ContentProposal:
@@ -9,18 +11,18 @@ class ContentProposal:
         self.reason = perspective
 
 
-class ContentProposer:
+class ContentProposer(Protocol):
     """Proposes content changes based on current beliefs and context."""
     
-    async def propose(self, believes: list[str], content_description: str, context: dict[str, list[str]]) -> list[ContentProposal]:
+    async def propose(self, believes: list[str], content_description: str, context: ContextSnapshot) -> list[ContentProposal]:
         """Propose content based on current beliefs and targeted context.
 
         Args:
             believes: Current agent beliefs
             content_description: Specific description of what content to generate
-            context: Full context dictionary
+            context: Context snapshot from the resource workspace
 
         Returns:
             List of content proposals with reasoning
         """
-        raise NotImplementedError("Subclasses should implement this method.")
+        ...

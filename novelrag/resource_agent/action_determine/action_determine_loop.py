@@ -13,7 +13,7 @@ from novelrag.agenturn.goal import Goal
 from novelrag.agenturn.pursuit import ActionDeterminer, PursuitAssessment, PursuitAssessor, PursuitProgress
 from novelrag.agenturn.step import OperationPlan, OperationOutcome, Resolution
 from novelrag.agenturn.tool import SchematicTool
-from novelrag.resource_agent.workspace import ResourceContext, SegmentData, SearchHistoryItem
+from novelrag.resource_agent.workspace import ResourceContext, ContextSnapshot, SegmentData, SearchHistoryItem
 
 logger = logging.getLogger(__name__)
 
@@ -312,13 +312,13 @@ class ActionDetermineLoop(ActionDeterminer):
             logger.info(f"Context discovery completed for iteration {iter_num}.")
 
             # Make action decision
-            segments, _ = await self.context.build_workspace_view()
+            ctx = await self.context.snapshot()
             expanded_tools = self._get_tool_map(available_tools, expanded=True)
             action_decision = await self.decider.decide(
                 goal=goal,
                 pursuit_assessment=pursuit_assessment,
                 completed_steps=completed_steps,
-                workspace_segment=segments,
+                workspace_segment=ctx.segments,
                 expanded_tools=expanded_tools,
             )
             planned_action = self._convert_to_orchestration_action(action_decision)
@@ -326,7 +326,7 @@ class ActionDetermineLoop(ActionDeterminer):
             last_planned_action = planned_action
 
             # Analyze and refine decision
-            segments, _ = await self.context.build_workspace_view()
+            ctx = await self.context.snapshot()
             expanded_tools = self._get_tool_map(available_tools, expanded=True)
             collapsed_tools = self._get_tool_map(available_tools, expanded=False)
             refinement_decision = await self.refiner.analyze(
@@ -334,7 +334,7 @@ class ActionDetermineLoop(ActionDeterminer):
                 pursuit_assessment=pursuit_assessment,
                 action_decision=action_decision,
                 completed_steps=completed_steps,
-                workspace_segment=segments,
+                workspace_segment=ctx.segments,
                 expanded_tools=expanded_tools,
                 collapsed_tools=collapsed_tools,
             )
@@ -371,14 +371,14 @@ class ActionDetermineLoop(ActionDeterminer):
             iter_num += 1
 
             # Discover context
-            segments, nonexisted = await self.context.build_workspace_view()
+            ctx = await self.context.snapshot()
             expanded_tools = self._get_tool_map(available_tools, expanded=True)
             collapsed_tools = self._get_tool_map(available_tools, expanded=False)
             discovery_plan = await self.discoverer.discover(
                 goal=goal,
                 pursuit_assessment=pursuit_assessment,
-                workspace_segment=segments,
-                non_existed_uris=nonexisted,
+                workspace_segment=ctx.segments,
+                non_existed_uris=ctx.nonexistent_uris,
                 search_history=self.context.search_history[-10:],
                 expanded_tools=expanded_tools,
                 collapsed_tools=collapsed_tools,
@@ -395,13 +395,13 @@ class ActionDetermineLoop(ActionDeterminer):
                 break
 
             # Refine context
-            segments, _ = await self.context.build_workspace_view()
+            ctx = await self.context.snapshot()
             expanded_tools = self._get_tool_map(available_tools, expanded=True)
             collapsed_tools = self._get_tool_map(available_tools, expanded=False)
             refinement_plan = await self.analyser.analyse(
                 goal=goal,
                 pursuit_assessment=pursuit_assessment,
-                workspace_segment=segments,
+                workspace_segment=ctx.segments,
                 expanded_tools=expanded_tools,
                 collapsed_tools=collapsed_tools,
                 discovery_analysis=discovery_plan.discovery_analysis,
