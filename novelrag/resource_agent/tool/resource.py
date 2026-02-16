@@ -110,13 +110,14 @@ class ResourceWriteTool(SchematicTool):
     BUILD_RELATION_TEMPLATE = "build_relation_update.jinja2"
 
     def __init__(self, repo: ResourceRepository, context: ResourceContext, chat_llm: BaseChatModel,
-                 lang: str = "en", backlog: Backlog[BacklogEntry] | None = None, undo_queue: UndoQueue | None = None):
-        self.content_proposers: list[ContentProposer] = [LLMContentProposer(chat_llm=chat_llm, lang=lang)]
+                 lang: str = "en", lang_directive: str = "", backlog: Backlog[BacklogEntry] | None = None, undo_queue: UndoQueue | None = None):
+        self.content_proposers: list[ContentProposer] = [LLMContentProposer(chat_llm=chat_llm, lang=lang, lang_directive=lang_directive)]
         self.context = context
         self.repo = repo
         self.backlog = backlog
         self.undo = undo_queue
         self.chat_llm = chat_llm  # kept for Tier 3 calls (build_operations, _build_perspective_update_operation)
+        self._lang_directive = lang_directive
 
         # Structured-output LLM wrappers
         self._rank_llm = chat_llm.with_structured_output(RankProposalsResponse)
@@ -314,7 +315,7 @@ class ResourceWriteTool(SchematicTool):
     async def _rank_proposals(self, proposals: list[str]) -> list[str]:
         prompt = self._sort_proposals_tmpl.render(proposals=proposals)
         response = await self._rank_llm.ainvoke([
-            SystemMessage(content=prompt),
+            SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
             HumanMessage(content="Rank the proposals by quality."),
         ])
         assert isinstance(response, RankProposalsResponse)
@@ -362,7 +363,7 @@ class ResourceWriteTool(SchematicTool):
             content_results=content_results or [],
         )
         response = await self.chat_llm.ainvoke([
-            SystemMessage(content=prompt),
+            SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
             HumanMessage(content="Generate the operations in JSON format."),
         ], response_format={"type": "json_object"})
         assert isinstance(response.content, str), "Expected string content from LLM response"
@@ -378,7 +379,7 @@ class ResourceWriteTool(SchematicTool):
             context=context,
         )
         response = await self._discover_updates_llm.ainvoke([
-            SystemMessage(content=prompt),
+            SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
             HumanMessage(content="Discover required updates."),
         ])
         assert isinstance(response, DiscoverRequiredUpdatesResponse)
@@ -394,7 +395,7 @@ class ResourceWriteTool(SchematicTool):
             context=context,
         )
         response = await self._discover_backlog_llm.ainvoke([
-            SystemMessage(content=prompt),
+            SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
             HumanMessage(content="Discover backlog items."),
         ])
         assert isinstance(response, DiscoverBacklogResponse)
@@ -411,7 +412,7 @@ class ResourceWriteTool(SchematicTool):
             context=context,
         )
         response = await self.chat_llm.ainvoke([
-            SystemMessage(content=prompt),
+            SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
             HumanMessage(content="Build the perspective update operation in JSON format."),
         ], response_format={"type": "json_object"})
         assert isinstance(response.content, str), "Expected string content from LLM response"
@@ -513,7 +514,7 @@ class ResourceWriteTool(SchematicTool):
             context=context,
         )
         response = await self._parse_uris_llm.ainvoke([
-            SystemMessage(content=prompt),
+            SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
             HumanMessage(content="Parse the relation URIs."),
         ])
         assert isinstance(response, ParseRelationUrisResponse)
@@ -545,7 +546,7 @@ class ResourceWriteTool(SchematicTool):
             context=context,
         )
         response = await self._relation_update_llm.ainvoke([
-            SystemMessage(content=prompt),
+            SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
             HumanMessage(content="Build the relation update."),
         ])
         assert isinstance(response, BuildRelationUpdateResponse)

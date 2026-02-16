@@ -11,6 +11,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import SystemMessage, HumanMessage
 from novelrag.template import TemplateEnvironment
 from novelrag.tracer import trace_llm
+from novelrag.utils.language import interaction_directive
 
 
 @dataclass(kw_only=True)
@@ -73,10 +74,11 @@ class LLMGoalTranslator(GoalTranslator):
 
     TEMPLATE_NAME = "translate_request_to_goal.jinja2"
 
-    def __init__(self, chat_llm: BaseChatModel, lang: str = "en"):
+    def __init__(self, chat_llm: BaseChatModel, lang: str = "en", language: str | None = None):
         template_env = TemplateEnvironment(package_name="novelrag.agenturn", default_lang=lang)
         self.template = template_env.load_template(self.TEMPLATE_NAME)
         self._goal_llm = chat_llm.with_structured_output(GoalTranslation)
+        self._lang_directive = interaction_directive(language=language, is_autonomous=False)
 
     @trace_llm("goal_translation")
     async def translate(self, request: str, beliefs: list[str]) -> Goal:
@@ -94,7 +96,7 @@ class LLMGoalTranslator(GoalTranslator):
             beliefs=beliefs
         )
         response = await self._goal_llm.ainvoke([
-            SystemMessage(content=prompt),
+            SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
             HumanMessage(content="Translate the user request into a clear, concise goal statement.")
         ])
         assert isinstance(response, GoalTranslation)

@@ -30,9 +30,10 @@ class ResourceRelationWriteTool(SchematicTool):
     PACKAGE_NAME = "novelrag.resource_agent.tool"
     TEMPLATE_NAME = "get_updated_relations.jinja2"
 
-    def __init__(self, repo: ResourceRepository, chat_llm: BaseChatModel, lang: str = "en", undo_queue: UndoQueue | None = None):
+    def __init__(self, repo: ResourceRepository, chat_llm: BaseChatModel, lang: str = "en", lang_directive: str = "", undo_queue: UndoQueue | None = None):
         self.repo = repo
         self.undo = undo_queue
+        self._lang_directive = lang_directive
         self._relations_llm = chat_llm.with_structured_output(GetUpdatedRelationsResponse)
         template_env = TemplateEnvironment(package_name=self.PACKAGE_NAME, default_lang=lang)
         self._template = template_env.load_template(self.TEMPLATE_NAME)
@@ -139,7 +140,7 @@ class ResourceRelationWriteTool(SchematicTool):
             relation_description=relation_description,
         )
         response = await self._relations_llm.ainvoke([
-            SystemMessage(content=prompt),
+            SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
             HumanMessage(content="Generate the updated relations."),
         ])
         assert isinstance(response, GetUpdatedRelationsResponse)

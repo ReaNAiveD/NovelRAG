@@ -38,6 +38,31 @@ Adds, removes, or replaces resources in lists using splice operations.
 - Is unique within its context
 - Is descriptive and meaningful
 
+## Hierarchical Resources (Children Keys)
+
+Some aspects define `children_keys` — field names whose values are arrays of **child resources**.
+When your operation data includes items in these children arrays, **each child item MUST also have an `id` field** following the same naming rules as top-level resources. This applies recursively for nested hierarchies.
+
+For example, if the context shows an aspect has `children_keys: ["subspecies", "symbiotic_entities"]`, then when you create a resource under that aspect, any item inside the `subspecies` or `symbiotic_entities` arrays must include its own `id`.
+
+**Incorrect** (missing `id` in children):
+```json
+{
+  "symbiotic_entities": [
+    { "entity": "some_entity", "relationship": "mutualism" }
+  ]
+}
+```
+
+**Correct** (each child has `id`):
+```json
+{
+  "symbiotic_entities": [
+    { "id": "some_entity_mutualism", "entity": "some_entity", "relationship": "mutualism" }
+  ]
+}
+```
+
 ## Response Format
 
 Your response must be valid JSON:
@@ -224,10 +249,15 @@ No content results provided.
 
 **Context**:
 {% for segment in context.segments %}
-{%- if segment.included_data or segment.relations %}
+{%- if segment.included_data or segment.relations or segment.child_ids %}
 ### {{ segment.uri }}
 {%- for key, value in segment.included_data.items() %}
 - {{ key }}: {{ value }}
+{%- endfor %}
+{%- for key, ids in segment.child_ids.items() %}
+{%- if ids %}
+- {{ key }}: {{ ids }}
+{%- endif %}
 {%- endfor %}
 {%- for rel_uri, rel_desc in segment.relations.items() %}
 - Related to {{ rel_uri }}: {{ rel_desc }}

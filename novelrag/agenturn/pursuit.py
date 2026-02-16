@@ -103,8 +103,9 @@ class LLMPursuitAssessor:
 
     TEMPLATE_NAME = "assess_pursuit_progress.jinja2"
 
-    def __init__(self, chat_llm: BaseChatModel, lang: str = "en"):
+    def __init__(self, chat_llm: BaseChatModel, lang: str = "en", lang_directive: str = ""):
         self.chat_llm = chat_llm.with_structured_output(PursuitAssessment)
+        self._lang_directive = lang_directive
         template_env = TemplateEnvironment(package_name="novelrag.agenturn", default_lang=lang)
         self.template = template_env.load_template(self.TEMPLATE_NAME)
 
@@ -133,7 +134,7 @@ class LLMPursuitAssessor:
         )
 
         response = await self.chat_llm.ainvoke([
-            SystemMessage(content=prompt),
+            SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
             HumanMessage(content="Assess the current pursuit progress.")
         ])
         assert isinstance(response, PursuitAssessment), "Expected PursuitAssessment from LLM response"

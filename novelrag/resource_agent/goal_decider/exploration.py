@@ -112,9 +112,11 @@ class ExplorationGoalDecider:
         chat_llm: BaseChatModel,
         lang: str = "en",
         recency: RecencyWeighter | None = None,
+        lang_directive: str = "",
     ):
         self.repo = repo
         self.recency = recency
+        self._lang_directive = lang_directive
 
         # Structured-output LLM wrappers (one per response schema)
         self._goal_llm = chat_llm.with_structured_output(GoalResponse)
@@ -150,7 +152,7 @@ class ExplorationGoalDecider:
 
         prompt = self._bootstrap_tmpl.render(beliefs=beliefs)
         response = await self._goal_llm.ainvoke([
-            SystemMessage(content=prompt),
+            SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
             HumanMessage(content="Generate a bootstrap goal."),
         ])
         assert isinstance(response, GoalResponse)
@@ -194,7 +196,7 @@ class ExplorationGoalDecider:
             beliefs=beliefs,
         )
         response = await self._goal_llm.ainvoke([
-            SystemMessage(content=prompt),
+            SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
             HumanMessage(content="Generate a goal to populate this aspect."),
         ])
         assert isinstance(response, GoalResponse)
@@ -271,12 +273,12 @@ class ExplorationGoalDecider:
         if tracer is not None:
             async with tracer.llm_span("exploration_goal"):
                 response = await self._goal_llm.ainvoke([
-                    SystemMessage(content=prompt),
+                    SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
                     HumanMessage(content="Generate an exploration goal."),
                 ])
         else:
             response = await self._goal_llm.ainvoke([
-                SystemMessage(content=prompt),
+                SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
                 HumanMessage(content="Generate an exploration goal."),
             ])
         assert isinstance(response, GoalResponse)
@@ -350,7 +352,7 @@ class ExplorationGoalDecider:
             beliefs=beliefs,
         )
         discovery = await self._context_llm.ainvoke([
-            SystemMessage(content=prompt),
+            SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
             HumanMessage(content="Discover relevant context."),
         ])
         assert isinstance(discovery, ContextDiscoveryResponse)
@@ -475,7 +477,7 @@ class ExplorationGoalDecider:
             beliefs=beliefs,
         )
         response = await self._gap_llm.ainvoke([
-            SystemMessage(content=prompt),
+            SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
             HumanMessage(content="Analyse concept gaps."),
         ])
         assert isinstance(response, GapAnalysisResponse)

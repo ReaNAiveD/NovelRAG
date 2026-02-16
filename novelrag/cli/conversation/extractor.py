@@ -1,6 +1,6 @@
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
-from novelrag.utils.const import LANGUAGE_INSTRUCTION
+from novelrag.utils.language import interaction_directive
 from novelrag.tracer import trace_llm
 
 SYSTEM_PROMPT = """
@@ -57,7 +57,7 @@ class Extractor:
 
         # Prepare the system prompt
         system_prompt = SYSTEM_PROMPT.format(
-            language_instruction=LANGUAGE_INSTRUCTION,
+            language_instruction=interaction_directive(language=None, is_autonomous=False),
             limit=limit,
             task=task,
             conversation=conversation_text,
@@ -67,4 +67,5 @@ class Extractor:
             SystemMessage(content=system_prompt),
             HumanMessage(content="Please identify the latest user requirements, constraints, and relevant assistant-generated content according to the guidelines provided."),
         ])
+        assert isinstance(result.content, str)
         return result.content.strip()

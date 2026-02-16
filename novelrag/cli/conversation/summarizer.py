@@ -1,6 +1,6 @@
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
-from novelrag.utils.const import LANGUAGE_INSTRUCTION
+from novelrag.utils.language import interaction_directive
 from novelrag.tracer import trace_llm
 
 SYSTEM_PROMPT = """
@@ -55,7 +55,7 @@ class Summarizer:
 
         # Prepare the system prompt
         system_prompt = SYSTEM_PROMPT.format(
-            language_instruction=LANGUAGE_INSTRUCTION,
+            language_instruction=interaction_directive(language=None, is_autonomous=False),
             limit=limit,
             existing_summary=existing_summary or "No Existing Summary",
             conversation=conversation_text
@@ -66,5 +66,5 @@ class Summarizer:
             SystemMessage(content=system_prompt),
             HumanMessage(content="Please summarize the conversation according to the guidelines provided."),
         ])
-
+        assert isinstance(result.content, str), "Expected string content from LLM response"
         return result.content.strip()
