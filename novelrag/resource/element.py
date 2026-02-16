@@ -37,6 +37,12 @@ class Element(BaseModel):
         Build an Element instance from a dictionary value.
         Note that the value must contain 'id', 'relationships', 'aspect', and 'children_keys' keys.
         """
+        if 'id' not in value:
+            raise ValueError(
+                f"Element data under '{parent_uri}' is missing required 'id' field. "
+                f"Got keys: {list(value.keys())}. "
+                f"Every resource (including items in children_keys lists) must have an 'id' field."
+            )
         uri = f'{parent_uri}/{value["id"]}'
         value['uri'] = uri
         value['aspect'] = aspect

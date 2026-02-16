@@ -32,7 +32,7 @@ class BacklogGoalDecider:
 
     PACKAGE_NAME = "novelrag.resource_agent.goal_decider"
     TEMPLATE_NAME = "goal_from_backlog.jinja2"
-    TOP_N = 5
+    TOP_N = 20
 
     def __init__(self, backlog: Backlog[BacklogEntry], chat_llm: BaseChatModel, lang: str = "en", lang_directive: str = ""):
         self._goal_llm = chat_llm.with_structured_output(BacklogGoalResponse)
