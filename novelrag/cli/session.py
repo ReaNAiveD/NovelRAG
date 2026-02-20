@@ -52,9 +52,12 @@ class SessionChannel(AgentChannel):
         if result.lower() in ['y', 'yes']:
             return True
         return False
-    
+
     async def request(self, prompt: str) -> str:
         return input(prompt)
+
+    async def output(self, content: str):
+        return print(content)
 
 
 class Session:

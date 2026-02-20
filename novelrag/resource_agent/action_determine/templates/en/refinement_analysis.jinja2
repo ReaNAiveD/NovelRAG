@@ -66,8 +66,9 @@ No assessment available yet.
 {%- if completed_steps %}
 {%- for step in completed_steps %}
 - **{{ step.operation.tool }}**: {{ step.operation.reason }} ({{ step.status.value }})
-  {%- if step.results %}
-  - Results: {{ step.results | join(", ") }}
+  {%- if step.result %}
+  - Result:
+    > {{ step.result | replace("\n", "\n    > ") }}
   {%- endif %}
 {%- endfor %}
 {%- else %}

@@ -32,8 +32,8 @@ class ToolRuntime(ABC):
         pass
 
     @abstractmethod
-    async def message(self, content: str):
-        """Emit a user-visible message.
+    async def info(self, content: str):
+        """Emit a developer-visible message.
 
         Args:
         content: the message text to display
@@ -59,6 +59,15 @@ class ToolRuntime(ABC):
         This reports the error via the runtime side-channel but does not itself
         raise an exception. Tools may still raise to abort execution. Async and
         should be awaited.
+        """
+        pass
+
+    @abstractmethod
+    async def output(self, content: str):
+        """Emit the user-facing output of the tool.
+
+        This is a semantic signal that the content is the intended user-facing output
+        of the tool, separate from debug/info/warnings.
         """
         pass
 

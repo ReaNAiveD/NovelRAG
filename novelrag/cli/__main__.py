@@ -49,7 +49,10 @@ async def run(config_path: str, verbosity: int, request: str | None = None):
 if __name__ == "__main__":
     parser = ArgumentParser('Novel RAG')
     parser.add_argument('--config', required=True, help="Path to the configuration file")
-    parser.add_argument('-v', action='count', help="Verbosity level. -v for INFO, -vv for DEBUG")
+    parser.add_argument('-v', action='count', default=0, help="Verbosity level. -v for INFO, -vv for DEBUG")
     parser.add_argument('request', nargs='?', help="Optional request to execute")
     ns = parser.parse_args()
-    asyncio.run(run(ns.config, ns.v, ns.request))
+    try:
+        asyncio.run(run(ns.config, ns.v, ns.request))
+    except KeyboardInterrupt:
+        pass

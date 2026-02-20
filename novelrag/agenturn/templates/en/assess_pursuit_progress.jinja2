@@ -24,8 +24,9 @@ The following beliefs represent the agent's core guidelines and restrictions. Th
 {%- for outcome in pursuit.executed_steps %}
 - **[{{ outcome.status.value | upper }}]** {{ outcome.operation.reason }}
   - Tool: `{{ outcome.operation.tool }}`
-  {%- if outcome.results %}
-  - Results: {{ outcome.results | join("; ") }}
+  {%- if outcome.result %}
+  - Result:
+    > {{ outcome.result | replace("\n", "\n    > ") }}
   {%- endif %}
   {%- if outcome.error_message %}
   - Error: {{ outcome.error_message }}

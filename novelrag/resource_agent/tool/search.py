@@ -65,9 +65,9 @@ class ResourceSearchTool(SchematicTool):
 
         result = await self.repo.vector_search(query, aspect=aspect, limit=top_k)
         if not result:
-            await runtime.message(f"No resources found matching the query: '{query}'")
+            await runtime.info(f"No resources found matching the query: '{query}'")
             return self.result(json.dumps([], ensure_ascii=False))
 
-        await runtime.message(f"Found {len(result)} resources matching the query: '{query}'")
+        await runtime.info(f"Found {len(result)} resources matching the query: '{query}'")
         items = [item.element.context_dict for item in result]
         return self.result(json.dumps(items, ensure_ascii=False))

@@ -32,7 +32,7 @@ class OperationOutcome:
     """The result of executing an action."""
     operation: OperationPlan
     status: StepStatus
-    results: list[str] = field(default_factory=list)
+    result: str | None = None
     error_message: str | None = None
     started_at: datetime | None = None
     completed_at: datetime | None = None

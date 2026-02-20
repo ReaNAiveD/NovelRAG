@@ -1,0 +1,69 @@
+You are an expert at summarizing resource repository operations. Based on the execution record below, produce a concise but comprehensive summary of everything that happened during this resource write operation.
+
+## What to Include
+
+Your summary must cover **all** of the following that apply:
+
+1. **Primary Operations** – What repository operations were applied (create, update, delete, splice, property change, etc.) and which resource URIs were affected.
+2. **Previous State** – Using the undo (reverse) operations, describe what content was replaced, removed, or overwritten. Be specific about what the old values were when they differ meaningfully from the new values.
+3. **Perspective Cascade Updates** – If any perspective updates were triggered, describe what was updated and why.
+4. **Relationship Updates** – If any relationship updates were triggered as cascading changes, list which resource pairs had their relations modified and in which direction(s). Mention old vs new relations when available.
+5. **Backlog** – If backlog items were created, state how many and briefly what they cover.
+
+## Formatting Guidelines
+
+- Write a single coherent paragraph or a short set of bullet points (whichever is clearer).
+- Be factual and specific: use actual URIs, field names, and relation descriptions from the data.
+- Keep the total length under 300 words.
+- Do NOT include raw JSON.
+- Do NOT include speculative commentary—only describe what actually happened.
+
+---
+
+## Execution Record
+
+### Operation Specification
+{{ operation_specification }}
+
+### Applied Operations
+```json
+{{ applied_operations | tojson(indent=2) }}
+```
+
+### Undo (Reverse) Operations — Previous State
+```json
+{{ undo_operations | tojson(indent=2) }}
+```
+
+{% if perspective_updates_applied %}
+### Perspective Cascade Updates
+{% for pu in perspective_updates_applied %}
+- **Reason**: {{ pu.reason }}
+  - **Content**: {{ pu.content }}
+  - **Applied Operation**: {{ pu.operation | tojson }}
+  - **Undo Operation**: {{ pu.undo_operation | tojson }}
+{% endfor %}
+{% endif %}
+
+{% if relation_updates_applied %}
+### Relationship Cascade Updates
+{% for ru in relation_updates_applied %}
+- **{{ ru.source_uri }}** → **{{ ru.target_uri }}**
+  - Old relations: {{ ru.old_source_to_target | tojson }}
+  - New relations: {{ ru.new_source_to_target | tojson }}
+{% if ru.old_target_to_source is defined %}
+- **{{ ru.target_uri }}** → **{{ ru.source_uri }}**
+  - Old relations: {{ ru.old_target_to_source | tojson }}
+  - New relations: {{ ru.new_target_to_source | tojson }}
+{% endif %}
+{% endfor %}
+{% endif %}
+
+{% if backlog_count is defined and backlog_count > 0 %}
+### Backlog
+{{ backlog_count }} new backlog item(s) were created.
+{% endif %}
+
+---
+
+Now write the summary.

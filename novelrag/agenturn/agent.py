@@ -26,7 +26,7 @@ class AgentToolRuntime(ToolRuntime):
     async def debug(self, content: str):
         await self.channel.debug(content)
 
-    async def message(self, content: str):
+    async def info(self, content: str):
         await self.channel.info(content)
 
     async def warning(self, content: str):
@@ -40,6 +40,9 @@ class AgentToolRuntime(ToolRuntime):
 
     async def user_input(self, prompt: str) -> str:
         return await self.channel.request(prompt)
+    
+    async def output(self, content: str):
+        await self.channel.output(content)
 
     async def progress(self, key: str, value: str, description: str | None = None):
         if key not in self._progress:
@@ -167,7 +170,7 @@ class GoalExecutor:
                 return OperationOutcome(
                     operation=step,
                     status=StepStatus.SUCCESS,
-                    results=[result.result],
+                    result=result.result,
                     started_at=start_time,
                     completed_at=datetime.now(),
                 )
@@ -209,11 +212,11 @@ class RequestHandler:
         self.goal_translator = goal_translator
     
     @trace_intent("handle_request")
-    async def handle_request(self, request: str) -> str:
+    async def handle_request(self, request: str) -> PursuitOutcome:
         """Translate request to goal, execute, and return response."""        
         goal = await self.goal_translator.translate(request, self.executor.beliefs)
         outcome = await self.executor.handle_goal(goal)
-        return outcome.response
+        return outcome
 
 
 class AutonomousAgent:

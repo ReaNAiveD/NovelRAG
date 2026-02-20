@@ -1,0 +1,38 @@
+You are an expert at summarizing relationship operations on a resource repository. Based on the execution record below, produce a concise but comprehensive summary of the relation write that was performed.
+
+## What to Include
+
+1. **Operation** – What kind of relation operation was requested (add, remove, update) and between which resources.
+2. **Source → Target relations** – The updated list of relations from source to target. If previous relations existed, note what changed.
+3. **Target → Source relations** – The updated list of relations from target to source (if applicable). If previous relations existed, note what changed.
+
+## Formatting Guidelines
+
+- Write a single coherent paragraph or a short set of bullet points.
+- Be factual and specific: use actual URIs and relation descriptions.
+- Keep the total length under 150 words.
+- Do NOT include raw JSON.
+
+---
+
+## Execution Record
+
+### Parameters
+- **Source URI**: {{ source_uri }}
+- **Target URI**: {{ target_uri }}
+- **Operation**: {{ operation }}
+- **Relation Description**: {{ relation_description }}
+
+### Source → Target Relations
+- Previous: {{ old_source_to_target | tojson }}
+- Updated: {{ new_source_to_target | tojson }}
+
+{% if new_target_to_source is defined %}
+### Target → Source Relations
+- Previous: {{ old_target_to_source | tojson }}
+- Updated: {{ new_target_to_source | tojson }}
+{% endif %}
+
+---
+
+Now write the summary.

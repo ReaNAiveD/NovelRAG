@@ -19,8 +19,8 @@ class AgentHandler(Handler):
         if message is None:
             raise ValueError("Message cannot be None for AgentHandler")
 
-        response = await self.agent.handle_request(message)
-        
+        response = (await self.agent.handle_request(message)).response
+
         return HandlerResult(
             message=[response] if response else None,
         )

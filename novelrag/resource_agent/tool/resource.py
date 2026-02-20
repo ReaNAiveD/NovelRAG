@@ -108,6 +108,7 @@ class ResourceWriteTool(SchematicTool):
     BUILD_PERSPECTIVE_TEMPLATE = "build_perspective_update_operation.jinja2"
     PARSE_RELATION_URIS_TEMPLATE = "parse_relation_update_uris.jinja2"
     BUILD_RELATION_TEMPLATE = "build_relation_update.jinja2"
+    SUMMARIZE_TEMPLATE = "summarize_resource_write.jinja2"
 
     def __init__(self, repo: ResourceRepository, context: ResourceContext, chat_llm: BaseChatModel,
                  lang: str = "en", lang_directive: str = "", backlog: Backlog[BacklogEntry] | None = None, undo_queue: UndoQueue | None = None):
@@ -134,15 +135,16 @@ class ResourceWriteTool(SchematicTool):
         self._build_perspective_tmpl = template_env.load_template(self.BUILD_PERSPECTIVE_TEMPLATE)
         self._parse_relation_uris_tmpl = template_env.load_template(self.PARSE_RELATION_URIS_TEMPLATE)
         self._build_relation_tmpl = template_env.load_template(self.BUILD_RELATION_TEMPLATE)
+        self._summarize_tmpl = template_env.load_template(self.SUMMARIZE_TEMPLATE)
 
     @property
     def name(self):
         return self.__class__.__name__
-    
+
     @property
     def prerequisites(self) -> str | None:
         return "Requires the target aspect to already exist in the repository. Use AspectCreateTool first if the aspect is missing."
-    
+
     @property
     def description(self):
         return "Use this tool to modify existing resources within established aspects. " \
@@ -151,7 +153,7 @@ class ResourceWriteTool(SchematicTool):
         "modifying properties, splicing element lists (insert/remove/replace), " \
         "flattening hierarchies, and merging resources. " \
         "Automatically handles cascading updates to related resources and discovers follow-up work for your backlog."
-    
+
     @property
     def input_schema(self) -> dict[str, Any]:
         return {
@@ -193,12 +195,12 @@ class ResourceWriteTool(SchematicTool):
             return self.error("No content generation tasks provided. Please provide at least one content generation task.")
         content_generation_tasks = [ContentGenerationTask(**task) for task in content_generation_tasks]
 
-        await runtime.message(f"Operation planned: {operation_specification}")
-        await runtime.message(f"Content generation tasks: {len(content_generation_tasks)}")
+        await runtime.output(f"Operation planned: {operation_specification}")
+        await runtime.info(f"Content generation tasks: {len(content_generation_tasks)}")
 
         content_results = []
         for i, task in enumerate(content_generation_tasks):
-            await runtime.message(f"Generating content for task {i+1}/{len(content_generation_tasks)}: {task.description}")
+            await runtime.info(f"Generating content for task {i+1}/{len(content_generation_tasks)}: {task.description}")
 
             content_description = (
                 f"Generate content for the following task:\n"
@@ -230,9 +232,9 @@ class ResourceWriteTool(SchematicTool):
         if not content_results:
             return self.error("No content was generated for any task.")
 
-        await runtime.message(f"Generated content for {len(content_results)} tasks")
+        await runtime.output(f"Generated content for {len(content_results)} tasks.")
 
-        await runtime.message("Building operations from generated content...")
+        await runtime.info("Building operations from generated content...")
         try:
             operations = await self.build_operations(
                 action=operation_specification,
@@ -244,72 +246,98 @@ class ResourceWriteTool(SchematicTool):
         except pydantic.ValidationError as e:
             return self.error("Operation validation failed: " + str(e))
 
-        await runtime.message("Operation validated successfully. Preparing to apply.")
+        await runtime.info("Operation validated successfully. Preparing to apply.")
         if not await runtime.confirmation(f"Do you want to apply {len(operations)} operation(s)?\n{json.dumps([op.model_dump() for op in operations], indent=2, ensure_ascii=False)}"):
-            await runtime.message("Operation application cancelled by user.")
+            await runtime.info("Operation application cancelled by user.")
             return self.result("Operation application cancelled by user.")
         undo_operations = [await self.repo.apply(op) for op in operations][::-1]
-        await runtime.message(f"Applied operation. Undo operation created: {undo_operations}")
+        await runtime.debug(f"Undo operations created: {undo_operations}")
         if self.undo is not None:
             for undo_op in undo_operations:
                 self.undo.add_undo_item(ReversibleAction(method="apply", params={"op": undo_op.model_dump()}), clear_redo=True)
+        await runtime.output(f"Applied {len(operations)} operation(s) successfully.")
+
+        # Collect data for the summarizer
+        applied_operations_data = [op.model_dump() for op in operations]
+        undo_operations_data = [op.model_dump() for op in undo_operations]
+        perspective_updates_applied: list[dict] = []
+        relation_updates_applied: list[dict] = []
 
         # Discover required updates that need to be applied as triggered actions
         required_updates = await self._discover_required_updates(
             step_description=operation_specification,
-            operations=[op.model_dump() for op in operations],
-            undo_operations=[op.model_dump() for op in undo_operations],
+            operations=applied_operations_data,
+            undo_operations=undo_operations_data,
             context=await self.context.snapshot(),
         )
 
         # Process perspective updates first (higher priority)
         if required_updates.perspective_updates:
-            await runtime.message(f"Discovered {len(required_updates.perspective_updates)} perspective updates.")
+            await runtime.output(f"Discovered {len(required_updates.perspective_updates)} perspective cascade update(s).")
             for update in required_updates.perspective_updates:
                 await runtime.debug(f"Perspective update: {update.reason} - {update.content}")
                 operation = await self._build_perspective_update_operation(
                     update, 
                     step_description=operation_specification,
-                    operations=[op.model_dump() for op in operations],
-                    undo_operations=[op.model_dump() for op in undo_operations],
+                    operations=applied_operations_data,
+                    undo_operations=undo_operations_data,
                     context=await self.context.snapshot(),
                 )
                 validated_operation = validate_op(operation)
-                await runtime.message(f"Applying perspective update operation: {validated_operation}")
+                await runtime.info(f"Applying perspective update operation: {validated_operation}")
                 try:
                     undo_op = await self.repo.apply(validated_operation)
                     if self.undo is not None:
                         self.undo.add_undo_item(ReversibleAction(method="apply", params={"op": undo_op.model_dump()}), clear_redo=True)
+                    perspective_updates_applied.append({
+                        "reason": update.reason,
+                        "content": update.content,
+                        "operation": validated_operation.model_dump(),
+                        "undo_operation": undo_op.model_dump(),
+                    })
                 except OperationError as e:
                     await runtime.warning(f"Failed to apply perspective update operation: {e}\nOperation: {validated_operation}")
 
         # Process relation updates second
         if required_updates.relation_updates:
-            await runtime.message(f"Discovered {len(required_updates.relation_updates)} relation updates.")
+            await runtime.output(f"Discovered {len(required_updates.relation_updates)} relationship cascade update(s).")
             for update in required_updates.relation_updates:
                 await runtime.debug(f"Relation update: {update.reason} - {update.content}")
-                await self._apply_relation_update(
+                rel_result = await self._apply_relation_update(
                     runtime=runtime,
                     update=update,
                     step_description=operation_specification,
-                    operations=[op.model_dump() for op in operations],
-                    undo_operations=[op.model_dump() for op in undo_operations],
+                    operations=applied_operations_data,
+                    undo_operations=undo_operations_data,
                     context=await self.context.snapshot(),
                 )
+                if rel_result is not None:
+                    relation_updates_applied.append(rel_result)
 
         # Discover future work items for the backlog
         backlog = await self._discover_backlog(
             step_description=operation_specification,
-            operations=[op.model_dump() for op in operations],
-            undo_operations=[op.model_dump() for op in undo_operations],
+            operations=applied_operations_data,
+            undo_operations=undo_operations_data,
             context=await self.context.snapshot(),
         )
+        backlog_count = 0
         if backlog and self.backlog is not None:
-            await runtime.message(f"Discovered {len(backlog)} backlog items.")
+            backlog_count = len(backlog)
+            await runtime.output(f"Discovered {backlog_count} backlog item(s).")
             for item in backlog:
                 self.backlog.add_entry(BacklogEntry.from_dict(item.model_dump()))
 
-        return self.result(json.dumps([op.model_dump() for op in operations], ensure_ascii=False))
+        # Generate a concise summary via LLM
+        summary = await self._summarize_resource_write(
+            operation_specification=operation_specification,
+            applied_operations=applied_operations_data,
+            undo_operations=undo_operations_data,
+            perspective_updates_applied=perspective_updates_applied,
+            relation_updates_applied=relation_updates_applied,
+            backlog_count=backlog_count,
+        )
+        return self.result(summary)
 
     @trace_llm("proposal_ranking")
     async def _rank_proposals(self, proposals: list[str]) -> list[str]:
@@ -426,8 +454,12 @@ class ResourceWriteTool(SchematicTool):
         operations: list[dict],
         undo_operations: list[dict],
         context: ContextSnapshot,
-    ) -> None:
-        """Apply a relation update to both sides of the relationship."""
+    ) -> dict | None:
+        """Apply a relation update to both sides of the relationship.
+
+        Returns a dict describing the applied relation changes (for the
+        summarizer), or ``None`` if the update could not be applied.
+        """
         # Parse URIs from the update content
         uris = await self._parse_relation_update_uris(update.model_dump(), context)
         source_uri = uris.source_uri
@@ -435,7 +467,7 @@ class ResourceWriteTool(SchematicTool):
         
         if not source_uri or not target_uri:
             await runtime.warning(f"Could not parse relation update URIs: {uris.error or 'Unknown error'}")
-            return
+            return None
         
         # Fetch resources
         source_resource = await self.repo.find_by_uri(source_uri)
@@ -443,16 +475,16 @@ class ResourceWriteTool(SchematicTool):
         
         if not source_resource:
             await runtime.warning(f"Source resource not found: {source_uri}")
-            return
+            return None
         if not target_resource:
             await runtime.warning(f"Target resource not found: {target_uri}")
-            return
+            return None
         if isinstance(source_resource, list):
             await runtime.warning(f"Source URI '{source_uri}' points to multiple resources")
-            return
+            return None
         if isinstance(target_resource, list):
             await runtime.warning(f"Target URI '{target_uri}' points to multiple resources")
-            return
+            return None
         
         # Get existing relations
         source_to_target_existing: list[str] = []
@@ -476,6 +508,12 @@ class ResourceWriteTool(SchematicTool):
             context=context,
         )
 
+        # Collect relation change data for the summarizer
+        rel_result: dict = {
+            "source_uri": source_uri,
+            "target_uri": target_uri,
+        }
+
         # Apply source → target relations
         if isinstance(source_resource, DirectiveElement):
             source_to_target_relations = updated_relations.source_to_target_relations
@@ -489,7 +527,9 @@ class ResourceWriteTool(SchematicTool):
                         "relations": old_relationships
                     }
                 ), clear_redo=True)
-            await runtime.message(f"Updated relations: {source_uri} → {target_uri}")
+            await runtime.output(f"Updated relations: {source_uri} → {target_uri}")
+            rel_result["old_source_to_target"] = old_relationships
+            rel_result["new_source_to_target"] = source_to_target_relations
         
         # Apply target → source relations
         if isinstance(target_resource, DirectiveElement):
@@ -504,7 +544,11 @@ class ResourceWriteTool(SchematicTool):
                         "relations": old_relationships
                     }
                 ), clear_redo=True)
-            await runtime.message(f"Updated relations: {target_uri} → {source_uri}")
+            await runtime.output(f"Updated relations: {target_uri} → {source_uri}")
+            rel_result["old_target_to_source"] = old_relationships
+            rel_result["new_target_to_source"] = target_to_source_relations
+
+        return rel_result
 
     @trace_llm("parse_relation_uris")
     async def _parse_relation_update_uris(self, update: dict[str, str], context: ContextSnapshot) -> ParseRelationUrisResponse:
@@ -519,6 +563,32 @@ class ResourceWriteTool(SchematicTool):
         ])
         assert isinstance(response, ParseRelationUrisResponse)
         return response
+
+    @trace_llm("summarize_resource_write")
+    async def _summarize_resource_write(
+        self,
+        operation_specification: str,
+        applied_operations: list[dict],
+        undo_operations: list[dict],
+        perspective_updates_applied: list[dict],
+        relation_updates_applied: list[dict],
+        backlog_count: int,
+    ) -> str:
+        """Produce a concise natural-language summary of the resource write execution."""
+        prompt = self._summarize_tmpl.render(
+            operation_specification=operation_specification,
+            applied_operations=applied_operations,
+            undo_operations=undo_operations,
+            perspective_updates_applied=perspective_updates_applied,
+            relation_updates_applied=relation_updates_applied,
+            backlog_count=backlog_count,
+        )
+        response = await self.chat_llm.ainvoke([
+            SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
+            HumanMessage(content="Write the summary."),
+        ])
+        assert isinstance(response.content, str), "Expected string content from LLM response"
+        return response.content
 
     @trace_llm("build_relation_update")
     async def _build_relation_update(
