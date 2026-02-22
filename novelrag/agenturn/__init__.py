@@ -14,7 +14,6 @@ Communication:
 
 Tool abstractions:
 - BaseTool, SchematicTool: Tool interfaces
-- ToolRuntime: Deprecated alias for ExecutionContext (backward compatibility)
 
 Procedure support:
 - ExecutionContext: Unified runtime context for procedures, tools, and the agent loop
@@ -45,7 +44,7 @@ from .pursuit import (
 from .step import OperationPlan, OperationOutcome, Resolution, StepStatus
 
 # Core tool interfaces for extension
-from .tool import BaseTool, SchematicTool, ToolRuntime
+from .tool import BaseTool, SchematicTool
 
 # Essential types for public API
 from .tool.types import (
@@ -89,7 +88,6 @@ __all__ = [
     # Core tool interfaces
     "BaseTool",
     "SchematicTool",
-    "ToolRuntime",
 
     # Tool output types
     "ToolOutputType",

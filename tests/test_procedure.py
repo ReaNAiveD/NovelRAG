@@ -72,11 +72,6 @@ class TestExecutionContext:
         assert "confirm" in members
         assert "request" in members
 
-    def test_tool_runtime_is_alias(self):
-        """ToolRuntime should be a backward-compatible alias for ExecutionContext."""
-        from novelrag.agenturn.tool.runtime import ToolRuntime
-        assert ToolRuntime is ExecutionContext
-
     def test_agent_channel_extends_execution_context(self):
         """AgentChannel should be a subclass of ExecutionContext."""
         from novelrag.agenturn.channel import AgentChannel
