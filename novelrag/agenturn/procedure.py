@@ -1,14 +1,4 @@
-"""Core Procedure abstraction for typed units of execution.
-
-A **Procedure** is a generic, typed unit of execution parameterized by an input
-type and an output type.  It has a single async method ``execute`` that receives
-the typed input and an ``ExecutionContext``, and returns the typed output on
-success.
-
-On failure, a procedure raises a ``ProcedureError`` exception that carries the
-list of effects accomplished before the failure point.  This preserves partial
-progress information so that callers can inspect what side effects were already
-applied.
+"""Core Procedure support: execution context and error handling.
 
 Two related but distinct concepts in this codebase:
 
@@ -17,14 +7,15 @@ Two related but distinct concepts in this codebase:
 * **Procedure** – orchestrates one or more LLM calls, handles the logic between
   them, and manages interaction with the environment through an
   ``ExecutionContext``.
+
+A procedure is a concrete class whose ``execute`` method accepts flat
+parameters (just like an LLM-call class) plus an ``ExecutionContext`` and
+returns a typed output.  On failure it raises ``ProcedureError`` carrying the
+list of effects accomplished before the failure point.
 """
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Generic, TypeVar
-
-InputT = TypeVar("InputT")
-OutputT = TypeVar("OutputT")
 
 
 class ExecutionContext(ABC):
@@ -70,34 +61,6 @@ class ProcedureError(Exception):
         self.message = message
         self.effects: list[str] = effects or []
         super().__init__(message)
-
-
-class Procedure(ABC, Generic[InputT, OutputT]):
-    """Generic typed unit of execution.
-
-    A Procedure receives a typed input and an ``ExecutionContext``, performs its
-    work (potentially including LLM calls, environment mutations, and
-    sub-procedure invocations), and returns a typed output.
-
-    On failure it raises ``ProcedureError`` with the list of effects
-    accomplished before the failure point.
-    """
-
-    @abstractmethod
-    async def execute(self, procedure_input: InputT, ctx: ExecutionContext) -> OutputT:
-        """Execute the procedure.
-
-        Args:
-            procedure_input: Typed input for this procedure.
-            ctx: Execution context for environment interaction.
-
-        Returns:
-            Typed output of the procedure.
-
-        Raises:
-            ProcedureError: On failure, with effects accomplished before failure.
-        """
-        ...
 
 
 class LoggingExecutionContext(ExecutionContext):

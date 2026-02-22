@@ -1,7 +1,13 @@
 """Orchestration loop for resource-aware action determination.
 
-This module provides the OrchestrationLoop which implements ActionDeterminer
-using multi-phase context discovery, refinement, and decision-making.
+This module provides procedure classes that implement multi-phase context
+discovery, refinement, and decision-making:
+
+* ``ContextDiscoveryLoop`` – iteratively discovers and refines context.
+* ``ActionLoop`` – main action decision loop with refinement analysis.
+* ``ActionDetermineLoop`` – top-level procedure that composes the above
+  and also satisfies the ``ActionDeterminer`` protocol for backward
+  compatibility.
 """
 
 import logging
@@ -10,6 +16,7 @@ from typing import Annotated, Protocol
 from pydantic import BaseModel, Field
 
 from novelrag.agenturn.goal import Goal
+from novelrag.agenturn.procedure import ExecutionContext, LoggingExecutionContext
 from novelrag.agenturn.pursuit import ActionDeterminer, PursuitAssessment, PursuitAssessor, PursuitProgress
 from novelrag.agenturn.step import OperationPlan, OperationOutcome, Resolution
 from novelrag.agenturn.tool import SchematicTool
@@ -234,17 +241,236 @@ class RefinementAnalyzer(Protocol):
         ...
 
 
-class ActionDetermineLoop(ActionDeterminer):
-    """Resource-aware action determiner using multi-phase orchestration.
-    
-    Implements the ActionDeterminer protocol for use with GoalExecutor.
-    Uses a four-phase decision architecture:
-    1. Context Discovery - Find relevant context
-    2. Context Refinement - Filter and prioritize context
-    3. Action Decision - Decide to execute tool or finalize
-    4. Refinement Analysis - Validate decision or refine goal
+def _get_tool_map(
+        available_tools: dict[str, SchematicTool],
+        expanded_tools: set[str],
+        *,
+        expanded: bool,
+) -> dict[str, SchematicTool]:
+    """Return the subset of tools that are expanded or collapsed."""
+    if expanded:
+        return {name: tool for name, tool in available_tools.items() if name in expanded_tools}
+    else:
+        return {name: tool for name, tool in available_tools.items() if name not in expanded_tools}
+
+
+class ContextDiscoveryLoop:
+    """Context discovery procedure.
+
+    Iteratively discovers and refines context through search, resource loading,
+    and relevance filtering.  Returns the updated iteration count.
+
+    This is a **Procedure**: it orchestrates multiple LLM calls
+    (``ContextDiscoverer``, ``ContextAnalyser``) and manages side effects on
+    the workspace through an ``ExecutionContext``.
     """
-    
+
+    def __init__(
+            self,
+            context: ResourceContext,
+            discoverer: ContextDiscoverer,
+            analyser: ContextAnalyser,
+            expanded_tools: set[str],
+            max_iter: int | None,
+    ):
+        self._context = context
+        self._discoverer = discoverer
+        self._analyser = analyser
+        self._expanded_tools = expanded_tools
+        self._max_iter = max_iter
+
+    async def execute(
+            self,
+            goal: Goal,
+            pursuit_assessment: PursuitAssessment,
+            available_tools: dict[str, SchematicTool],
+            iter_num: int,
+            ctx: ExecutionContext,
+    ) -> int:
+        """Discover and refine context through iterative search and filtering.
+
+        Returns the updated iteration count.
+        """
+        while True:
+            iter_num += 1
+
+            # Discover context
+            snapshot = await self._context.snapshot()
+            expanded = _get_tool_map(available_tools, self._expanded_tools, expanded=True)
+            collapsed = _get_tool_map(available_tools, self._expanded_tools, expanded=False)
+            discovery_plan = await self._discoverer.discover(
+                goal=goal,
+                pursuit_assessment=pursuit_assessment,
+                workspace_segment=snapshot.segments,
+                non_existed_uris=snapshot.nonexistent_uris,
+                search_history=self._context.search_history[-10:],
+                expanded_tools=expanded,
+                collapsed_tools=collapsed,
+            )
+            await self._apply_discovery_plan(discovery_plan)
+            if discovery_plan.refinement_needed:
+                await ctx.info(f"Identified need for resource: {discovery_plan.query_resources} and {discovery_plan.search_queries} on iteration {iter_num}.")
+                if discovery_plan.expand_tools:
+                    await ctx.info(f"Expanding tools: {discovery_plan.expand_tools}")
+
+            if not discovery_plan.refinement_needed:
+                break
+            if self._max_iter is not None and iter_num >= self._max_iter:
+                break
+
+            # Refine context
+            snapshot = await self._context.snapshot()
+            expanded = _get_tool_map(available_tools, self._expanded_tools, expanded=True)
+            collapsed = _get_tool_map(available_tools, self._expanded_tools, expanded=False)
+            refinement_plan = await self._analyser.analyse(
+                goal=goal,
+                pursuit_assessment=pursuit_assessment,
+                workspace_segment=snapshot.segments,
+                expanded_tools=expanded,
+                collapsed_tools=collapsed,
+                discovery_analysis=discovery_plan.discovery_analysis,
+            )
+            await ctx.info(f"Excluded resources: {refinement_plan.exclude_resources} and properties: {[f'{item.uri}:{item.property}' for item in refinement_plan.exclude_properties]} on iteration {iter_num}.")
+            await self._apply_refinement_plan(refinement_plan)
+
+        return iter_num
+
+    async def _apply_discovery_plan(self, plan: DiscoveryPlan):
+        for query in plan.search_queries:
+            await self._context.search_resources(query)
+
+        for uri in plan.query_resources:
+            await self._context.query_resource(uri)
+
+        self._expanded_tools.update(plan.expand_tools)
+
+    async def _apply_refinement_plan(self, plan: RefinementPlan):
+        for uri in plan.exclude_resources:
+            await self._context.exclude_resource(uri)
+
+        for item in plan.exclude_properties:
+            await self._context.exclude_property(item.uri, item.property)
+
+        self._expanded_tools.difference_update(plan.collapse_tools)
+
+        if plan.sorted_segments:
+            await self._context.sort_resources(plan.sorted_segments)
+
+
+class ActionLoop:
+    """Action decision loop procedure with refinement.
+
+    Orchestrates the main decision cycle:
+
+    1. Run context discovery (via ``ContextDiscoveryLoop``)
+    2. Make an action decision (via ``ActionDecider``)
+    3. Analyse and optionally refine the decision (via ``RefinementAnalyzer``)
+
+    This is a **Procedure**: it composes sub-procedures and LLM calls, managing
+    the iteration and side effects through an ``ExecutionContext``.
+    """
+
+    def __init__(
+            self,
+            context: ResourceContext,
+            context_discovery: ContextDiscoveryLoop,
+            decider: ActionDecider,
+            refiner: RefinementAnalyzer,
+            expanded_tools: set[str],
+            max_iter: int | None,
+            min_iter: int,
+    ):
+        self._context = context
+        self._context_discovery = context_discovery
+        self._decider = decider
+        self._refiner = refiner
+        self._expanded_tools = expanded_tools
+        self._max_iter = max_iter
+        self._min_iter = min_iter
+
+    async def execute(
+            self,
+            goal: Goal,
+            pursuit_assessment: PursuitAssessment,
+            completed_steps: list[OperationOutcome],
+            available_tools: dict[str, SchematicTool],
+            ctx: ExecutionContext,
+    ) -> OperationPlan | Resolution:
+        """Main action decision loop with refinement."""
+        iter_num = 0
+        last_planned_action: OperationPlan | Resolution = Resolution(
+            reason="Maximum iterations reached without achieving goal",
+            response="I was unable to complete your request within the iteration limit.",
+            status="abandoned"
+        )
+
+        while True:
+            iter_num = await self._context_discovery.execute(
+                goal, pursuit_assessment, available_tools, iter_num, ctx,
+            )
+            await ctx.info(f"Context discovery completed for iteration {iter_num}.")
+
+            # Make action decision
+            snapshot = await self._context.snapshot()
+            expanded = _get_tool_map(available_tools, self._expanded_tools, expanded=True)
+            action_decision = await self._decider.decide(
+                goal=goal,
+                pursuit_assessment=pursuit_assessment,
+                completed_steps=completed_steps,
+                workspace_segment=snapshot.segments,
+                expanded_tools=expanded,
+            )
+            planned_action = _convert_to_orchestration_action(action_decision)
+            await ctx.info(f"Action decision made: {planned_action} on iteration {iter_num}.")
+            last_planned_action = planned_action
+
+            # Analyze and refine decision
+            snapshot = await self._context.snapshot()
+            expanded = _get_tool_map(available_tools, self._expanded_tools, expanded=True)
+            collapsed = _get_tool_map(available_tools, self._expanded_tools, expanded=False)
+            refinement_decision = await self._refiner.analyze(
+                goal=goal,
+                pursuit_assessment=pursuit_assessment,
+                action_decision=action_decision,
+                completed_steps=completed_steps,
+                workspace_segment=snapshot.segments,
+                expanded_tools=expanded,
+                collapsed_tools=collapsed,
+            )
+
+            # Process refinement verdict
+            if refinement_decision.verdict == "approve":
+                await ctx.info("Action decision approved.")
+                if isinstance(planned_action, OperationPlan) and iter_num >= self._min_iter:
+                    return planned_action
+                elif isinstance(planned_action, Resolution):
+                    return planned_action
+            else:
+                await ctx.info(f"Action decision requires refinement: {refinement_decision.analysis}")
+                if refinement_decision.refinement:
+                    pursuit_assessment = refinement_decision.refinement
+
+            if self._max_iter is not None and iter_num >= self._max_iter:
+                break
+
+        return last_planned_action
+
+
+class ActionDetermineLoop:
+    """Resource-aware action determiner using multi-phase orchestration.
+
+    Top-level **Procedure** that composes ``ContextDiscoveryLoop`` and
+    ``ActionLoop`` and also satisfies the ``ActionDeterminer`` protocol
+    for backward compatibility with ``GoalExecutor``.
+
+    Uses a four-phase decision architecture:
+
+    1. Context Discovery – Find relevant context
+    2. Context Refinement – Filter and prioritize context
+    3. Action Decision – Decide to execute tool or finalize
+    4. Refinement Analysis – Validate decision or refine goal
+    """
+
     def __init__(
             self,
             context: ResourceContext,
@@ -266,21 +492,43 @@ class ActionDetermineLoop(ActionDeterminer):
         self.decider = decider
         self.refiner = refiner
 
-    async def determine_action(
+        self._context_discovery = ContextDiscoveryLoop(
+            context=self.context,
+            discoverer=self.discoverer,
+            analyser=self.analyser,
+            expanded_tools=self.expanded_tools,
+            max_iter=self.max_iter,
+        )
+        self._action_loop = ActionLoop(
+            context=self.context,
+            context_discovery=self._context_discovery,
+            decider=self.decider,
+            refiner=self.refiner,
+            expanded_tools=self.expanded_tools,
+            max_iter=self.max_iter,
+            min_iter=self.min_iter,
+        )
+
+    async def execute(
             self,
             beliefs: list[str],
             pursuit_progress: PursuitProgress,
             available_tools: dict[str, SchematicTool],
+            ctx: ExecutionContext,
             interaction_history: InteractionContext | None = None,
     ) -> OperationPlan | Resolution:
-        """
-        Advance execution through phased context refinement and planning.
+        """Execute the action determination procedure.
 
-        Uses a two-phase decision architecture:
-        1. Action Decision - Decides to execute tool or finalize
-        2. Refinement Analysis - Approves action or refines goal for next iteration
+        Args:
+            beliefs: Current agent beliefs (restrictions and guidelines).
+            pursuit_progress: Progress of the current goal pursuit.
+            available_tools: Tools available for execution.
+            ctx: Execution context for environment interaction.
+            interaction_history: Optional recent interaction history.
 
-        The goal evolves through iterations to incorporate discovered requirements.
+        Returns:
+            An ``OperationPlan`` to execute next, or a ``Resolution`` to end
+            the pursuit.
         """
         goal = pursuit_progress.goal
         pursuit_assessment = await self.assessor.assess_progress(
@@ -288,180 +536,49 @@ class ActionDetermineLoop(ActionDeterminer):
             beliefs=beliefs,
             interaction_history=interaction_history,
         )
-        return await self._action_loop(
+        return await self._action_loop.execute(
             goal, pursuit_assessment,
-            pursuit_progress.executed_steps, available_tools,
+            pursuit_progress.executed_steps, available_tools, ctx,
         )
 
-    async def _action_loop(
+    async def determine_action(
             self,
-            goal: Goal,
-            pursuit_assessment: PursuitAssessment,
-            completed_steps: list[OperationOutcome],
+            beliefs: list[str],
+            pursuit_progress: PursuitProgress,
             available_tools: dict[str, SchematicTool],
+            interaction_history: InteractionContext | None = None,
     ) -> OperationPlan | Resolution:
-        """Main action decision loop with refinement."""
-        iter_num = 0
-        last_planned_action: OperationPlan | Resolution = Resolution(
-            reason="Maximum iterations reached without achieving goal",
-            response="I was unable to complete your request within the iteration limit.",
-            status="abandoned"
-        )
+        """ActionDeterminer protocol bridge.
 
-        while True:
-            iter_num = await self._context_discovery_loop(
-                goal, pursuit_assessment, available_tools, iter_num,
-            )
-            logger.info(f"Context discovery completed for iteration {iter_num}.")
-
-            # Make action decision
-            ctx = await self.context.snapshot()
-            expanded_tools = self._get_tool_map(available_tools, expanded=True)
-            action_decision = await self.decider.decide(
-                goal=goal,
-                pursuit_assessment=pursuit_assessment,
-                completed_steps=completed_steps,
-                workspace_segment=ctx.segments,
-                expanded_tools=expanded_tools,
-            )
-            planned_action = self._convert_to_orchestration_action(action_decision)
-            logger.info(f"Action decision made: {planned_action} on iteration {iter_num}.")
-            last_planned_action = planned_action
-
-            # Analyze and refine decision
-            ctx = await self.context.snapshot()
-            expanded_tools = self._get_tool_map(available_tools, expanded=True)
-            collapsed_tools = self._get_tool_map(available_tools, expanded=False)
-            refinement_decision = await self.refiner.analyze(
-                goal=goal,
-                pursuit_assessment=pursuit_assessment,
-                action_decision=action_decision,
-                completed_steps=completed_steps,
-                workspace_segment=ctx.segments,
-                expanded_tools=expanded_tools,
-                collapsed_tools=collapsed_tools,
-            )
-
-            # Process refinement verdict
-            if refinement_decision.verdict == "approve":
-                logger.info(f"Action decision approved.")
-                if isinstance(planned_action, OperationPlan) and iter_num >= self.min_iter:
-                    return planned_action
-                elif isinstance(planned_action, Resolution):
-                    return planned_action
-            else:
-                logger.info(f"Action decision requires refinement: {refinement_decision.analysis}")
-                if refinement_decision.refinement:
-                    pursuit_assessment = refinement_decision.refinement
-
-            if self.max_iter is not None and iter_num >= self.max_iter:
-                break
-
-        return last_planned_action
-
-    async def _context_discovery_loop(
-            self,
-            goal: Goal,
-            pursuit_assessment: PursuitAssessment,
-            available_tools: dict[str, SchematicTool],
-            iter_num: int,
-    ) -> int:
-        """Discover and refine context through iterative search and filtering.
-
-        Returns the updated iteration count.
+        Creates a default ``LoggingExecutionContext`` and delegates to
+        :meth:`execute`.
         """
-        while True:
-            iter_num += 1
+        ctx = LoggingExecutionContext(logger)
+        return await self.execute(
+            beliefs, pursuit_progress, available_tools, ctx,
+            interaction_history=interaction_history,
+        )
 
-            # Discover context
-            ctx = await self.context.snapshot()
-            expanded_tools = self._get_tool_map(available_tools, expanded=True)
-            collapsed_tools = self._get_tool_map(available_tools, expanded=False)
-            discovery_plan = await self.discoverer.discover(
-                goal=goal,
-                pursuit_assessment=pursuit_assessment,
-                workspace_segment=ctx.segments,
-                non_existed_uris=ctx.nonexistent_uris,
-                search_history=self.context.search_history[-10:],
-                expanded_tools=expanded_tools,
-                collapsed_tools=collapsed_tools,
-            )
-            await self._apply_discovery_plan(discovery_plan)
-            if discovery_plan.refinement_needed:
-                logger.info(f"Identified need for resource: {discovery_plan.query_resources} and {discovery_plan.search_queries} on iteration {iter_num}.")
-                if discovery_plan.expand_tools:
-                    logger.info(f"Expanding tools: {discovery_plan.expand_tools}")
 
-            if not discovery_plan.refinement_needed:
-                break
-            if self.max_iter is not None and iter_num >= self.max_iter:
-                break
-
-            # Refine context
-            ctx = await self.context.snapshot()
-            expanded_tools = self._get_tool_map(available_tools, expanded=True)
-            collapsed_tools = self._get_tool_map(available_tools, expanded=False)
-            refinement_plan = await self.analyser.analyse(
-                goal=goal,
-                pursuit_assessment=pursuit_assessment,
-                workspace_segment=ctx.segments,
-                expanded_tools=expanded_tools,
-                collapsed_tools=collapsed_tools,
-                discovery_analysis=discovery_plan.discovery_analysis,
-            )
-            logger.info(f"Excluded resources: {refinement_plan.exclude_resources} and properties: {[f'{item.uri}:{item.property}' for item in refinement_plan.exclude_properties]} on iteration {iter_num}.")
-            await self._apply_refinement_plan(refinement_plan)
-
-        return iter_num
-
-    async def _apply_discovery_plan(self, plan: DiscoveryPlan):
-        for query in plan.search_queries:
-            await self.context.search_resources(query)
-        
-        for uri in plan.query_resources:
-            await self.context.query_resource(uri)
-        
-        self.expanded_tools.update(plan.expand_tools)
-
-    async def _apply_refinement_plan(self, plan: RefinementPlan):
-        for uri in plan.exclude_resources:
-            await self.context.exclude_resource(uri)
-        
-        for item in plan.exclude_properties:
-            await self.context.exclude_property(item.uri, item.property)
-        
-        self.expanded_tools.difference_update(plan.collapse_tools)
-        
-        if plan.sorted_segments:
-            await self.context.sort_resources(plan.sorted_segments)
-
-    def _convert_to_orchestration_action(
-            self, 
-            action_decision: ActionDecision
-    ) -> OperationPlan | Resolution:
-        """Convert ActionDecision to orchestration type."""
-        if action_decision.decision_type == "execute" and action_decision.execution:
-            return OperationPlan(
-                reason=action_decision.situation_analysis,
-                tool=action_decision.execution.tool,
-                parameters=action_decision.execution.params,
-            )
-        elif action_decision.decision_type == "finalize" and action_decision.finalization:
-            return Resolution(
-                reason=action_decision.situation_analysis,
-                response=action_decision.finalization.response,
-                status=action_decision.finalization.status,
-            )
-        else:
-            return Resolution(
-                reason="Invalid action decision",
-                response="Unable to process the action decision.",
-                status="failed"
-            )
-
-    def _get_tool_map(self, available_tools: dict[str, SchematicTool], *, expanded: bool) -> dict[str, SchematicTool]:
-        """Return the subset of tools that are expanded or collapsed."""
-        if expanded:
-            return {name: tool for name, tool in available_tools.items() if name in self.expanded_tools}
-        else:
-            return {name: tool for name, tool in available_tools.items() if name not in self.expanded_tools}
+def _convert_to_orchestration_action(
+        action_decision: ActionDecision,
+) -> OperationPlan | Resolution:
+    """Convert ActionDecision to orchestration type."""
+    if action_decision.decision_type == "execute" and action_decision.execution:
+        return OperationPlan(
+            reason=action_decision.situation_analysis,
+            tool=action_decision.execution.tool,
+            parameters=action_decision.execution.params,
+        )
+    elif action_decision.decision_type == "finalize" and action_decision.finalization:
+        return Resolution(
+            reason=action_decision.situation_analysis,
+            response=action_decision.finalization.response,
+            status=action_decision.finalization.status,
+        )
+    else:
+        return Resolution(
+            reason="Invalid action decision",
+            response="Unable to process the action decision.",
+            status="failed"
+        )

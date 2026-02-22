@@ -54,6 +54,9 @@ from .tool.types import (
 )
 from .types import AgentMessageLevel, InteractionContext
 
+# Procedure support
+from .procedure import ExecutionContext, LoggingExecutionContext, ProcedureError
+
 __all__ = [
     # Main agent
     "GoalExecutor",
@@ -91,6 +94,11 @@ __all__ = [
     "ToolError",
     "AgentMessageLevel",
     "InteractionContext",
+
+    # Procedure support
+    "ExecutionContext",
+    "LoggingExecutionContext",
+    "ProcedureError",
 
     # Validation functions
     "validate_tool_output",
