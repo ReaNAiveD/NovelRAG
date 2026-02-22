@@ -54,7 +54,7 @@ class InteractionRecord:
     message: list[str] | None = None
 
     def summary(self) -> str:
-        """One-line summary suitable for prompt rendering."""
+        """Multi-line summary suitable for prompt rendering."""
         parts: list[str] = []
         handler_label = self.handler or "agent"
         parts.append(f"[{handler_label}] User: {self.request}")
@@ -109,7 +109,7 @@ class InteractionRecord:
 
 @dataclass
 class InteractionHistory:
-    """Fixed-window history of session interactions.
+    """History of session interactions.
 
     Shared as a single mutable instance across the session so that
     handlers and the executor pipeline always see the latest state.
@@ -122,6 +122,8 @@ class InteractionHistory:
 
     def recent(self, n: int = 5) -> list[InteractionRecord]:
         """Return the *n* most recent interaction records."""
+        if n == 0:
+            return []
         return self._records[-n:]
 
     def __len__(self) -> int:

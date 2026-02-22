@@ -108,7 +108,6 @@ class Session:
             lang=config.language,
             backlog=backlog,
             undo_queue=undo_queue,
-            interaction_history=interaction_history,
         )
         goal_translator = LLMGoalTranslator(chat_llm, lang=config.language or "en", language=config.language)
         agent_request_handler = agent.create_request_handler(goal_translator)
