@@ -23,11 +23,13 @@ You are an expert at summarizing relationship operations on a resource repositor
 - **Operation**: {{ operation }}
 - **Relation Description**: {{ relation_description }}
 
+{% if old_source_to_target is defined %}
 ### Source → Target Relations
 - Previous: {{ old_source_to_target | tojson }}
 - Updated: {{ new_source_to_target | tojson }}
+{% endif %}
 
-{% if new_target_to_source is defined %}
+{% if old_target_to_source is defined %}
 ### Target → Source Relations
 - Previous: {{ old_target_to_source | tojson }}
 - Updated: {{ new_target_to_source | tojson }}

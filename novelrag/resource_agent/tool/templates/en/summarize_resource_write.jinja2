@@ -48,9 +48,11 @@ Your summary must cover **all** of the following that apply:
 {% if relation_updates_applied %}
 ### Relationship Cascade Updates
 {% for ru in relation_updates_applied %}
+{% if ru.old_source_to_target is defined %}
 - **{{ ru.source_uri }}** → **{{ ru.target_uri }}**
   - Old relations: {{ ru.old_source_to_target | tojson }}
   - New relations: {{ ru.new_source_to_target | tojson }}
+{% endif %}
 {% if ru.old_target_to_source is defined %}
 - **{{ ru.target_uri }}** → **{{ ru.source_uri }}**
   - Old relations: {{ ru.old_target_to_source | tojson }}

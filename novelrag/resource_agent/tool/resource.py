@@ -512,6 +512,10 @@ class ResourceWriteTool(SchematicTool):
         rel_result: dict = {
             "source_uri": source_uri,
             "target_uri": target_uri,
+            "old_source_to_target": source_to_target_existing,
+            "new_source_to_target": source_to_target_existing,
+            "old_target_to_source": target_to_source_existing,
+            "new_target_to_source": target_to_source_existing,
         }
 
         # Apply source → target relations
