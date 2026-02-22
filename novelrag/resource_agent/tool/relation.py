@@ -5,8 +5,9 @@ from typing import Annotated, Any
 
 from pydantic import BaseModel, Field
 
-from novelrag.agenturn.tool import SchematicTool, ToolRuntime
-from novelrag.agenturn.tool.types import ToolOutput
+from novelrag.agenturn.tool import SchematicTool
+from novelrag.agenturn.procedure import ExecutionContext
+from novelrag.agenturn.tool import ToolOutput
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import SystemMessage, HumanMessage
 from novelrag.resource.aspect import ResourceAspect
@@ -80,21 +81,21 @@ class ResourceRelationWriteTool(SchematicTool):
             "required": ["source_resource_uri", "target_resource_uri", "operation", "relation_description"],
         }
 
-    async def call(self, runtime: ToolRuntime, **kwargs) -> ToolOutput:
+    async def call(self, ctx: ExecutionContext, **kwargs) -> ToolOutput:
         source_resource_uri = kwargs.get('source_resource_uri')
         target_resource_uri = kwargs.get('target_resource_uri')
         operation = kwargs.get('operation')
         relation_description = kwargs.get('relation_description')
         if not source_resource_uri or not target_resource_uri or not operation or not relation_description:
-            await runtime.error("Missing required parameters: source_resource_uri, target_resource_uri, operation, relation_description.")
+            await ctx.error("Missing required parameters: source_resource_uri, target_resource_uri, operation, relation_description.")
             return self.error("Missing required parameters: source_resource_uri, target_resource_uri, operation, relation_description.")
         source_resource = await self.repo.find_by_uri(source_resource_uri)
         target_resource = await self.repo.find_by_uri(target_resource_uri)
         if isinstance(target_resource, list):
-            await runtime.error(f"Target resource URI '{target_resource_uri}' points to multiple resources. Please specify a single resource.")
+            await ctx.error(f"Target resource URI '{target_resource_uri}' points to multiple resources. Please specify a single resource.")
             return self.error(f"Target resource URI '{target_resource_uri}' points to multiple resources. Please specify a single resource.")
         if not target_resource:
-            await runtime.error(f"Target resource URI '{target_resource_uri}' not found in the repository.")
+            await ctx.error(f"Target resource URI '{target_resource_uri}' not found in the repository.")
             return self.error(f"Target resource URI '{target_resource_uri}' not found in the repository.")
         if isinstance(source_resource, DirectiveElement):
             # --- Source → Target ---
@@ -113,7 +114,7 @@ class ResourceRelationWriteTool(SchematicTool):
                         "relations": undo_relationships
                     }
                 ), clear_redo=True)
-            await runtime.output(f"Updated relations for source resource '{source_resource_uri}' to target resource '{target_resource_uri}'.")
+            await ctx.output(f"Updated relations for source resource '{source_resource_uri}' to target resource '{target_resource_uri}'.")
 
             # --- Target → Source ---
             old_target_to_source: list[str] = []
@@ -134,7 +135,7 @@ class ResourceRelationWriteTool(SchematicTool):
                             "relations": undo_relationships
                         }
                     ), clear_redo=True)
-                await runtime.output(f"Updated relations for target resource '{target_resource_uri}' to source resource '{source_resource_uri}'.")
+                await ctx.output(f"Updated relations for target resource '{target_resource_uri}' to source resource '{source_resource_uri}'.")
 
             # Generate concise summary via LLM
             summary = await self._summarize_relation_write(
@@ -149,7 +150,7 @@ class ResourceRelationWriteTool(SchematicTool):
             )
             return self.result(summary)
         else:
-            await runtime.error(f"Source resource URI '{source_resource_uri}' does not point to a valid resource. Please check the URI.")
+            await ctx.error(f"Source resource URI '{source_resource_uri}' does not point to a valid resource. Please check the URI.")
             return self.error(f"Source resource URI '{source_resource_uri}' does not point to a valid resource. Please check the URI.")
 
     @trace_llm("summarize_relation_write")

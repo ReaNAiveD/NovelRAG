@@ -1,9 +1,16 @@
-from typing import Protocol
-
+from novelrag.agenturn.procedure import ExecutionContext
 from .types import AgentMessageLevel
 
 
-class AgentChannel(Protocol):
+class AgentChannel(ExecutionContext):
+    """Channel for agent–user communication.
+
+    Concrete subclasses must implement :meth:`send_message`, :meth:`output`,
+    :meth:`confirm`, and :meth:`request`.  The four messaging helpers
+    (``info``, ``debug``, ``warning``, ``error``) delegate to
+    :meth:`send_message` with the appropriate level.
+    """
+
     async def send_message(self, content: str, level: AgentMessageLevel = AgentMessageLevel.INFO) -> None:
         """Send a logging message to the system."""
         pass

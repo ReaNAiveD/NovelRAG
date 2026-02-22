@@ -6,64 +6,14 @@ from typing import Any
 
 from novelrag.agenturn.channel import AgentChannel
 from novelrag.agenturn.goal import Goal, GoalDecider, GoalTranslator
+from novelrag.agenturn.procedure import ExecutionContext
 from novelrag.agenturn.pursuit import ActionDeterminer, PursuitAssessment, LLMPursuitAssessor, PursuitOutcome, PursuitProgress, PursuitStatus
 from novelrag.agenturn.step import OperationPlan, OperationOutcome, Resolution, StepStatus
-from novelrag.agenturn.tool import SchematicTool, ToolRuntime
+from novelrag.agenturn.tool import SchematicTool
 from novelrag.agenturn.types import InteractionContext
 from novelrag.tracer import trace_intent, trace_pursuit, trace_tool
 
 logger = logging.getLogger(__name__)
-
-
-class AgentToolRuntime(ToolRuntime):
-    """Agent's implementation of ToolRuntime that routes calls to AgentChannel."""
-    
-    def __init__(self, channel: AgentChannel):
-        self.channel = channel
-        self._backlog: list[str] = []
-        self._progress: dict[str, list[str]] = {}
-        self._triggered_actions: list[dict[str, str]] = []
-
-    async def debug(self, content: str):
-        await self.channel.debug(content)
-
-    async def info(self, content: str):
-        await self.channel.info(content)
-
-    async def warning(self, content: str):
-        await self.channel.warning(content)
-
-    async def error(self, content: str):
-        await self.channel.error(content)
-
-    async def confirmation(self, prompt: str) -> bool:
-        return await self.channel.confirm(prompt)
-
-    async def user_input(self, prompt: str) -> str:
-        return await self.channel.request(prompt)
-    
-    async def output(self, content: str):
-        await self.channel.output(content)
-
-    async def progress(self, key: str, value: str, description: str | None = None):
-        if key not in self._progress:
-            self._progress[key] = []
-        self._progress[key].append(value)
-
-    async def backlog(self, content: dict, priority: str | None = None):
-        self._backlog.append(str(content))
-
-    def take_backlog(self) -> list[str]:
-        """Take all backlog items, clearing the internal list."""
-        backlog = self._backlog
-        self._backlog = []
-        return backlog
-
-    def take_triggered_actions(self) -> list[dict[str, str]]:
-        """Take all triggered actions, clearing the internal list."""
-        actions = self._triggered_actions
-        self._triggered_actions = []
-        return actions
 
 
 class GoalExecutor:
@@ -97,6 +47,7 @@ class GoalExecutor:
                     beliefs=self.beliefs,
                     pursuit_progress=pursuit_progress,
                     available_tools=self.tools,
+                    ctx=self.channel,
                     interaction_history=interaction_history,
                 )
                 if isinstance(directive, Resolution):
@@ -164,13 +115,12 @@ class GoalExecutor:
             )
 
         tool = self.tools[tool_name]
-        runtime = AgentToolRuntime(self.channel)
 
         try:
             await self.channel.debug(f"Calling tool {tool_name} with params: {params}")
-            result = await tool.call(runtime, **params)
+            result = await tool.call(self.channel, **params)
             
-            from novelrag.agenturn.tool.types import ToolResult, ToolError
+            from novelrag.agenturn.tool import ToolResult, ToolError
             
             if isinstance(result, ToolResult):
                 return OperationOutcome(

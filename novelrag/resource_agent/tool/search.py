@@ -3,8 +3,9 @@
 import json
 from typing import Any
 
-from novelrag.agenturn.tool import SchematicTool, ToolRuntime
-from novelrag.agenturn.tool.types import ToolOutput
+from novelrag.agenturn.tool import SchematicTool
+from novelrag.agenturn.procedure import ExecutionContext
+from novelrag.agenturn.tool import ToolOutput
 from novelrag.resource.repository import ResourceRepository
 
 
@@ -54,7 +55,7 @@ class ResourceSearchTool(SchematicTool):
             "required": ["query"],
         }
 
-    async def call(self, runtime: ToolRuntime, **kwargs) -> ToolOutput:
+    async def call(self, ctx: ExecutionContext, **kwargs) -> ToolOutput:
         """Perform semantic search and return matching resources."""
         query = kwargs.get('query')
         aspect = kwargs.get('aspect')
@@ -65,9 +66,9 @@ class ResourceSearchTool(SchematicTool):
 
         result = await self.repo.vector_search(query, aspect=aspect, limit=top_k)
         if not result:
-            await runtime.info(f"No resources found matching the query: '{query}'")
+            await ctx.info(f"No resources found matching the query: '{query}'")
             return self.result(json.dumps([], ensure_ascii=False))
 
-        await runtime.info(f"Found {len(result)} resources matching the query: '{query}'")
+        await ctx.info(f"Found {len(result)} resources matching the query: '{query}'")
         items = [item.element.context_dict for item in result]
         return self.result(json.dumps(items, ensure_ascii=False))

@@ -2,7 +2,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import SystemMessage, HumanMessage
 from novelrag.agenturn.goal import Goal
 from novelrag.agenturn.pursuit import PursuitAssessment
-from novelrag.agenturn.tool.schematic import SchematicTool
+from novelrag.agenturn.tool import SchematicTool
 from novelrag.resource_agent.action_determine.action_determine_loop import ContextDiscoverer, DiscoveryPlan
 from novelrag.resource_agent.workspace import SegmentData, SearchHistoryItem
 from novelrag.template import TemplateEnvironment

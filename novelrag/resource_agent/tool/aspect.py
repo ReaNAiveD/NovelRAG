@@ -6,8 +6,9 @@ from typing import Any
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import SystemMessage, HumanMessage
 
-from novelrag.agenturn.tool import SchematicTool, ToolRuntime
-from novelrag.agenturn.tool.types import ToolOutput
+from novelrag.agenturn.tool import SchematicTool
+from novelrag.agenturn.procedure import ExecutionContext
+from novelrag.agenturn.tool import ToolOutput
 from novelrag.resource.repository import ResourceRepository
 from novelrag.resource_agent.undo import ReversibleAction, UndoQueue
 from novelrag.template import TemplateEnvironment
@@ -63,19 +64,19 @@ class AspectCreateTool(SchematicTool):
             "required": ["name", "description"],
         }
 
-    async def call(self, runtime: ToolRuntime, **kwargs) -> ToolOutput:
+    async def call(self, ctx: ExecutionContext, **kwargs) -> ToolOutput:
         name = kwargs.get('name')
         if not name:
-            await runtime.error("No aspect name provided. Please provide a name for the aspect.")
+            await ctx.error("No aspect name provided. Please provide a name for the aspect.")
             return self.error("No aspect name provided. Please provide a name for the aspect.")
 
-        await runtime.info(f"Initializing aspect metadata for '{name}'...")
+        await ctx.info(f"Initializing aspect metadata for '{name}'...")
         description = kwargs.get('description', [])
         aspect_metadata = await self.initialize_aspect_metadata(name, description)
-        await runtime.debug(f"Aspect metadata initialized: {aspect_metadata}")
+        await ctx.debug(f"Aspect metadata initialized: {aspect_metadata}")
 
         aspect = self.repo.add_aspect(name, aspect_metadata)
-        await runtime.info(f"Aspect '{name}' created successfully.")
+        await ctx.info(f"Aspect '{name}' created successfully.")
         if self.undo:
             self.undo.add_undo_item(
                 ReversibleAction(method="remove_aspect", params={"name": name}),
