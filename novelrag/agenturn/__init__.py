@@ -5,17 +5,21 @@ and coordination. Resource-specific agent logic is in the `resource_agent` packa
 
 Core components:
 - GoalExecutor: Executes a single goal using tools and action determination
-- AgentToolRuntime: Routes tool runtime calls to AgentChannel
+- AgentToolRuntime: ExecutionContext backed by an AgentChannel
 - ActionDeterminer: Protocol for action determination strategies
 - PursuitAssessor: Assesses progress toward goals
 
 Communication:
-- AgentChannel: Protocol for agent-user communication
-- SessionChannel, ShellSessionChannel: Concrete channel implementations
+- AgentChannel: Base class for agent-user communication (extends ExecutionContext)
 
 Tool abstractions:
 - BaseTool, SchematicTool: Tool interfaces
-- ToolRuntime: Runtime interface for tool side-effects
+- ToolRuntime: Deprecated alias for ExecutionContext (backward compatibility)
+
+Procedure support:
+- ExecutionContext: Unified runtime context for procedures, tools, and the agent loop
+- LoggingExecutionContext: Default context backed by Python logging
+- ProcedureError: Exception carrying partial-progress effects
 """
 
 # Main agent class

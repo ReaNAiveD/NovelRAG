@@ -7,7 +7,8 @@ from typing import Annotated, Any
 
 from pydantic import BaseModel, Field
 
-from novelrag.agenturn.tool import SchematicTool, ToolRuntime
+from novelrag.agenturn.tool import SchematicTool
+from novelrag.agenturn.procedure import ExecutionContext
 from novelrag.agenturn.tool.types import ToolOutput
 from novelrag.exceptions import OperationError
 from langchain_core.language_models import BaseChatModel
@@ -185,7 +186,7 @@ class ResourceWriteTool(SchematicTool):
             "required": ["operation_specification", "content_generation_tasks"]
         }
 
-    async def call(self, runtime: ToolRuntime, **kwargs) -> ToolOutput:
+    async def call(self, ctx: ExecutionContext, **kwargs) -> ToolOutput:
         """Edit existing content using the new planning-based workflow."""
         operation_specification = kwargs.get('operation_specification')
         if not operation_specification:
@@ -195,12 +196,12 @@ class ResourceWriteTool(SchematicTool):
             return self.error("No content generation tasks provided. Please provide at least one content generation task.")
         content_generation_tasks = [ContentGenerationTask(**task) for task in content_generation_tasks]
 
-        await runtime.output(f"Operation planned: {operation_specification}")
-        await runtime.info(f"Content generation tasks: {len(content_generation_tasks)}")
+        await ctx.output(f"Operation planned: {operation_specification}")
+        await ctx.info(f"Content generation tasks: {len(content_generation_tasks)}")
 
         content_results = []
         for i, task in enumerate(content_generation_tasks):
-            await runtime.info(f"Generating content for task {i+1}/{len(content_generation_tasks)}: {task.description}")
+            await ctx.info(f"Generating content for task {i+1}/{len(content_generation_tasks)}: {task.description}")
 
             content_description = (
                 f"Generate content for the following task:\n"
@@ -217,11 +218,11 @@ class ResourceWriteTool(SchematicTool):
             ) for proposer in self.content_proposers]
             proposals = [proposal for proposal_set in proposals for proposal in proposal_set]
             if not proposals:
-                await runtime.warning(f"No content generated for task: {task.description}")
+                await ctx.warning(f"No content generated for task: {task.description}")
                 continue
             ranked_proposals = await self._rank_proposals([proposal.content for proposal in proposals])
             selected_content = await self.select_proposal(ranked_proposals)
-            await runtime.debug(f"Generated content: {selected_content}")
+            await ctx.debug(f"Generated content: {selected_content}")
 
             content_results.append({
                 "description": task.description,
@@ -232,9 +233,9 @@ class ResourceWriteTool(SchematicTool):
         if not content_results:
             return self.error("No content was generated for any task.")
 
-        await runtime.output(f"Generated content for {len(content_results)} tasks.")
+        await ctx.output(f"Generated content for {len(content_results)} tasks.")
 
-        await runtime.info("Building operations from generated content...")
+        await ctx.info("Building operations from generated content...")
         try:
             operations = await self.build_operations(
                 action=operation_specification,
@@ -246,16 +247,16 @@ class ResourceWriteTool(SchematicTool):
         except pydantic.ValidationError as e:
             return self.error("Operation validation failed: " + str(e))
 
-        await runtime.info("Operation validated successfully. Preparing to apply.")
-        if not await runtime.confirmation(f"Do you want to apply {len(operations)} operation(s)?\n{json.dumps([op.model_dump() for op in operations], indent=2, ensure_ascii=False)}"):
-            await runtime.info("Operation application cancelled by user.")
+        await ctx.info("Operation validated successfully. Preparing to apply.")
+        if not await ctx.confirm(f"Do you want to apply {len(operations)} operation(s)?\n{json.dumps([op.model_dump() for op in operations], indent=2, ensure_ascii=False)}"):
+            await ctx.info("Operation application cancelled by user.")
             return self.result("Operation application cancelled by user.")
         undo_operations = [await self.repo.apply(op) for op in operations][::-1]
-        await runtime.debug(f"Undo operations created: {undo_operations}")
+        await ctx.debug(f"Undo operations created: {undo_operations}")
         if self.undo is not None:
             for undo_op in undo_operations:
                 self.undo.add_undo_item(ReversibleAction(method="apply", params={"op": undo_op.model_dump()}), clear_redo=True)
-        await runtime.output(f"Applied {len(operations)} operation(s) successfully.")
+        await ctx.output(f"Applied {len(operations)} operation(s) successfully.")
 
         # Collect data for the summarizer
         applied_operations_data = [op.model_dump() for op in operations]
@@ -273,9 +274,9 @@ class ResourceWriteTool(SchematicTool):
 
         # Process perspective updates first (higher priority)
         if required_updates.perspective_updates:
-            await runtime.output(f"Discovered {len(required_updates.perspective_updates)} perspective cascade update(s).")
+            await ctx.output(f"Discovered {len(required_updates.perspective_updates)} perspective cascade update(s).")
             for update in required_updates.perspective_updates:
-                await runtime.debug(f"Perspective update: {update.reason} - {update.content}")
+                await ctx.debug(f"Perspective update: {update.reason} - {update.content}")
                 operation = await self._build_perspective_update_operation(
                     update, 
                     step_description=operation_specification,
@@ -284,7 +285,7 @@ class ResourceWriteTool(SchematicTool):
                     context=await self.context.snapshot(),
                 )
                 validated_operation = validate_op(operation)
-                await runtime.info(f"Applying perspective update operation: {validated_operation}")
+                await ctx.info(f"Applying perspective update operation: {validated_operation}")
                 try:
                     undo_op = await self.repo.apply(validated_operation)
                     if self.undo is not None:
@@ -296,15 +297,15 @@ class ResourceWriteTool(SchematicTool):
                         "undo_operation": undo_op.model_dump(),
                     })
                 except OperationError as e:
-                    await runtime.warning(f"Failed to apply perspective update operation: {e}\nOperation: {validated_operation}")
+                    await ctx.warning(f"Failed to apply perspective update operation: {e}\nOperation: {validated_operation}")
 
         # Process relation updates second
         if required_updates.relation_updates:
-            await runtime.output(f"Discovered {len(required_updates.relation_updates)} relationship cascade update(s).")
+            await ctx.output(f"Discovered {len(required_updates.relation_updates)} relationship cascade update(s).")
             for update in required_updates.relation_updates:
-                await runtime.debug(f"Relation update: {update.reason} - {update.content}")
+                await ctx.debug(f"Relation update: {update.reason} - {update.content}")
                 rel_result = await self._apply_relation_update(
-                    runtime=runtime,
+                    ctx=ctx,
                     update=update,
                     step_description=operation_specification,
                     operations=applied_operations_data,
@@ -324,7 +325,7 @@ class ResourceWriteTool(SchematicTool):
         backlog_count = 0
         if backlog and self.backlog is not None:
             backlog_count = len(backlog)
-            await runtime.output(f"Discovered {backlog_count} backlog item(s).")
+            await ctx.output(f"Discovered {backlog_count} backlog item(s).")
             for item in backlog:
                 self.backlog.add_entry(BacklogEntry.from_dict(item.model_dump()))
 
@@ -448,7 +449,7 @@ class ResourceWriteTool(SchematicTool):
 
     async def _apply_relation_update(
         self,
-        runtime: ToolRuntime,
+        ctx: ExecutionContext,
         update: CascadeUpdate,
         step_description: str,
         operations: list[dict],
@@ -466,7 +467,7 @@ class ResourceWriteTool(SchematicTool):
         target_uri = uris.target_uri
         
         if not source_uri or not target_uri:
-            await runtime.warning(f"Could not parse relation update URIs: {uris.error or 'Unknown error'}")
+            await ctx.warning(f"Could not parse relation update URIs: {uris.error or 'Unknown error'}")
             return None
         
         # Fetch resources
@@ -474,16 +475,16 @@ class ResourceWriteTool(SchematicTool):
         target_resource = await self.repo.find_by_uri(target_uri)
         
         if not source_resource:
-            await runtime.warning(f"Source resource not found: {source_uri}")
+            await ctx.warning(f"Source resource not found: {source_uri}")
             return None
         if not target_resource:
-            await runtime.warning(f"Target resource not found: {target_uri}")
+            await ctx.warning(f"Target resource not found: {target_uri}")
             return None
         if isinstance(source_resource, list):
-            await runtime.warning(f"Source URI '{source_uri}' points to multiple resources")
+            await ctx.warning(f"Source URI '{source_uri}' points to multiple resources")
             return None
         if isinstance(target_resource, list):
-            await runtime.warning(f"Target URI '{target_uri}' points to multiple resources")
+            await ctx.warning(f"Target URI '{target_uri}' points to multiple resources")
             return None
         
         # Get existing relations
@@ -531,7 +532,7 @@ class ResourceWriteTool(SchematicTool):
                         "relations": old_relationships
                     }
                 ), clear_redo=True)
-            await runtime.output(f"Updated relations: {source_uri} → {target_uri}")
+            await ctx.output(f"Updated relations: {source_uri} → {target_uri}")
             rel_result["old_source_to_target"] = old_relationships
             rel_result["new_source_to_target"] = source_to_target_relations
         
@@ -548,7 +549,7 @@ class ResourceWriteTool(SchematicTool):
                         "relations": old_relationships
                     }
                 ), clear_redo=True)
-            await runtime.output(f"Updated relations: {target_uri} → {source_uri}")
+            await ctx.output(f"Updated relations: {target_uri} → {source_uri}")
             rel_result["old_target_to_source"] = old_relationships
             rel_result["new_target_to_source"] = target_to_source_relations
 

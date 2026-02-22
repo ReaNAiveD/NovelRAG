@@ -3,7 +3,8 @@
 import json
 from typing import Any
 
-from novelrag.agenturn.tool import SchematicTool, ToolRuntime
+from novelrag.agenturn.tool import SchematicTool
+from novelrag.agenturn.procedure import ExecutionContext
 from novelrag.agenturn.tool.types import ToolOutput
 from novelrag.resource.aspect import ResourceAspect
 from novelrag.resource.element import DirectiveElement
@@ -56,7 +57,7 @@ class ResourceFetchTool(SchematicTool):
             "required": ["uri"],
         }
 
-    async def call(self, runtime: ToolRuntime, **kwargs) -> ToolOutput:
+    async def call(self, ctx: ExecutionContext, **kwargs) -> ToolOutput:
         """Fetch a resource or aspect by URI and return its content.
 
         For Root URI ('/'): Returns all aspects in the repository.
@@ -70,12 +71,12 @@ class ResourceFetchTool(SchematicTool):
         """
         uri = kwargs.get('uri')
         if not uri:
-            await runtime.error(f"No URI provided. Please provide a resource or aspect URI to fetch.")
+            await ctx.error(f"No URI provided. Please provide a resource or aspect URI to fetch.")
             return self.error(f"No URI provided. Please provide a resource or aspect URI to fetch.")
 
         resource = await self.repo.find_by_uri(uri)
         if not resource:
-            await runtime.error(f"Resource or aspect with URI {uri} not found in the repository.")
+            await ctx.error(f"Resource or aspect with URI {uri} not found in the repository.")
             return self.error(f"Resource or aspect with URI {uri} not found in the repository.")
 
         if isinstance(resource, ResourceAspect | DirectiveElement):

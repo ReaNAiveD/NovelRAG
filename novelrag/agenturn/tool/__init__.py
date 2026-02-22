@@ -3,7 +3,7 @@
 This package provides the core tool abstractions:
 - BaseTool: Abstract base class for all tools
 - SchematicTool: Tool with structured input schema support
-- ToolRuntime: Runtime interaction interface for tools
+- ToolRuntime: Deprecated alias for ExecutionContext (kept for backward compatibility)
 
 Resource-specific tools have been moved to `novelrag.resource_agent.tool`.
 """

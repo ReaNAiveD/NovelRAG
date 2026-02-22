@@ -7,8 +7,8 @@ with structured input schema capabilities.
 from abc import abstractmethod
 from typing import Any
 
+from novelrag.agenturn.procedure import ExecutionContext
 from .base import BaseTool
-from .runtime import ToolRuntime
 from .types import ToolOutput
 
 
@@ -22,6 +22,6 @@ class SchematicTool(BaseTool):
         pass
 
     @abstractmethod
-    async def call(self, runtime: ToolRuntime, **kwargs) -> ToolOutput:
+    async def call(self, ctx: ExecutionContext, **kwargs) -> ToolOutput:
         """Execute the tool with provided parameters and yield outputs asynchronously"""
         raise NotImplementedError("SchematicTool subclasses must implement the call method")

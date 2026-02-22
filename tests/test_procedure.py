@@ -57,6 +57,31 @@ class TestExecutionContext:
         with pytest.raises(TypeError):
             ExecutionContext()
 
+    def test_has_all_three_facets(self):
+        """ExecutionContext defines messaging, output, and bidirectional methods."""
+        import inspect
+        members = {name for name, _ in inspect.getmembers(ExecutionContext, predicate=inspect.isfunction)}
+        # Messaging
+        assert "debug" in members
+        assert "info" in members
+        assert "warning" in members
+        assert "error" in members
+        # Output
+        assert "output" in members
+        # Bidirectional
+        assert "confirm" in members
+        assert "request" in members
+
+    def test_tool_runtime_is_alias(self):
+        """ToolRuntime should be a backward-compatible alias for ExecutionContext."""
+        from novelrag.agenturn.tool.runtime import ToolRuntime
+        assert ToolRuntime is ExecutionContext
+
+    def test_agent_channel_extends_execution_context(self):
+        """AgentChannel should be a subclass of ExecutionContext."""
+        from novelrag.agenturn.channel import AgentChannel
+        assert issubclass(AgentChannel, ExecutionContext)
+
 
 # ---------------------------------------------------------------------------
 # LoggingExecutionContext
@@ -93,6 +118,25 @@ class TestLoggingExecutionContext:
         mock_logger.error.assert_called_once_with("error message")
 
     @pytest.mark.asyncio
+    async def test_output_delegates_to_logger_info(self):
+        mock_logger = MagicMock(spec=logging.Logger)
+        ctx = LoggingExecutionContext(mock_logger)
+        await ctx.output("user output")
+        mock_logger.info.assert_called_once_with("user output")
+
+    @pytest.mark.asyncio
+    async def test_confirm_auto_confirms(self):
+        ctx = LoggingExecutionContext()
+        result = await ctx.confirm("Proceed?")
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_request_returns_empty_string(self):
+        ctx = LoggingExecutionContext()
+        result = await ctx.request("Enter value:")
+        assert result == ""
+
+    @pytest.mark.asyncio
     async def test_default_logger(self):
         """When no logger is provided, a default should be used without error."""
         ctx = LoggingExecutionContext()
@@ -101,6 +145,9 @@ class TestLoggingExecutionContext:
         await ctx.info("test")
         await ctx.warning("test")
         await ctx.error("test")
+        await ctx.output("test")
+        await ctx.confirm("test?")
+        await ctx.request("test?")
 
 
 # ---------------------------------------------------------------------------

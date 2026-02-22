@@ -6,23 +6,32 @@ from typing import Any
 
 from novelrag.agenturn.channel import AgentChannel
 from novelrag.agenturn.goal import Goal, GoalDecider, GoalTranslator
+from novelrag.agenturn.procedure import ExecutionContext
 from novelrag.agenturn.pursuit import ActionDeterminer, PursuitAssessment, LLMPursuitAssessor, PursuitOutcome, PursuitProgress, PursuitStatus
 from novelrag.agenturn.step import OperationPlan, OperationOutcome, Resolution, StepStatus
-from novelrag.agenturn.tool import SchematicTool, ToolRuntime
+from novelrag.agenturn.tool import SchematicTool
 from novelrag.agenturn.types import InteractionContext
 from novelrag.tracer import trace_intent, trace_pursuit, trace_tool
 
 logger = logging.getLogger(__name__)
 
 
-class AgentToolRuntime(ToolRuntime):
-    """Agent's implementation of ToolRuntime that routes calls to AgentChannel."""
-    
+class AgentToolRuntime(ExecutionContext):
+    """Execution context that delegates to an :class:`AgentChannel`.
+
+    In addition to the standard :class:`ExecutionContext` facets (messaging,
+    output, bidirectional), this subclass tracks *backlog* and *progress* as
+    harvestable state that the outer agent loop can collect after a tool
+    finishes.
+    """
+
     def __init__(self, channel: AgentChannel):
         self.channel = channel
         self._backlog: list[str] = []
         self._progress: dict[str, list[str]] = {}
         self._triggered_actions: list[dict[str, str]] = []
+
+    # -- Messaging ----------------------------------------------------------
 
     async def debug(self, content: str):
         await self.channel.debug(content)
@@ -36,14 +45,20 @@ class AgentToolRuntime(ToolRuntime):
     async def error(self, content: str):
         await self.channel.error(content)
 
-    async def confirmation(self, prompt: str) -> bool:
-        return await self.channel.confirm(prompt)
+    # -- Output -------------------------------------------------------------
 
-    async def user_input(self, prompt: str) -> str:
-        return await self.channel.request(prompt)
-    
     async def output(self, content: str):
         await self.channel.output(content)
+
+    # -- Bidirectional ------------------------------------------------------
+
+    async def confirm(self, prompt: str) -> bool:
+        return await self.channel.confirm(prompt)
+
+    async def request(self, prompt: str) -> str:
+        return await self.channel.request(prompt)
+
+    # -- Harvestable state --------------------------------------------------
 
     async def progress(self, key: str, value: str, description: str | None = None):
         if key not in self._progress:
@@ -164,11 +179,11 @@ class GoalExecutor:
             )
 
         tool = self.tools[tool_name]
-        runtime = AgentToolRuntime(self.channel)
+        ctx = AgentToolRuntime(self.channel)
 
         try:
             await self.channel.debug(f"Calling tool {tool_name} with params: {params}")
-            result = await tool.call(runtime, **params)
+            result = await tool.call(ctx, **params)
             
             from novelrag.agenturn.tool.types import ToolResult, ToolError
             
