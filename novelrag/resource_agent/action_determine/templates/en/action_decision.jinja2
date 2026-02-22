@@ -51,6 +51,9 @@ No assessment available yet.
   - Result:
     > {{ step.result | replace("\n", "\n    > ") }}
   {%- endif %}
+  {%- if step.error_message %}
+  - Error: {{ step.error_message }}
+  {%- endif %}
 {%- endfor %}
 {%- else %}
 No actions taken yet.

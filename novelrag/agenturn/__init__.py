@@ -52,7 +52,7 @@ from .tool.types import (
     validate_tool_output,
     validate_tool_output_json,
 )
-from .types import AgentMessageLevel
+from .types import AgentMessageLevel, InteractionContext
 
 __all__ = [
     # Main agent
@@ -90,6 +90,7 @@ __all__ = [
     "ToolResult",
     "ToolError",
     "AgentMessageLevel",
+    "InteractionContext",
 
     # Validation functions
     "validate_tool_output",

@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from novelrag.agenturn.goal import Goal
 from novelrag.agenturn.tool.schematic import SchematicTool
+from novelrag.agenturn.types import InteractionContext
 from novelrag.template import TemplateEnvironment
 from novelrag.tracer import trace_llm
 from langchain_core.messages import SystemMessage, HumanMessage
@@ -43,7 +44,6 @@ class PursuitOutcome:
 class PursuitProgress:
     """Tracks the progress of a goal pursuit."""
     goal: Goal
-    pending_steps: list[str] = field(default_factory=list)
     executed_steps: list[OperationOutcome] = field(default_factory=list)
 
     def __str__(self) -> str:
@@ -56,14 +56,8 @@ class PursuitProgress:
             for i, outcome in enumerate(self.executed_steps, 1):
                 tool_name = outcome.operation.tool or "N/A"
                 status_symbol = "✓" if outcome.status.name == "SUCCESS" else "✗"
-                lines.append(f"  {i}. {status_symbol} [{tool_name}] {outcome.operation.reason}")
-
-        # Show all pending steps
-        if self.pending_steps:
-            lines.append("Pending Steps:")
-            start_num = len(self.executed_steps) + 1
-            for i, step in enumerate(self.pending_steps, start_num):
-                lines.append(f"  {i}. ○ {step}")
+                result = outcome.result or outcome.error_message or "No result"
+                lines.append(f"  {i}. {status_symbol} [{tool_name}] {result}")
 
         return "\n".join(lines)
 
@@ -73,7 +67,8 @@ class ActionDeterminer(Protocol):
             self,
             beliefs: list[str],
             pursuit_progress: PursuitProgress,
-            available_tools: dict[str, SchematicTool]
+            available_tools: dict[str, SchematicTool],
+            interaction_history: InteractionContext | None = None,
     ) -> OperationPlan | Resolution:
         ...
 
@@ -94,7 +89,8 @@ class PursuitAssessor(Protocol):
             self,
             pursuit: PursuitProgress,
             beliefs: list[str] | None = None,
-            previous_assessment: PursuitAssessment | None = None
+            previous_assessment: PursuitAssessment | None = None,
+            interaction_history: InteractionContext | None = None,
     ) -> PursuitAssessment:
         ...
 
@@ -114,7 +110,8 @@ class LLMPursuitAssessor:
             self,
             pursuit: PursuitProgress,
             beliefs: list[str] | None = None,
-            previous_assessment: PursuitAssessment | None = None
+            previous_assessment: PursuitAssessment | None = None,
+            interaction_history: InteractionContext | None = None,
     ) -> PursuitAssessment:
         """Assess the current progress of a pursuit toward its goal.
         
@@ -123,14 +120,17 @@ class LLMPursuitAssessor:
             beliefs: Optional list of agent beliefs (restrictions and guidelines)
                 that should guide the assessment.
             previous_assessment: The assessment from the previous iteration, if any
+            interaction_history: Optional recent interaction history for richer context
             
         Returns:
             A PursuitAssessment summarizing progress and remaining work
         """
+        history_text = interaction_history.format_recent(3) if interaction_history else ""
         prompt = self.template.render(
             pursuit=pursuit,
             beliefs=beliefs or [],
-            previous_assessment=previous_assessment
+            previous_assessment=previous_assessment,
+            interaction_history=history_text,
         )
 
         response = await self.chat_llm.ainvoke([

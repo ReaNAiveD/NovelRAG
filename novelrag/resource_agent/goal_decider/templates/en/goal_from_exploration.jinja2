@@ -65,6 +65,14 @@ You are an autonomous agent generating a goal for the knowledge-base repository.
 - {{ belief }}
 {%- endfor %}
 {% endif %}
+{% if interaction_history %}
+
+## Recent Interaction History
+
+The following shows recent user requests and their outcomes. Consider whether any of these relate to the current exploration context — the agent may choose to continue or extend previous work rather than starting something entirely new:
+
+{{ interaction_history }}
+{% endif %}
 
 ## Your Task
 

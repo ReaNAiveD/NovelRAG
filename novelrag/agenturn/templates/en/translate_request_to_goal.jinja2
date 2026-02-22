@@ -17,6 +17,17 @@ The following beliefs represent the agent's core guidelines and restrictions. Th
 
 ## User Request
 {{ request }}
+{% if interaction_history %}
+
+## Recent Interaction History
+
+The following shows recent user requests and their outcomes. Use this context to:
+- Resolve ambiguous references in the current request (e.g., "that character", "the same aspect", "continue")
+- Fill in missing context that the user may have omitted because it was established earlier
+- Understand the user's ongoing intent and working context
+
+{{ interaction_history }}
+{% endif %}
 
 ## Your Task
 

@@ -1,7 +1,9 @@
 from novelrag.agenturn.pursuit import LLMPursuitAssessor
+from novelrag.agenturn.types import InteractionContext
 from novelrag.resource_agent.backlog.types import Backlog, BacklogEntry
 from novelrag.resource_agent.undo import UndoQueue
 from novelrag.utils.language import content_directive
+
 from .goal_decider import CompositeGoalDecider
 from .action_determine import (
     ActionDetermineLoop,

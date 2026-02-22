@@ -8,6 +8,7 @@ from novelrag.cli.handler.builtin.next import NextHandler
 from novelrag.cli.handler.builtin.quit import QuitHandler
 from novelrag.cli.handler.builtin.redo import RedoHandler
 from novelrag.cli.handler.builtin.undo import UndoHandler
+from novelrag.cli.handler.interaction import InteractionHistory, InteractionRecord
 from novelrag.config.novel_rag import NovelRagConfig
 from novelrag.resource.repository import LanceDBResourceRepository
 from novelrag.resource_agent import create_executor
@@ -16,7 +17,6 @@ from novelrag.resource_agent.goal_decider import CompositeGoalDecider
 from novelrag.resource_agent.undo import LocalUndoQueue, MemoryUndoQueue, UndoQueue
 from novelrag.utils.language import content_directive
 from novelrag.cli.handler.builtin.agent import AgentHandler
-from novelrag.cli.conversation import ConversationHistory
 from novelrag.exceptions import HandlerNotFoundError, SessionQuitError
 from novelrag.llm.factory import ChatLLMFactory, EmbeddingLLMFactory
 from novelrag.cli.handler.registry import HandlerRegistry
@@ -66,7 +66,7 @@ class Session:
             *,
             handlers: HandlerRegistry,
             undo_queue: UndoQueue,
-            conversation: ConversationHistory | None = None,
+            history: InteractionHistory | None = None,
             chat_llm_factory: ChatLLMFactory | None = None,
             embedding_factory: EmbeddingLLMFactory | None = None,
     ):
@@ -75,7 +75,7 @@ class Session:
         self.embedding_factory: EmbeddingLLMFactory = embedding_factory or EmbeddingLLMFactory()
 
         self.handler_registry: HandlerRegistry = handlers
-        self.conversation: ConversationHistory = conversation or ConversationHistory.empty(chat_llm=self.chat_llm_factory.get())
+        self.history: InteractionHistory = history if history is not None else InteractionHistory()
         self.undo = undo_queue
 
     @classmethod
@@ -95,8 +95,10 @@ class Session:
         )
         channel = SessionChannel(logger)
         undo_queue = LocalUndoQueue.load(config.undo_path) if config.undo_path else MemoryUndoQueue()
-        conversation_history = ConversationHistory.empty(chat_llm=chat_llm)
         backlog = LocalBacklog.load(config.backlog_path) if config.backlog_path else None
+
+        # Shared interaction history for all handlers and the executor
+        interaction_history = InteractionHistory()
 
         agent = create_executor(
             resource_repo=repository,
@@ -109,7 +111,7 @@ class Session:
         )
         goal_translator = LLMGoalTranslator(chat_llm, lang=config.language or "en", language=config.language)
         agent_request_handler = agent.create_request_handler(goal_translator)
-        agent_handler = AgentHandler(agent_request_handler)
+        agent_handler = AgentHandler(agent_request_handler, history=interaction_history)
 
         # Create autonomous agent with CompositeGoalDecider
         lang_directive = content_directive(language=config.language, beliefs=config.agent_beliefs)
@@ -122,7 +124,7 @@ class Session:
             lang_directive=lang_directive,
         )
         autonomous_agent = agent.create_autonomous_agent(goal_decider)
-        next_handler = NextHandler(autonomous_agent)
+        next_handler = NextHandler(autonomous_agent, history=interaction_history)
 
         undo_handler = UndoHandler(resource_repo=repository, undo_queue=undo_queue)
         redo_handler = RedoHandler(resource_repo=repository, undo_queue=undo_queue)
@@ -139,7 +141,7 @@ class Session:
         return cls(
             handlers=handlers,
             undo_queue=undo_queue,
-            conversation=conversation_history,
+            history=interaction_history,
             chat_llm_factory=chat_llm_factory,
             embedding_factory=embedding_factory,
         )
@@ -154,16 +156,15 @@ class Session:
 
         result = await handler.handle(command)
 
-        self.conversation.add_user(
-            command.text,
-            intent=command.handler,
-        )
+        # Record the interaction with structured details
+        self.history.add(InteractionRecord(
+            request=command.text,
+            handler=command.handler,
+            details=result.details,
+            message=result.message,
+        ))
 
         if result.message:
-            self.conversation.add_assistant(
-                '\n'.join(result.message),
-                intent=command.handler,
-            )
             messages.extend(result.message)
         if result.quit:
             raise SessionQuitError()

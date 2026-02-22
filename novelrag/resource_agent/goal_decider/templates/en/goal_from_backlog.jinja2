@@ -30,6 +30,14 @@ You are an autonomous agent that processes a backlog of pending work items and f
 - {{ belief }}
 {%- endfor %}
 {% endif %}
+{% if interaction_history %}
+
+## Recent Interaction History
+
+The following shows recent user requests and their outcomes. Consider whether any of these interactions relate to the backlog entries — the agent may choose to continue or extend work that was previously started:
+
+{{ interaction_history }}
+{% endif %}
 
 ## Your Task
 

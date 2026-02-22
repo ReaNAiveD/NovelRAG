@@ -17,6 +17,7 @@ from typing import Annotated, Any, Literal
 from pydantic import BaseModel, Field
 
 from novelrag.agenturn.goal import Goal, AutonomousSource
+from novelrag.agenturn.types import InteractionContext
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import SystemMessage, HumanMessage
 from novelrag.resource.aspect import ResourceAspect
@@ -129,7 +130,11 @@ class ExplorationGoalDecider:
         self._gap_analysis_tmpl = template_env.load_template(self.GAP_ANALYSIS_TEMPLATE)
         self._goal_tmpl = template_env.load_template(self.GOAL_TEMPLATE)
 
-    async def next_goal(self, beliefs: list[str]) -> Goal | None:
+    async def next_goal(
+            self,
+            beliefs: list[str],
+            interaction_history: InteractionContext | None = None,
+    ) -> Goal | None:
         aspects = await self.repo.all_aspects()
 
         if not aspects:
@@ -142,9 +147,9 @@ class ExplorationGoalDecider:
                 all_elements.append((aspect, element))
 
         if not all_elements:
-            return await self._populate(aspects, beliefs)
+            return await self._populate(aspects, beliefs, interaction_history=interaction_history)
 
-        return await self._explore(aspects, all_elements, beliefs)
+        return await self._explore(aspects, all_elements, beliefs, interaction_history=interaction_history)
 
     @trace_llm("exploration_bootstrap")
     async def _bootstrap(self, beliefs: list[str]) -> Goal | None:
@@ -174,6 +179,7 @@ class ExplorationGoalDecider:
         self,
         aspects: list[ResourceAspect],
         beliefs: list[str],
+        interaction_history: InteractionContext | None = None,
     ) -> Goal | None:
         logger.info("ExplorationGoalDecider: aspects exist but no elements – populating.")
 
@@ -184,6 +190,7 @@ class ExplorationGoalDecider:
         else:
             aspect = random.choice(aspects)
 
+        history_text = interaction_history.format_recent(5) if interaction_history else ""
         prompt = self._goal_tmpl.render(
             element=None,
             gap_analysis=None,
@@ -194,6 +201,7 @@ class ExplorationGoalDecider:
                 for a in aspects
             ],
             beliefs=beliefs,
+            interaction_history=history_text,
         )
         response = await self._goal_llm.ainvoke([
             SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
@@ -218,6 +226,7 @@ class ExplorationGoalDecider:
         aspects: list[ResourceAspect],
         all_elements: list[tuple[ResourceAspect, DirectiveElement]],
         beliefs: list[str],
+        interaction_history: InteractionContext | None = None,
     ) -> Goal | None:
         # 1. Select element via random walk (recency-biased)
         if self.recency is not None:
@@ -254,6 +263,7 @@ class ExplorationGoalDecider:
             "relationships": element.inner.relationships,
         }
 
+        history_text = interaction_history.format_recent(5) if interaction_history else ""
         prompt = self._goal_tmpl.render(
             element=element_content,
             gap_analysis=gap_analysis.model_dump(),
@@ -268,6 +278,7 @@ class ExplorationGoalDecider:
                 for s in ctx.aspect_summaries
             ],
             beliefs=beliefs,
+            interaction_history=history_text,
         )
         tracer = get_active_tracer()
         if tracer is not None:

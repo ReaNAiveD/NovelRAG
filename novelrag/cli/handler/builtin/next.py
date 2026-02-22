@@ -2,6 +2,7 @@ import logging
 
 from novelrag.agenturn.agent import AutonomousAgent
 from novelrag.cli.command import Command
+from novelrag.cli.handler.interaction import InteractionHistory
 from novelrag.cli.handler.handler import Handler
 from novelrag.cli.handler.result import HandlerResult
 
@@ -11,11 +12,14 @@ logger = logging.getLogger(__name__)
 class NextHandler(Handler):
     """Handler that triggers the autonomous agent to decide and pursue the next goal."""
 
-    def __init__(self, autonomous_agent: AutonomousAgent):
+    def __init__(self, autonomous_agent: AutonomousAgent, history: InteractionHistory | None = None):
         self.autonomous_agent = autonomous_agent
+        self.history = history
 
     async def handle(self, command: Command) -> HandlerResult:
-        outcome = await self.autonomous_agent.pursue_next_goal()
+        outcome = await self.autonomous_agent.pursue_next_goal(
+            interaction_history=self.history,
+        )
 
         if outcome is None:
             return HandlerResult(
@@ -29,4 +33,4 @@ class NextHandler(Handler):
         if outcome.response:
             messages.append(f"Result: {outcome.response}")
 
-        return HandlerResult(message=messages)
+        return HandlerResult(message=messages, details=outcome)

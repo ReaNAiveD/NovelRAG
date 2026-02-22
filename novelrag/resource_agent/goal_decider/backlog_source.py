@@ -4,6 +4,7 @@ from typing import Annotated
 from pydantic import BaseModel, Field
 
 from novelrag.agenturn.goal import Goal, AutonomousSource, GoalDecider
+from novelrag.agenturn.types import InteractionContext
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import SystemMessage, HumanMessage
 from novelrag.resource_agent.backlog.types import Backlog, BacklogEntry
@@ -42,7 +43,11 @@ class BacklogGoalDecider:
         self._template = template_env.load_template(self.TEMPLATE_NAME)
 
     @trace_llm("backlog_goal")
-    async def next_goal(self, beliefs: list[str]) -> Goal | None:
+    async def next_goal(
+            self,
+            beliefs: list[str],
+            interaction_history: InteractionContext | None = None,
+    ) -> Goal | None:
         if len(self.backlog) == 0:
             logger.debug("BacklogGoalDecider: backlog is empty, skipping.")
             return None
@@ -58,9 +63,11 @@ class BacklogGoalDecider:
             for entry in top_entries
         ]
 
+        history_text = interaction_history.format_recent(5) if interaction_history else ""
         prompt = self._template.render(
             backlog_entries=entry_summaries,
             beliefs=beliefs,
+            interaction_history=history_text,
         )
         response = await self._goal_llm.ainvoke([
             SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
