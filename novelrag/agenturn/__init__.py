@@ -5,7 +5,6 @@ and coordination. Resource-specific agent logic is in the `resource_agent` packa
 
 Core components:
 - GoalExecutor: Executes a single goal using tools and action determination
-- AgentToolRuntime: ExecutionContext backed by an AgentChannel
 - ActionDeterminer: Protocol for action determination strategies
 - PursuitAssessor: Assesses progress toward goals
 
@@ -22,7 +21,7 @@ Procedure support:
 """
 
 # Main agent class
-from .agent import GoalExecutor, AgentToolRuntime
+from .agent import GoalExecutor
 
 # Communication channels
 from .channel import AgentChannel
@@ -47,7 +46,7 @@ from .step import OperationPlan, OperationOutcome, Resolution, StepStatus
 from .tool import BaseTool, SchematicTool
 
 # Essential types for public API
-from .tool.types import (
+from .tool import (
     ToolOutputType,
     ToolOutput,
     ToolResult,
@@ -63,7 +62,6 @@ from .procedure import ExecutionContext, LoggingExecutionContext, ProcedureError
 __all__ = [
     # Main agent
     "GoalExecutor",
-    "AgentToolRuntime",
     
     # Communication channels
     "AgentChannel",

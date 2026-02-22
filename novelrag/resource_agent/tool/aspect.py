@@ -8,7 +8,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 
 from novelrag.agenturn.tool import SchematicTool
 from novelrag.agenturn.procedure import ExecutionContext
-from novelrag.agenturn.tool.types import ToolOutput
+from novelrag.agenturn.tool import ToolOutput
 from novelrag.resource.repository import ResourceRepository
 from novelrag.resource_agent.undo import ReversibleAction, UndoQueue
 from novelrag.template import TemplateEnvironment

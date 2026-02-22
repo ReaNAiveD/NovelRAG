@@ -5,7 +5,7 @@ from typing import Any
 
 from novelrag.agenturn.tool import SchematicTool
 from novelrag.agenturn.procedure import ExecutionContext
-from novelrag.agenturn.tool.types import ToolOutput
+from novelrag.agenturn.tool import ToolOutput
 from novelrag.resource.aspect import ResourceAspect
 from novelrag.resource.element import DirectiveElement
 from novelrag.resource.repository import ResourceRepository

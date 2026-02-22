@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 from novelrag.agenturn.tool import SchematicTool
 from novelrag.agenturn.procedure import ExecutionContext
-from novelrag.agenturn.tool.types import ToolOutput
+from novelrag.agenturn.tool import ToolOutput
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import SystemMessage, HumanMessage
 from novelrag.resource.aspect import ResourceAspect

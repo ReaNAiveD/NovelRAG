@@ -3,7 +3,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 
 from novelrag.agenturn.goal import Goal
 from novelrag.agenturn.pursuit import PursuitAssessment
-from novelrag.agenturn.tool.schematic import SchematicTool
+from novelrag.agenturn.tool import SchematicTool
 from novelrag.resource_agent.action_determine.action_determine_loop import ContextAnalyser, RefinementPlan
 from novelrag.resource_agent.workspace import SegmentData
 from novelrag.template import TemplateEnvironment

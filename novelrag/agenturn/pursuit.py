@@ -9,7 +9,7 @@ from typing import Annotated, Protocol
 from pydantic import BaseModel, Field
 
 from novelrag.agenturn.goal import Goal
-from novelrag.agenturn.tool.schematic import SchematicTool
+from novelrag.agenturn.tool import SchematicTool
 from novelrag.agenturn.types import InteractionContext
 from novelrag.template import TemplateEnvironment
 from novelrag.tracer import trace_llm
@@ -68,6 +68,7 @@ class ActionDeterminer(Protocol):
             beliefs: list[str],
             pursuit_progress: PursuitProgress,
             available_tools: dict[str, SchematicTool],
+            ctx: 'ExecutionContext',
             interaction_history: InteractionContext | None = None,
     ) -> OperationPlan | Resolution:
         ...

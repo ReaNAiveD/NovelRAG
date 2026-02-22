@@ -546,14 +546,16 @@ class ActionDetermineLoop:
             beliefs: list[str],
             pursuit_progress: PursuitProgress,
             available_tools: dict[str, SchematicTool],
+            ctx: ExecutionContext | None = None,
             interaction_history: InteractionContext | None = None,
     ) -> OperationPlan | Resolution:
         """ActionDeterminer protocol bridge.
 
-        Creates a default ``LoggingExecutionContext`` and delegates to
-        :meth:`execute`.
+        Delegates to :meth:`execute` using the provided ``ctx`` or a
+        default ``LoggingExecutionContext``.
         """
-        ctx = LoggingExecutionContext(logger)
+        if ctx is None:
+            ctx = LoggingExecutionContext(logger)
         return await self.execute(
             beliefs, pursuit_progress, available_tools, ctx,
             interaction_history=interaction_history,
