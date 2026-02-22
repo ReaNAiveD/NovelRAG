@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import SystemMessage, HumanMessage
+from novelrag.agenturn.types import InteractionContext
 from novelrag.template import TemplateEnvironment
 from novelrag.tracer import trace_llm
 from novelrag.utils.language import interaction_directive
@@ -56,12 +57,21 @@ class Goal:
 
 class GoalTranslator(Protocol):
     """Protocol for translating user requests into goals."""
-    async def translate(self, request: str, beliefs: list[str]) -> Goal: ...
+    async def translate(
+            self,
+            request: str,
+            beliefs: list[str],
+            interaction_history: InteractionContext | None = None,
+    ) -> Goal: ...
 
 
 class GoalDecider(Protocol):
     """Protocol for autonomous goal generation."""
-    async def next_goal(self, beliefs: list[str]) -> Goal | None: ...
+    async def next_goal(
+            self,
+            beliefs: list[str],
+            interaction_history: InteractionContext | None = None,
+    ) -> Goal | None: ...
 
 
 class GoalTranslation(BaseModel):
@@ -81,19 +91,27 @@ class LLMGoalTranslator(GoalTranslator):
         self._lang_directive = interaction_directive(language=language, is_autonomous=False)
 
     @trace_llm("goal_translation")
-    async def translate(self, request: str, beliefs: list[str]) -> Goal:
+    async def translate(
+            self,
+            request: str,
+            beliefs: list[str],
+            interaction_history: InteractionContext | None = None,
+    ) -> Goal:
         """Translate a user request into a structured Goal using LLM.
 
         Args:
             request: The user's request as a string.
             beliefs: Current agent beliefs to inform the translation.
+            interaction_history: Optional recent interaction history for context.
 
         Returns:
             A Goal object representing the translated goal.
         """
+        history_text = interaction_history.format_recent(5) if interaction_history else ""
         prompt = self.template.render(
             request=request,
-            beliefs=beliefs
+            beliefs=beliefs,
+            interaction_history=history_text,
         )
         response = await self._goal_llm.ainvoke([
             SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),

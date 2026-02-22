@@ -13,6 +13,7 @@ from novelrag.agenturn.goal import Goal
 from novelrag.agenturn.pursuit import ActionDeterminer, PursuitAssessment, PursuitAssessor, PursuitProgress
 from novelrag.agenturn.step import OperationPlan, OperationOutcome, Resolution
 from novelrag.agenturn.tool import SchematicTool
+from novelrag.agenturn.types import InteractionContext
 from novelrag.resource_agent.workspace import ResourceContext, ContextSnapshot, SegmentData, SearchHistoryItem
 
 logger = logging.getLogger(__name__)
@@ -269,7 +270,8 @@ class ActionDetermineLoop(ActionDeterminer):
             self,
             beliefs: list[str],
             pursuit_progress: PursuitProgress,
-            available_tools: dict[str, SchematicTool]
+            available_tools: dict[str, SchematicTool],
+            interaction_history: InteractionContext | None = None,
     ) -> OperationPlan | Resolution:
         """
         Advance execution through phased context refinement and planning.
@@ -284,6 +286,7 @@ class ActionDetermineLoop(ActionDeterminer):
         pursuit_assessment = await self.assessor.assess_progress(
             pursuit=pursuit_progress,
             beliefs=beliefs,
+            interaction_history=interaction_history,
         )
         return await self._action_loop(
             goal, pursuit_assessment,

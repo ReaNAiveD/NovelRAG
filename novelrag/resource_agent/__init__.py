@@ -1,7 +1,9 @@
 from novelrag.agenturn.pursuit import LLMPursuitAssessor
+from novelrag.agenturn.types import InteractionContext
 from novelrag.resource_agent.backlog.types import Backlog, BacklogEntry
 from novelrag.resource_agent.undo import UndoQueue
 from novelrag.utils.language import content_directive
+
 from .goal_decider import CompositeGoalDecider
 from .action_determine import (
     ActionDetermineLoop,
@@ -82,6 +84,7 @@ def create_executor(
     lang: str | None = None,
     backlog: Backlog[BacklogEntry] | None = None,
     undo_queue: UndoQueue | None = None,
+    interaction_history: InteractionContext | None = None,
 ):
     """Factory function to create a GoalExecutor configured for resource operations.
     
@@ -92,6 +95,7 @@ def create_executor(
         beliefs: Optional list of agent beliefs/constraints
         lang: Content language code (e.g. "zh", "en"). When None, language
               is inferred from beliefs by the LLM.
+        interaction_history: Optional shared interaction history for context
     
     Returns:
         GoalExecutor configured with resource tools and OrchestrationLoop

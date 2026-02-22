@@ -1,6 +1,7 @@
-from novelrag.cli.handler.result import HandlerResult
-from novelrag.cli.handler.handler import Handler
 from novelrag.cli.command import Command
+from novelrag.cli.handler.interaction import UndoRedoDetails
+from novelrag.cli.handler.handler import Handler
+from novelrag.cli.handler.result import HandlerResult
 from novelrag.resource.operation import validate_op
 from novelrag.resource.repository import ResourceRepository
 from novelrag.resource_agent.undo import ReversibleAction, UndoQueue
@@ -51,11 +52,19 @@ class RedoHandler(Handler):
                     return HandlerResult(
                         message=[f"Unknown redo method '{task.method}', skipping."],
                     )
+        details = UndoRedoDetails(
+            action="redo",
+            methods=[t.method for t in redo_tasks],
+            count=len(redo_tasks),
+            descriptions=[t.description for t in redo_tasks],
+        )
         if len(redo_tasks) == 1:
             return HandlerResult(
                 message=[f"Redid action: {redo_tasks[0].method}"],
+                details=details,
             )
         else:
             return HandlerResult(
                 message=[f"Redid {len(redo_tasks)} actions."],
+                details=details,
             )

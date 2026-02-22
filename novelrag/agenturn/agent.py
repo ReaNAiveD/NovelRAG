@@ -9,6 +9,7 @@ from novelrag.agenturn.goal import Goal, GoalDecider, GoalTranslator
 from novelrag.agenturn.pursuit import ActionDeterminer, PursuitAssessment, LLMPursuitAssessor, PursuitOutcome, PursuitProgress, PursuitStatus
 from novelrag.agenturn.step import OperationPlan, OperationOutcome, Resolution, StepStatus
 from novelrag.agenturn.tool import SchematicTool, ToolRuntime
+from novelrag.agenturn.types import InteractionContext
 from novelrag.tracer import trace_intent, trace_pursuit, trace_tool
 
 logger = logging.getLogger(__name__)
@@ -81,7 +82,11 @@ class GoalExecutor:
         self.channel = channel
 
     @trace_pursuit("handle_goal")
-    async def handle_goal(self, goal: Goal) -> PursuitOutcome:
+    async def handle_goal(
+            self,
+            goal: Goal,
+            interaction_history: InteractionContext | None = None,
+    ) -> PursuitOutcome:
         await self.channel.info(f"Starting handle goal: {goal}")
 
         pursuit_progress = PursuitProgress(goal=goal)
@@ -91,7 +96,8 @@ class GoalExecutor:
                 directive = await self.determiner.determine_action(
                     beliefs=self.beliefs,
                     pursuit_progress=pursuit_progress,
-                    available_tools=self.tools
+                    available_tools=self.tools,
+                    interaction_history=interaction_history,
                 )
                 if isinstance(directive, Resolution):
                     # Goal pursuit is complete
@@ -212,10 +218,19 @@ class RequestHandler:
         self.goal_translator = goal_translator
     
     @trace_intent("handle_request")
-    async def handle_request(self, request: str) -> PursuitOutcome:
+    async def handle_request(
+            self,
+            request: str,
+            interaction_history: InteractionContext | None = None,
+    ) -> PursuitOutcome:
         """Translate request to goal, execute, and return response."""        
-        goal = await self.goal_translator.translate(request, self.executor.beliefs)
-        outcome = await self.executor.handle_goal(goal)
+        goal = await self.goal_translator.translate(
+            request, self.executor.beliefs,
+            interaction_history=interaction_history,
+        )
+        outcome = await self.executor.handle_goal(
+            goal, interaction_history=interaction_history,
+        )
         return outcome
 
 
@@ -231,12 +246,20 @@ class AutonomousAgent:
         self.goal_decider = goal_decider
     
     @trace_intent("autonomous_pursuit")
-    async def pursue_next_goal(self) -> PursuitOutcome | None:
+    async def pursue_next_goal(
+            self,
+            interaction_history: InteractionContext | None = None,
+    ) -> PursuitOutcome | None:
         """Decide on the next goal and pursue it."""
-        goal = await self.goal_decider.next_goal(self.executor.beliefs)
+        goal = await self.goal_decider.next_goal(
+            self.executor.beliefs,
+            interaction_history=interaction_history,
+        )
         if goal is None:
             await self.executor.channel.info("No new goals to pursue.")
             return None
         await self.executor.channel.info(f"Decided to pursue new goal: {goal.description}")
-        outcome = await self.executor.handle_goal(goal)
+        outcome = await self.executor.handle_goal(
+            goal, interaction_history=interaction_history,
+        )
         return outcome

@@ -49,6 +49,14 @@ The previous assessment of this pursuit was:
   - {{ criterion }}
 {%- endfor %}
 {%- endif %}
+{% if interaction_history %}
+
+## Recent Interaction History
+
+The following shows recent user requests and their outcomes prior to the current pursuit. Use this to understand the broader context of the user's intent and any related work that was previously done:
+
+{{ interaction_history }}
+{% endif %}
 
 ## Your Task
 

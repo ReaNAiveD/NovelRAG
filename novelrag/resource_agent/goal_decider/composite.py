@@ -2,6 +2,7 @@ import logging
 import random
 
 from novelrag.agenturn.goal import Goal, GoalDecider
+from novelrag.agenturn.types import InteractionContext
 from langchain_core.language_models import BaseChatModel
 from novelrag.resource.repository import ResourceRepository
 from novelrag.resource_agent.backlog.types import Backlog, BacklogEntry
@@ -60,7 +61,11 @@ class CompositeGoalDecider:
             repo, chat_llm, lang=template_lang, recency=recency, lang_directive=lang_directive
         )
 
-    async def next_goal(self, beliefs: list[str]) -> Goal | None:
+    async def next_goal(
+            self,
+            beliefs: list[str],
+            interaction_history: InteractionContext | None = None,
+    ) -> Goal | None:
         """Select a source decider via weighted random and delegate goal generation.
 
         If the selected decider returns None, it is excluded and another is tried,
@@ -80,7 +85,7 @@ class CompositeGoalDecider:
             logger.info(f"CompositeGoalDecider: selected source '{selected_name}'")
             decider = self._deciders[selected_name]
 
-            goal = await decider.next_goal(beliefs)
+            goal = await decider.next_goal(beliefs, interaction_history=interaction_history)
             if goal is not None:
                 return goal
 
