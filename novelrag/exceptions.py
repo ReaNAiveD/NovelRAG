@@ -185,3 +185,7 @@ class PropertyNotFoundError(OperationError):
 class InvalidOperationError(OperationError):
     def __init__(self, operation: str, obj):
         super().__init__(f"Operation {operation} is invalid on Type {type(obj)}.")
+
+class DuplicateResourceError(OperationError):
+    def __init__(self, resource_uri: str):
+        super().__init__(f'Resource "{resource_uri}" already exists')

@@ -118,6 +118,13 @@ No tools currently prepared. You should call `Finalize` to provide a response fr
 - Answer is directly available in context (no tool needed)
 - Request has been fully satisfied
 
+**Response Format Requirements for FINALIZE (Success):**
+- Ground every claim in specific Knowledge Base segment data — cite properties and values
+- Do NOT invent details, embellish with narrative prose, or generate creative fiction
+- Use structured formats: bullet lists, numbered items, or concise factual paragraphs
+- Directly answer the user's original question; do not reframe it as a story or essay
+- If the knowledge base contains partial information, state what is known and what is absent
+
 ### When to FINALIZE (Failed)
 - Goal is impossible with available tools
 - System lacks necessary capabilities
@@ -138,5 +145,7 @@ No tools currently prepared. You should call `Finalize` to provide a response fr
 5. **Semantic Understanding** - Recognize related concepts (主角 = protagonist, 大纲 = outline)
 6. **Context First** - If answerable from context alone, finalize with success
 7. **Explain Gaps** - If finalizing incomplete, detail what's missing and why
+8. **Factual Grounding** - NEVER fabricate content beyond loaded segments. Response must be traceable to actual resource data.
+9. **Direct Answers** - Respond to the user's question directly. Do not rewrite it as a narrative, story, or creative essay.
 
 Focus on making confident, well-justified decisions based on thorough context analysis.

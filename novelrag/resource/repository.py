@@ -6,7 +6,7 @@ from typing import Any
 import yaml
 
 from novelrag.config.resource import AspectConfig, VectorStoreConfig
-from novelrag.exceptions import ElementNotFoundError, OperationError
+from novelrag.exceptions import DuplicateResourceError, ElementNotFoundError
 from langchain_core.embeddings import Embeddings
 from .aspect import ResourceAspect
 from .element import DirectiveElement, Element
@@ -291,12 +291,22 @@ class LanceDBResourceRepository(ResourceRepository):
                 if not ele:
                     raise ElementNotFoundError(op.location.resource_uri)
                 data = [Element.build(item, ele.uri, ele.aspect, ele.inner.children_keys) for item in (op.data or [])]
+                # Validate no duplicate URIs
+                for item in data:
+                    existing = self.lut.find_by_uri(item.uri)
+                    if existing is not None and existing not in ele.children_of(op.location.children_key)[op.start:op.end]:
+                        raise DuplicateResourceError(item.uri)
                 new, old = ele.splice_at(op.location.children_key, op.start, op.end, *data)
             else:
                 # Operating on an aspect's root list
                 aspect_name = op.location.resource_uri.strip('/')
                 aspect = self.resource_aspects[aspect_name]
                 data = [Element.build(item, f'/{aspect_name}', aspect_name, aspect.children_keys) for item in (op.data or [])]
+                # Validate no duplicate URIs
+                for item in data:
+                    existing = self.lut.find_by_uri(item.uri)
+                    if existing is not None and existing not in aspect.root_elements[op.start:op.end]:
+                        raise DuplicateResourceError(item.uri)
                 new, old = aspect.splice(op.start, op.end, *data)
             for ele in old:
                 await self._handle_deleted(ele)

@@ -63,6 +63,19 @@ For example, if the context shows an aspect has `children_keys: ["subspecies", "
 }
 ```
 
+## Critical Rules
+
+### 1. Operations Are Applied Sequentially
+Operations are applied **in order**. Each subsequent operation runs against the list **as modified by all previous operations**, not the original list. When constructing multiple operations on the same list, compute `start`/`end` indices based on the list state **after all preceding operations**.
+
+### 2. Splice Is a Destructive Replacement
+Resource operations **completely replace** the items in the `[start:end]` range with the items in `data`. The `data` items become the **entire content** of those positions — they are NOT references to existing resources. If you provide an item with only `{"id": "foo", "name": "bar"}`, the resulting resource will contain **only** those two fields; all other properties of any previously existing resource at that position are **permanently lost**.
+
+### 3. Never Use Splice to Reorder
+Do NOT create a separate operation to reorder the list by splicing minimal-data items (id + name only). This **destroys all detailed fields** of every resource in the range. Instead:
+- Insert new resources at the **correct position** so the desired order is achieved naturally.
+- If reordering existing resources is truly needed, use property operations or include **all fields** of each resource in the data.
+
 ## Response Format
 
 Your response must be valid JSON:
@@ -227,6 +240,7 @@ Response:
    - For aspect-level operations: Use aspect URI (e.g., `/character`) with `children_key: null`
    - For nested operations: Use parent resource URI with the appropriate `children_key`
 5. **Structure the data**: Ensure all new resources have meaningful `id` fields
+6. **Preserve existing data**: Never splice existing resources back with only `id`/`name`. Either include ALL fields or avoid touching them.
 
 ## Input Information
 

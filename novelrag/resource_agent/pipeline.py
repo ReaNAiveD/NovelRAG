@@ -153,6 +153,7 @@ class ContentGenerationProcedure:
         content_results: list[dict] = []
         for i, task in enumerate(content_generation_tasks):
             await ctx.info(f"Generating content for task {i+1}/{len(content_generation_tasks)}: {task.description}")
+            await ctx.output(f"Generating content: {task.description}")
 
             content_description = (
                 f"Generate content for the following task:\n"
@@ -280,6 +281,7 @@ class CascadeUpdateProcedure:
             await ctx.output(f"Discovered {len(required_updates.perspective_updates)} perspective cascade update(s).")
             for update in required_updates.perspective_updates:
                 await ctx.debug(f"Perspective update: {update.reason} - {update.content}")
+                await ctx.output(f"Updating perspective: {update.content}")
                 operation = await self._build_perspective_update_operation(
                     update,
                     step_description=step_description,
@@ -307,6 +309,7 @@ class CascadeUpdateProcedure:
             await ctx.output(f"Discovered {len(required_updates.relation_updates)} relationship cascade update(s).")
             for update in required_updates.relation_updates:
                 await ctx.debug(f"Relation update: {update.reason} - {update.content}")
+                await ctx.output(f"Updating relationship: {update.content}")
                 rel_result = await self._apply_relation_update(
                     ctx=ctx,
                     update=update,
@@ -532,7 +535,7 @@ class BacklogDiscoveryProcedure:
         backlog_count = 0
         if backlog_items and self._backlog is not None:
             backlog_count = len(backlog_items)
-            await ctx.output(f"Discovered {backlog_count} backlog item(s).")
+            await ctx.output(f"Discovered {backlog_count} backlog item(s):\n{''.join(f'- {item.description}\n' for item in backlog_items)}")
             for item in backlog_items:
                 self._backlog.add_entry(BacklogEntry.from_dict(item.model_dump()))
         return backlog_count

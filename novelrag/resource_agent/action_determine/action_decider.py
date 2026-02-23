@@ -61,7 +61,12 @@ _FINALIZE_TOOL_DEF = {
                 "response": {
                     "type": "string",
                     "description": "Complete user-facing response explaining the outcome. "
-                                   "Respond in the same language as the user's input. "
+                                   "The response MUST be grounded in the actual data from the Knowledge Base segments. "
+                                   "Cite specific resource properties and values — do NOT invent, embellish, or "
+                                   "narrativize beyond what the data contains. "
+                                   "Use a structured format (lists, tables, or concise paragraphs) that directly "
+                                   "addresses the user's question. "
+                                   "Respond in the same language as the user's request. "
                                    "If the user writes in a specific language, provide your entire response "
                                    "in that language.",
                 },

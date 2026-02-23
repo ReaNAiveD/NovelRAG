@@ -309,9 +309,12 @@ class ContextDiscoveryLoop:
             )
             await self._apply_discovery_plan(discovery_plan)
             if discovery_plan.refinement_needed:
-                await ctx.info(f"Identified need for resource: {discovery_plan.query_resources} and {discovery_plan.search_queries} on iteration {iter_num}.")
+                if discovery_plan.query_resources:
+                    await ctx.output(f"Querying resource: {discovery_plan.query_resources}.")
+                if discovery_plan.search_queries:
+                    await ctx.output(f"Searching: {discovery_plan.search_queries}.")
                 if discovery_plan.expand_tools:
-                    await ctx.info(f"Expanding tools: {discovery_plan.expand_tools}")
+                    await ctx.output(f"Expanding tools: {discovery_plan.expand_tools}")
 
             if not discovery_plan.refinement_needed:
                 break
@@ -509,7 +512,7 @@ class ActionDetermineLoop:
             min_iter=self.min_iter,
         )
 
-    async def execute(
+    async def determine_action(
             self,
             beliefs: list[str],
             pursuit_progress: PursuitProgress,
@@ -539,24 +542,6 @@ class ActionDetermineLoop:
         return await self._action_loop.execute(
             goal, pursuit_assessment,
             pursuit_progress.executed_steps, available_tools, ctx,
-        )
-
-    async def determine_action(
-            self,
-            beliefs: list[str],
-            pursuit_progress: PursuitProgress,
-            available_tools: dict[str, SchematicTool],
-            ctx: ExecutionContext,
-            interaction_history: InteractionContext | None = None,
-    ) -> OperationPlan | Resolution:
-        """ActionDeterminer protocol bridge.
-
-        Delegates to :meth:`execute` using the provided ``ctx`` or a
-        default ``LoggingExecutionContext``.
-        """
-        return await self.execute(
-            beliefs, pursuit_progress, available_tools, ctx,
-            interaction_history=interaction_history,
         )
 
 
