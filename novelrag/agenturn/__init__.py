@@ -8,9 +8,6 @@ Core components:
 - ActionDeterminer: Protocol for action determination strategies
 - PursuitAssessor: Assesses progress toward goals
 
-Communication:
-- AgentChannel: Base class for agent-user communication (extends ExecutionContext)
-
 Tool abstractions:
 - BaseTool, SchematicTool: Tool interfaces
 
@@ -22,9 +19,6 @@ Procedure support:
 
 # Main agent class
 from .agent import GoalExecutor
-
-# Communication channels
-from .channel import AgentChannel
 
 # Goal abstractions
 from .goal import Goal
@@ -54,17 +48,14 @@ from .tool import (
     validate_tool_output,
     validate_tool_output_json,
 )
-from .types import AgentMessageLevel, InteractionContext
+from .interaction import InteractionContext
 
 # Procedure support
-from .procedure import ExecutionContext, LoggingExecutionContext, ProcedureError
+from .procedure import ExecutionContext, ProcedureError
 
 __all__ = [
     # Main agent
     "GoalExecutor",
-    
-    # Communication channels
-    "AgentChannel",
 
     # Goal abstractions
     "Goal",
@@ -92,12 +83,10 @@ __all__ = [
     "ToolOutput",
     "ToolResult",
     "ToolError",
-    "AgentMessageLevel",
     "InteractionContext",
 
     # Procedure support
     "ExecutionContext",
-    "LoggingExecutionContext",
     "ProcedureError",
 
     # Validation functions

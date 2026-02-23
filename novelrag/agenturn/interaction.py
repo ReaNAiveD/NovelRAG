@@ -1,15 +1,6 @@
-"""Type definitions, enums, and data models for the agent package."""
+"""Type definitions and protocols for the agent package."""
 
-from enum import Enum
 from typing import Protocol, runtime_checkable
-
-
-class AgentMessageLevel(str, Enum):
-    """Message levels for agent outputs"""
-    DEBUG = "debug"
-    INFO = "info"
-    WARNING = "warning"
-    ERROR = "error"
 
 
 @runtime_checkable

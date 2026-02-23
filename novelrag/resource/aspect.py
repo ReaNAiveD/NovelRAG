@@ -76,7 +76,7 @@ class ResourceAspect:
         for root_element in self.root_elements:
             yield from _iter_element_tree(root_element)
 
-    def splice(self, start: int, end: int, *items: 'Element') -> tuple[list['DirectiveElement'], list['DirectiveElement']]:
+    def splice(self, start: int, end: int, *items: Element) -> tuple[list[DirectiveElement], list[DirectiveElement]]:
         old = self.root_elements[start: end]
         wrapped = DirectiveElementList.wrap(elements=list(items), children_keys=self.children_keys)
         self.root_elements = self.root_elements.splice(start, end, *wrapped)

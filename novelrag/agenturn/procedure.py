@@ -14,8 +14,7 @@ returns a typed output.  On failure it raises ``ProcedureError`` carrying the
 list of effects accomplished before the failure point.
 
 ``ExecutionContext`` is the single runtime interface shared by procedures,
-tools, and the agent loop.  It replaces the former ``ToolRuntime`` /
-``AgentChannel`` split with three unified facets:
+tools, and the agent loop.  It provides three unified facets:
 
 * **Messaging** (fire-and-forget): ``info``, ``debug``, ``warning``, ``error``
 * **Output**: ``output`` — user-facing content
@@ -98,39 +97,3 @@ class ProcedureError(Exception):
         self.message = message
         self.effects: list[str] = effects or []
         super().__init__(message)
-
-
-class LoggingExecutionContext(ExecutionContext):
-    """``ExecutionContext`` backed by Python's :mod:`logging` module.
-
-    Useful as a default context when no richer runtime (CLI, UI, …) is
-    available.  Each message level maps directly to the corresponding
-    ``logging`` level.  ``output`` logs at INFO.  ``confirm`` always returns
-    ``True`` and ``request`` returns an empty string.
-    """
-
-    def __init__(self, logger: logging.Logger | None = None):
-        self._logger = logger or logging.getLogger(__name__)
-
-    async def debug(self, content: str):
-        self._logger.debug(content)
-
-    async def info(self, content: str):
-        self._logger.info(content)
-
-    async def warning(self, content: str):
-        self._logger.warning(content)
-
-    async def error(self, content: str):
-        self._logger.error(content)
-
-    async def output(self, content: str):
-        self._logger.info(content)
-
-    async def confirm(self, prompt: str) -> bool:
-        self._logger.info("Auto-confirming: %s", prompt)
-        return True
-
-    async def request(self, prompt: str) -> str:
-        self._logger.info("Auto-request (no interactive input): %s", prompt)
-        return ""

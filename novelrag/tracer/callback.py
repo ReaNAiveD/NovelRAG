@@ -6,8 +6,7 @@ from langchain_core.callbacks import AsyncCallbackHandler
 from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
 from langchain_core.outputs import LLMResult
 
-from novelrag.tracer.context import get_current_span
-from novelrag.tracer.span import Span, SpanKind
+from novelrag.tracer.span import Span, SpanKind, get_current_span
 
 logger = logging.getLogger(__name__)
 

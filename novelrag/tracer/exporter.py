@@ -4,8 +4,6 @@ Converts the in-memory span tree to a human-readable YAML file that mirrors
 the hierarchical structure of the trace.
 """
 
-from __future__ import annotations
-
 import logging
 import os
 from datetime import datetime

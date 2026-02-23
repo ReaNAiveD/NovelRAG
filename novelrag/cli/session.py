@@ -1,9 +1,8 @@
 import logging
 from dataclasses import dataclass
 
-from novelrag.agenturn.channel import AgentChannel
 from novelrag.agenturn.goal import LLMGoalTranslator
-from novelrag.agenturn.types import AgentMessageLevel
+from novelrag.agenturn.procedure import ExecutionContext
 from novelrag.cli.handler.builtin.next import NextHandler
 from novelrag.cli.handler.builtin.quit import QuitHandler
 from novelrag.cli.handler.builtin.redo import RedoHandler
@@ -11,7 +10,7 @@ from novelrag.cli.handler.builtin.undo import UndoHandler
 from novelrag.cli.handler.interaction import InteractionHistory, InteractionRecord
 from novelrag.config.novel_rag import NovelRagConfig
 from novelrag.resource.repository import LanceDBResourceRepository
-from novelrag.resource_agent import create_executor
+from novelrag.resource_agent.factory import create_executor
 from novelrag.resource_agent.backlog.local import LocalBacklog
 from novelrag.resource_agent.goal_decider import CompositeGoalDecider
 from novelrag.resource_agent.undo import LocalUndoQueue, MemoryUndoQueue, UndoQueue
@@ -31,21 +30,21 @@ class Response:
     redirect: Command | None = None
 
 
-class SessionChannel(AgentChannel):
+class SessionChannel(ExecutionContext):
     def __init__(self, logger: logging.Logger) -> None:
-        super().__init__()
         self.logger = logger
 
-    async def send_message(self, content: str, level: AgentMessageLevel = AgentMessageLevel.INFO) -> None:
-        match level:
-            case AgentMessageLevel.DEBUG:
-                self.logger.debug(content)
-            case AgentMessageLevel.INFO:
-                self.logger.info(content)
-            case AgentMessageLevel.WARNING:
-                self.logger.warning(content)
-            case AgentMessageLevel.ERROR:
-                self.logger.error(content)
+    async def debug(self, content: str):
+        self.logger.debug(content)
+
+    async def info(self, content: str):
+        self.logger.info(content)
+
+    async def warning(self, content: str):
+        self.logger.warning(content)
+
+    async def error(self, content: str):
+        self.logger.error(content)
 
     async def confirm(self, prompt: str) -> bool:
         result = input(prompt + 'y/N')

@@ -1,15 +1,11 @@
 import logging
 from contextlib import asynccontextmanager
-from contextvars import Token
+from contextvars import ContextVar, Token
 from typing import Any, AsyncIterator, Optional
 
 from novelrag.tracer.callback import TracerCallbackHandler
-from novelrag.tracer.context import (
-    get_current_span,
-    set_active_tracer,
-    set_current_span,
-)
-from novelrag.tracer.span import Span, SpanKind
+from novelrag.tracer.exporter import YAMLExporter
+from novelrag.tracer.span import Span, SpanKind, _current_span, get_current_span, set_current_span
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +22,7 @@ class Tracer:
 
     def __init__(
         self,
-        exporter: Any | None = None,
+        exporter: YAMLExporter | None = None,
     ) -> None:
         self._exporter = exporter
         self._callback_handler = TracerCallbackHandler()
@@ -42,7 +38,6 @@ class Tracer:
 
     def deactivate(self, token: Token) -> None:
         """Restore the previous tracer (or ``None``) via *token*."""
-        from novelrag.tracer.context import _active_tracer
         _active_tracer.reset(token)
 
     # ------------------------------------------------------------------
@@ -85,8 +80,6 @@ class Tracer:
     ) -> None:
         """Finish *span* and restore the previous span via *token*."""
         span.finish(error=error)
-
-        from novelrag.tracer.context import _current_span
         _current_span.reset(token)
 
     # ------------------------------------------------------------------
@@ -143,3 +136,25 @@ class Tracer:
     def session_span(self) -> Optional[Span]:
         """The root session span (set by ``@trace_session``)."""
         return self._session_span
+
+
+# ---------------------------------------------------------------------------
+# Active tracer ContextVar
+# ---------------------------------------------------------------------------
+# Defined after the ``Tracer`` class so the generic parameter can use the
+# real type instead of ``Any``.  Method bodies in ``Tracer`` reference these
+# names, which Python resolves at *call* time (not at class-definition time).
+
+_active_tracer: ContextVar[Tracer | None] = ContextVar(
+    "active_tracer", default=None,
+)
+
+
+def get_active_tracer() -> Tracer | None:
+    """Return the tracer that was most recently activated, or ``None``."""
+    return _active_tracer.get()
+
+
+def set_active_tracer(tracer: Tracer | None) -> Token:
+    """Push *tracer* into the context, returning a reset token."""
+    return _active_tracer.set(tracer)

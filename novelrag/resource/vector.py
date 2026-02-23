@@ -10,7 +10,7 @@ from lancedb import AsyncConnection, AsyncTable
 from lancedb.pydantic import LanceModel, Vector
 
 from langchain_core.embeddings import Embeddings
-from novelrag.resource import Element
+from novelrag.resource.element import Element
 
 logger = logging.getLogger(__name__)
 

@@ -11,12 +11,11 @@ from uuid import uuid4
 import pytest
 import yaml
 
-from novelrag.tracer.span import Span, SpanKind
-from novelrag.tracer.context import (
+from novelrag.tracer.span import Span, SpanKind, get_current_span, set_current_span, _current_span
+from novelrag.tracer.tracer import (
     get_active_tracer,
-    get_current_span,
     set_active_tracer,
-    set_current_span,
+    _active_tracer,
 )
 from novelrag.tracer.tracer import Tracer
 from novelrag.tracer.exporter import YAMLExporter
@@ -108,7 +107,6 @@ class TestContext:
         span = Span(kind=SpanKind.LLM_CALL, name="test")
         token = set_current_span(span)
         assert get_current_span() is span
-        from novelrag.tracer.context import _current_span
         _current_span.reset(token)
         assert get_current_span() is None
 
@@ -116,7 +114,6 @@ class TestContext:
         tracer = Tracer()
         token = set_active_tracer(tracer)
         assert get_active_tracer() is tracer
-        from novelrag.tracer.context import _active_tracer
         _active_tracer.reset(token)
         assert get_active_tracer() is None
 
@@ -257,7 +254,6 @@ class TestTracerCallbackHandler:
         assert span.attributes["request"]["messages"][0]["role"] == "human"
         assert span.attributes["request"]["messages"][0]["content"] == "Hello"
 
-        from novelrag.tracer.context import _current_span
         _current_span.reset(token)
 
     @pytest.mark.asyncio
@@ -298,7 +294,6 @@ class TestTracerCallbackHandler:
         assert span.attributes["token_usage"]["prompt_tokens"] == 100
         assert span.attributes["token_usage"]["completion_tokens"] == 50
 
-        from novelrag.tracer.context import _current_span
         _current_span.reset(token)
 
     @pytest.mark.asyncio
@@ -325,7 +320,6 @@ class TestTracerCallbackHandler:
         assert span.status == "error"
         assert "API error" in span.error
 
-        from novelrag.tracer.context import _current_span
         _current_span.reset(token)
 
     @pytest.mark.asyncio
@@ -348,7 +342,6 @@ class TestTracerCallbackHandler:
         # Should NOT have recorded anything
         assert "request" not in span.attributes
 
-        from novelrag.tracer.context import _current_span
         _current_span.reset(token)
 
 

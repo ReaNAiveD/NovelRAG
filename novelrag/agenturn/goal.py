@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import SystemMessage, HumanMessage
-from novelrag.agenturn.types import InteractionContext
+from novelrag.agenturn.interaction import InteractionContext
 from novelrag.template import TemplateEnvironment
 from novelrag.tracer import trace_llm
 from novelrag.utils.language import interaction_directive

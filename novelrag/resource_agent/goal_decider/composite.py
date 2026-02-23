@@ -2,7 +2,7 @@ import logging
 import random
 
 from novelrag.agenturn.goal import Goal, GoalDecider
-from novelrag.agenturn.types import InteractionContext
+from novelrag.agenturn.interaction import InteractionContext
 from langchain_core.language_models import BaseChatModel
 from novelrag.resource.repository import ResourceRepository
 from novelrag.resource_agent.backlog.types import Backlog, BacklogEntry

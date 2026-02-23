@@ -3,7 +3,7 @@ import logging
 from langchain_core.embeddings import Embeddings
 from langchain_core.language_models import BaseChatModel
 
-from novelrag.tracer.context import get_active_tracer
+from novelrag.tracer.tracer import get_active_tracer
 from novelrag.config.llm import (
     AzureOpenAIChatConfig,
     AzureOpenAIEmbeddingConfig,

@@ -17,7 +17,7 @@ from typing import Annotated, Any, Literal
 from pydantic import BaseModel, Field
 
 from novelrag.agenturn.goal import Goal, AutonomousSource
-from novelrag.agenturn.types import InteractionContext
+from novelrag.agenturn.interaction import InteractionContext
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import SystemMessage, HumanMessage
 from novelrag.resource.aspect import ResourceAspect

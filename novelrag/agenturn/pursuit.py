@@ -9,8 +9,9 @@ from typing import Annotated, Protocol
 from pydantic import BaseModel, Field
 
 from novelrag.agenturn.goal import Goal
+from novelrag.agenturn.procedure import ExecutionContext
 from novelrag.agenturn.tool import SchematicTool
-from novelrag.agenturn.types import InteractionContext
+from novelrag.agenturn.interaction import InteractionContext
 from novelrag.template import TemplateEnvironment
 from novelrag.tracer import trace_llm
 from langchain_core.messages import SystemMessage, HumanMessage
@@ -38,6 +39,40 @@ class PursuitOutcome:
     executed_steps: list[OperationOutcome]
     resolution: Resolution
     resolve_at: datetime
+
+    def summarize(self, *, max_result_len: int = 300, max_response_len: int = 500) -> str:
+        """Produce a multi-line, prompt-ready summary of this outcome.
+
+        This keeps knowledge of the internal structure (Goal, OperationOutcome,
+        StepStatus, etc.) confined to the ``agenturn`` package so that
+        consumers (e.g. CLI interaction history) don't need to traverse the
+        nested objects themselves.
+        """
+        parts: list[str] = []
+        parts.append(
+            f"  → Goal: {self.goal.description} | "
+            f"Status: {self.status.value} | "
+            f"Steps: {len(self.executed_steps)}"
+        )
+        if self.status.value != "completed" and self.reason:
+            parts.append(f"  → Reason: {self.reason}")
+        if self.executed_steps:
+            parts.append("  Steps:")
+            for i, step in enumerate(self.executed_steps, 1):
+                tool_name = step.operation.tool or "N/A"
+                status_symbol = "✓" if step.status.name == "SUCCESS" else "✗"
+                reason = step.operation.reason
+                parts.append(f"    {i}. {status_symbol} [{tool_name}] {reason}")
+                result = step.result or step.error_message or "No result"
+                if len(result) > max_result_len:
+                    result = result[:max_result_len] + "…"
+                parts.append(f"       Result: {result}")
+        if self.response:
+            resp = self.response
+            if len(resp) > max_response_len:
+                resp = resp[:max_response_len] + "…"
+            parts.append(f"  → Response: {resp}")
+        return "\n".join(parts)
 
 
 @dataclass(frozen=True)
@@ -68,7 +103,7 @@ class ActionDeterminer(Protocol):
             beliefs: list[str],
             pursuit_progress: PursuitProgress,
             available_tools: dict[str, SchematicTool],
-            ctx: 'ExecutionContext',
+            ctx: ExecutionContext,
             interaction_history: InteractionContext | None = None,
     ) -> OperationPlan | Resolution:
         ...

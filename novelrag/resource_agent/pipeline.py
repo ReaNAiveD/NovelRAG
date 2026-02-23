@@ -1,6 +1,6 @@
-"""Procedures extracted from ResourceWriteTool.
+"""Pipelines extracted from ResourceWriteTool.
 
-Each procedure encapsulates a reusable, multi-step process that orchestrates
+Each pipeline encapsulates a reusable, multi-step process that orchestrates
 LLM calls and environment interaction through an ``ExecutionContext``.
 
 * ``ContentGenerationProcedure`` – generate, rank, and select content proposals.
@@ -10,7 +10,7 @@ LLM calls and environment interaction through an ``ExecutionContext``.
 
 import json
 import random
-from typing import Annotated, Any
+from typing import Annotated
 
 from pydantic import BaseModel, Field
 

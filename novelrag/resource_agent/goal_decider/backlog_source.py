@@ -3,8 +3,8 @@ from typing import Annotated
 
 from pydantic import BaseModel, Field
 
-from novelrag.agenturn.goal import Goal, AutonomousSource, GoalDecider
-from novelrag.agenturn.types import InteractionContext
+from novelrag.agenturn.goal import Goal, AutonomousSource
+from novelrag.agenturn.interaction import InteractionContext
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import SystemMessage, HumanMessage
 from novelrag.resource_agent.backlog.types import Backlog, BacklogEntry

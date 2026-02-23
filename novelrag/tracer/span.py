@@ -1,4 +1,5 @@
 import uuid
+from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -103,3 +104,22 @@ class Span:
         if self.children:
             d["children"] = [c.to_dict() for c in self.children]
         return d
+
+
+# ---------------------------------------------------------------------------
+# Span context variable helpers
+# ---------------------------------------------------------------------------
+
+_current_span: ContextVar[Optional[Span]] = ContextVar(
+    "current_span", default=None,
+)
+
+
+def get_current_span() -> Optional[Span]:
+    """Return the span that is currently active, or ``None``."""
+    return _current_span.get()
+
+
+def set_current_span(span: Optional[Span]) -> Token:
+    """Make *span* the active span, returning a reset token."""
+    return _current_span.set(span)

@@ -4,13 +4,12 @@ import logging
 from datetime import datetime
 from typing import Any
 
-from novelrag.agenturn.channel import AgentChannel
 from novelrag.agenturn.goal import Goal, GoalDecider, GoalTranslator
 from novelrag.agenturn.procedure import ExecutionContext
-from novelrag.agenturn.pursuit import ActionDeterminer, PursuitAssessment, LLMPursuitAssessor, PursuitOutcome, PursuitProgress, PursuitStatus
+from novelrag.agenturn.pursuit import ActionDeterminer, PursuitOutcome, PursuitProgress, PursuitStatus
 from novelrag.agenturn.step import OperationPlan, OperationOutcome, Resolution, StepStatus
-from novelrag.agenturn.tool import SchematicTool
-from novelrag.agenturn.types import InteractionContext
+from novelrag.agenturn.tool import SchematicTool, ToolResult, ToolError
+from novelrag.agenturn.interaction import InteractionContext
 from novelrag.tracer import trace_intent, trace_pursuit, trace_tool
 
 logger = logging.getLogger(__name__)
@@ -24,7 +23,7 @@ class GoalExecutor:
         beliefs: list[str],
         tools: dict[str, SchematicTool],
         determiner: ActionDeterminer,
-        channel: AgentChannel,
+        channel: ExecutionContext,
     ):
         self.beliefs = beliefs
         self.tools = tools
@@ -119,9 +118,7 @@ class GoalExecutor:
         try:
             await self.channel.debug(f"Calling tool {tool_name} with params: {params}")
             result = await tool.call(self.channel, **params)
-            
-            from novelrag.agenturn.tool import ToolResult, ToolError
-            
+
             if isinstance(result, ToolResult):
                 return OperationOutcome(
                     operation=step,

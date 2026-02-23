@@ -30,12 +30,10 @@ Usage::
         ...
 """
 
-from __future__ import annotations
-
 import functools
-from typing import Any, Callable, TypeVar, overload
+from typing import Any, Callable, TypeVar
 
-from novelrag.tracer.context import get_active_tracer
+from novelrag.tracer.tracer import get_active_tracer
 from novelrag.tracer.span import SpanKind
 
 F = TypeVar("F", bound=Callable[..., Any])

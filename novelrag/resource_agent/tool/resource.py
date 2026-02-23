@@ -18,7 +18,7 @@ from novelrag.tracer import trace_llm
 from novelrag.resource_agent.tool.types import ContentGenerationTask
 from novelrag.resource_agent.workspace import ResourceContext, ContextSnapshot
 from novelrag.resource_agent.propose import ContentProposer, LLMContentProposer
-from novelrag.resource_agent.procedure import (
+from novelrag.resource_agent.pipeline import (
     ContentGenerationProcedure,
     CascadeUpdateProcedure,
     BacklogDiscoveryProcedure,

@@ -61,31 +61,7 @@ class InteractionRecord:
 
         if self.details is not None:
             if isinstance(self.details, PursuitOutcome):
-                outcome = self.details
-                parts.append(
-                    f"  → Goal: {outcome.goal.description} | "
-                    f"Status: {outcome.status.value} | "
-                    f"Steps: {len(outcome.executed_steps)}"
-                )
-                if outcome.status.value != "completed" and outcome.reason:
-                    parts.append(f"  → Reason: {outcome.reason}")
-                # Show each executed step with tool name, reason, and result
-                if outcome.executed_steps:
-                    parts.append("  Steps:")
-                    for i, step in enumerate(outcome.executed_steps, 1):
-                        tool_name = step.operation.tool or "N/A"
-                        status_symbol = "✓" if step.status.name == "SUCCESS" else "✗"
-                        reason = step.operation.reason
-                        parts.append(f"    {i}. {status_symbol} [{tool_name}] {reason}")
-                        result = step.result or step.error_message or "No result"
-                        if len(result) > 300:
-                            result = result[:300] + "…"
-                        parts.append(f"       Result: {result}")
-                if outcome.response:
-                    resp = outcome.response
-                    if len(resp) > 500:
-                        resp = resp[:500] + "…"
-                    parts.append(f"  → Response: {resp}")
+                parts.append(self.details.summarize())
             elif isinstance(self.details, UndoRedoDetails):
                 undo_info = self.details
                 verb = "Undid" if undo_info.action == "undo" else "Redid"
