@@ -51,7 +51,7 @@ class ReversibleAction:
 
 
 class UndoQueue(Protocol):
-    def add_undo_item(self, item: ReversibleAction, clear_redo: bool = True) -> list[ReversibleAction] | None:
+    async def add_undo_item(self, item: ReversibleAction, clear_redo: bool = True) -> list[ReversibleAction] | None:
         """
         Add an undo item to the queue.
         Args:
@@ -62,7 +62,7 @@ class UndoQueue(Protocol):
         """
         ...
 
-    def add_redo_item(self, item: ReversibleAction) -> None:
+    async def add_redo_item(self, item: ReversibleAction) -> None:
         """
         Add a redo item to the queue.
         Args:
@@ -70,7 +70,7 @@ class UndoQueue(Protocol):
         """
         ...
 
-    def pop_undo_item(self) -> ReversibleAction | None:
+    async def pop_undo_item(self) -> ReversibleAction | None:
         """
         Pop the last undo item from the queue.
         Returns:
@@ -78,7 +78,7 @@ class UndoQueue(Protocol):
         """
         ...
     
-    def pop_undo_group(self) -> list[ReversibleAction] | None:
+    async def pop_undo_group(self) -> list[ReversibleAction] | None:
         """
         Pop the last group of undo items from the queue.
         Returns:
@@ -87,7 +87,7 @@ class UndoQueue(Protocol):
         """
         ...
 
-    def pop_redo_item(self) -> ReversibleAction | None:
+    async def pop_redo_item(self) -> ReversibleAction | None:
         """
         Pop the last redo item from the queue.
         Returns:
@@ -95,7 +95,7 @@ class UndoQueue(Protocol):
         """
         ...
 
-    def pop_redo_group(self) -> list[ReversibleAction] | None:
+    async def pop_redo_group(self) -> list[ReversibleAction] | None:
         """
         Pop the last group of redo items from the queue.
         The group is ordered from first to last.
@@ -104,7 +104,7 @@ class UndoQueue(Protocol):
         """
         ...
 
-    def peek_recent(self, n: int = 5) -> list[ReversibleAction]:
+    async def peek_recent(self, n: int = 5) -> list[ReversibleAction]:
         """
         Peek at the most recent undo items without removing them.
         Args:
@@ -115,7 +115,7 @@ class UndoQueue(Protocol):
         """
         ...
 
-    def clear(self) -> None:
+    async def clear(self) -> None:
         """
         Clear the undo and redo queues.
         """
@@ -129,7 +129,7 @@ class MemoryUndoQueue(UndoQueue):
         self.redo_stack: list[ReversibleAction] = redo_stack if redo_stack is not None else []
         self.stack_size = stack_size
     
-    def add_undo_item(self, item: ReversibleAction, clear_redo: bool = True) -> list[ReversibleAction] | None:
+    async def add_undo_item(self, item: ReversibleAction, clear_redo: bool = True) -> list[ReversibleAction] | None:
         self.undo_stack.append(item)
         if self.stack_size is not None and len(self.undo_stack) > self.stack_size:
             self.undo_stack.pop(0)
@@ -139,17 +139,17 @@ class MemoryUndoQueue(UndoQueue):
             self.redo_stack = []
         return overwritten_redo
 
-    def add_redo_item(self, item: ReversibleAction) -> None:
+    async def add_redo_item(self, item: ReversibleAction) -> None:
         self.redo_stack.append(item)
         if self.stack_size is not None and len(self.redo_stack) > self.stack_size:
             self.redo_stack.pop(0)
 
-    def pop_undo_item(self) -> ReversibleAction | None:
+    async def pop_undo_item(self) -> ReversibleAction | None:
         if not self.undo_stack:
             return None
         return self.undo_stack.pop()
 
-    def pop_undo_group(self) -> list[ReversibleAction] | None:
+    async def pop_undo_group(self) -> list[ReversibleAction] | None:
         if not self.undo_stack:
             return None
         group = []
@@ -160,12 +160,12 @@ class MemoryUndoQueue(UndoQueue):
             group.append(self.undo_stack.pop())
         return group
 
-    def pop_redo_item(self) -> ReversibleAction | None:
+    async def pop_redo_item(self) -> ReversibleAction | None:
         if not self.redo_stack:
             return None
         return self.redo_stack.pop()
 
-    def pop_redo_group(self) -> list[ReversibleAction] | None:
+    async def pop_redo_group(self) -> list[ReversibleAction] | None:
         if not self.redo_stack:
             return None
         group = []
@@ -176,14 +176,14 @@ class MemoryUndoQueue(UndoQueue):
             group.append(self.redo_stack.pop())
         return group
 
-    def peek_recent(self, n: int = 5) -> list[ReversibleAction]:
+    async def peek_recent(self, n: int = 5) -> list[ReversibleAction]:
         if n <= 0:
             return []
         if not self.undo_stack:
             return []
         return list(reversed(self.undo_stack[-n:]))
 
-    def clear(self) -> None:
+    async def clear(self) -> None:
         self.undo_stack = []
         self.redo_stack = []
 
@@ -222,35 +222,35 @@ class LocalUndoQueue(MemoryUndoQueue):
             }
             json.dump(data, f, indent=4, ensure_ascii=False)
 
-    def add_undo_item(self, item: ReversibleAction, clear_redo: bool = True) -> list[ReversibleAction] | None:
-        overwritten_redo = super().add_undo_item(item, clear_redo)
+    async def add_undo_item(self, item: ReversibleAction, clear_redo: bool = True) -> list[ReversibleAction] | None:
+        overwritten_redo = await super().add_undo_item(item, clear_redo)
         self._save()
         return overwritten_redo
 
-    def add_redo_item(self, item: ReversibleAction) -> None:
-        super().add_redo_item(item)
+    async def add_redo_item(self, item: ReversibleAction) -> None:
+        await super().add_redo_item(item)
         self._save()
 
-    def pop_undo_item(self) -> ReversibleAction | None:
-        item = super().pop_undo_item()
-        self._save()
-        return item
-
-    def pop_undo_group(self) -> list[ReversibleAction] | None:
-        group = super().pop_undo_group()
-        self._save()
-        return group
-
-    def pop_redo_item(self) -> ReversibleAction | None:
-        item = super().pop_redo_item()
+    async def pop_undo_item(self) -> ReversibleAction | None:
+        item = await super().pop_undo_item()
         self._save()
         return item
 
-    def pop_redo_group(self) -> list[ReversibleAction] | None:
-        group = super().pop_redo_group()
+    async def pop_undo_group(self) -> list[ReversibleAction] | None:
+        group = await super().pop_undo_group()
         self._save()
         return group
 
-    def clear(self) -> None:
-        super().clear()
+    async def pop_redo_item(self) -> ReversibleAction | None:
+        item = await super().pop_redo_item()
+        self._save()
+        return item
+
+    async def pop_redo_group(self) -> list[ReversibleAction] | None:
+        group = await super().pop_redo_group()
+        self._save()
+        return group
+
+    async def clear(self) -> None:
+        await super().clear()
         self._save()

@@ -185,7 +185,7 @@ class ExplorationGoalDecider:
 
         # Pick an aspect (recency-weighted if available)
         if self.recency is not None:
-            weights = self.recency.aspect_weights([a.name for a in aspects])
+            weights = await self.recency.aspect_weights([a.name for a in aspects])
             aspect = random.choices(aspects, weights=weights, k=1)[0]
         else:
             aspect = random.choice(aspects)
@@ -230,7 +230,7 @@ class ExplorationGoalDecider:
     ) -> Goal | None:
         # 1. Select element via random walk (recency-biased)
         if self.recency is not None:
-            weights = self.recency.element_weights(
+            weights = await self.recency.element_weights(
                 [(a.name, e.inner.uri) for a, e in all_elements]
             )
             aspect, element = random.choices(all_elements, weights=weights, k=1)[0]

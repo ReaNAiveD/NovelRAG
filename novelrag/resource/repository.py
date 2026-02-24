@@ -32,11 +32,11 @@ class ResourceRepository(ABC):
         pass
 
     @abstractmethod
-    def add_aspect(self, name: str, metadata: dict[str, Any]) -> ResourceAspect:
+    async def add_aspect(self, name: str, metadata: dict[str, Any]) -> ResourceAspect:
         pass
 
     @abstractmethod
-    def remove_aspect(self, name: str) -> ResourceAspect | None:
+    async def remove_aspect(self, name: str) -> ResourceAspect | None:
         pass
 
     @abstractmethod
@@ -201,7 +201,7 @@ class LanceDBResourceRepository(ResourceRepository):
     async def get_aspect(self, name: str) -> ResourceAspect | None:
         return self.resource_aspects.get(name)
     
-    def add_aspect(self, name: str, metadata: dict[str, Any]) -> ResourceAspect:
+    async def add_aspect(self, name: str, metadata: dict[str, Any]) -> ResourceAspect:
         """Add a new aspect to the repository.
         
         This method creates a new ResourceAspect with the given name and metadata,
@@ -246,7 +246,7 @@ class LanceDBResourceRepository(ResourceRepository):
 
         return aspect
 
-    def remove_aspect(self, name: str) -> ResourceAspect | None:
+    async def remove_aspect(self, name: str) -> ResourceAspect | None:
         """Remove an aspect from the repository by name.
         
         Args:

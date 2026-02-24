@@ -157,7 +157,7 @@ class ResourceWriteTool(SchematicTool):
         await ctx.debug(f"Undo operations created: {undo_operations}")
         if self.undo is not None:
             for undo_op in undo_operations:
-                self.undo.add_undo_item(ReversibleAction(method="apply", params={"op": undo_op.model_dump()}), clear_redo=True)
+                await self.undo.add_undo_item(ReversibleAction(method="apply", params={"op": undo_op.model_dump()}), clear_redo=True)
         await ctx.output(f"Applied {len(operations)} operation(s) successfully.")
 
         applied_operations_data = [op.model_dump() for op in operations]

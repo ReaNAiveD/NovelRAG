@@ -294,7 +294,7 @@ class CascadeUpdateProcedure:
                 try:
                     undo_op = await self._repo.apply(validated_operation)
                     if self._undo is not None:
-                        self._undo.add_undo_item(ReversibleAction(method="apply", params={"op": undo_op.model_dump()}), clear_redo=True)
+                        await self._undo.add_undo_item(ReversibleAction(method="apply", params={"op": undo_op.model_dump()}), clear_redo=True)
                     perspective_updates_applied.append({
                         "reason": update.reason,
                         "content": update.content,
@@ -422,7 +422,7 @@ class CascadeUpdateProcedure:
             source_to_target_relations = updated_relations.source_to_target_relations
             old_relationships = await self._repo.update_relationships(source_uri, target_uri, source_to_target_relations)
             if self._undo is not None:
-                self._undo.add_undo_item(ReversibleAction(
+                await self._undo.add_undo_item(ReversibleAction(
                     method="update_relationships",
                     params={"source_uri": source_uri, "target_uri": target_uri, "relations": old_relationships}
                 ), clear_redo=True)
@@ -434,7 +434,7 @@ class CascadeUpdateProcedure:
             target_to_source_relations = updated_relations.target_to_source_relations
             old_relationships = await self._repo.update_relationships(target_uri, source_uri, target_to_source_relations)
             if self._undo is not None:
-                self._undo.add_undo_item(ReversibleAction(
+                await self._undo.add_undo_item(ReversibleAction(
                     method="update_relationships",
                     params={"source_uri": target_uri, "target_uri": source_uri, "relations": old_relationships}
                 ), clear_redo=True)
@@ -537,7 +537,7 @@ class BacklogDiscoveryProcedure:
             backlog_count = len(backlog_items)
             await ctx.output(f"Discovered {backlog_count} backlog item(s):\n{''.join(f'- {item.description}\n' for item in backlog_items)}")
             for item in backlog_items:
-                self._backlog.add_entry(BacklogEntry.from_dict(item.model_dump()))
+                await self._backlog.add_entry(BacklogEntry.from_dict(item.model_dump()))
         return backlog_count
 
     @trace_llm("discover_backlog")

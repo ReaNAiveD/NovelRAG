@@ -52,7 +52,7 @@ class BacklogGoalDecider:
             logger.debug("BacklogGoalDecider: backlog is empty, skipping.")
             return None
 
-        top_entries = self.backlog.get_top(self.TOP_N)
+        top_entries = await self.backlog.get_top(self.TOP_N)
         entry_summaries = [
             {
                 "type": entry.type,
@@ -91,7 +91,7 @@ class BacklogGoalDecider:
             # Fallback: remove the first entry if LLM didn't provide valid indices
             indices_to_remove = [0]
 
-        removed = self.backlog.remove_entries(indices_to_remove)
+        removed = await self.backlog.remove_entries(indices_to_remove)
         context_parts = [
             f"(priority={e.priority}) {e.description[:80]}" for e in removed
         ]

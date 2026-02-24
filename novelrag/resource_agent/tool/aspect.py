@@ -75,10 +75,10 @@ class AspectCreateTool(SchematicTool):
         aspect_metadata = await self.initialize_aspect_metadata(name, description)
         await ctx.debug(f"Aspect metadata initialized: {aspect_metadata}")
 
-        aspect = self.repo.add_aspect(name, aspect_metadata)
+        aspect = await self.repo.add_aspect(name, aspect_metadata)
         await ctx.info(f"Aspect '{name}' created successfully.")
         if self.undo:
-            self.undo.add_undo_item(
+            await self.undo.add_undo_item(
                 ReversibleAction(method="remove_aspect", params={"name": name}),
                 clear_redo=True,
             )

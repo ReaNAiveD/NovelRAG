@@ -10,25 +10,25 @@ class MemoryBacklog(Backlog[BacklogEntry]):
         """Keep entries in descending priority order."""
         self.entries.sort(key=lambda e: e.priority, reverse=True)
 
-    def add_entry(self, entry: BacklogEntry) -> None:
+    async def add_entry(self, entry: BacklogEntry) -> None:
         self.entries.append(entry)
         self._sort()
 
-    def get_entries(self) -> list[BacklogEntry]:
+    async def get_entries(self) -> list[BacklogEntry]:
         return self.entries
 
-    def clear(self) -> None:
+    async def clear(self) -> None:
         self.entries = []
     
-    def get_top(self, n: int) -> list[BacklogEntry]:
+    async def get_top(self, n: int) -> list[BacklogEntry]:
         return self.entries[:n]
 
-    def pop_entry(self) -> BacklogEntry | None:
+    async def pop_entry(self) -> BacklogEntry | None:
         if not self.entries:
             return None
         return self.entries.pop(0)
 
-    def remove_entries(self, indices: list[int]) -> list[BacklogEntry]:
+    async def remove_entries(self, indices: list[int]) -> list[BacklogEntry]:
         """Remove entries at the given 0-based indices and return them.
 
         Indices refer to the current (sorted) order of ``self.entries``.

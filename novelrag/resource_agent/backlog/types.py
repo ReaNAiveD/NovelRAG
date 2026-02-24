@@ -41,12 +41,6 @@ class BacklogEntry:
     description: str
     metadata: dict[str, Any] = field(default_factory=dict)
 
-    # --- backwards-compatible alias ---------------------------------------------------
-    @property
-    def content(self) -> str:
-        """Alias kept for backward compatibility with code that reads `entry.content`."""
-        return self.description
-
     # --- factory ---------------------------------------------------------------------
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "BacklogEntry":
@@ -83,27 +77,27 @@ class BacklogEntry:
 
 
 class Backlog(Protocol[T]):
-    def add_entry(self, entry: T) -> None:
+    async def add_entry(self, entry: T) -> None:
         """Add an entry to the backlog."""
         ...
 
-    def get_entries(self) -> list[T]:
+    async def get_entries(self) -> list[T]:
         """Get all entries from the backlog."""
         ...
 
-    def clear(self) -> None:
+    async def clear(self) -> None:
         """Clear the backlog."""
         ...
 
-    def get_top(self, n: int) -> list[T]:
+    async def get_top(self, n: int) -> list[T]:
         """Get the top n entries from the backlog."""
         ...
 
-    def pop_entry(self) -> T | None:
+    async def pop_entry(self) -> T | None:
         """Get the entry with top priority from the backlog."""
         ...
 
-    def remove_entries(self, indices: list[int]) -> list[T]:
+    async def remove_entries(self, indices: list[int]) -> list[T]:
         """Remove entries at the given 0-based indices and return them."""
         ...
 

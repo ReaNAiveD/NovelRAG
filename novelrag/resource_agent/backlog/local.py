@@ -45,21 +45,21 @@ class LocalBacklog(MemoryBacklog):
             data = [entry.to_dict() for entry in self.entries]
             json.dump(data, f, indent=4, ensure_ascii=False)
     
-    def add_entry(self, entry: BacklogEntry) -> None:
-        super().add_entry(entry)
+    async def add_entry(self, entry: BacklogEntry) -> None:
+        await super().add_entry(entry)
         self.save()
     
-    def clear(self) -> None:
-        super().clear()
+    async def clear(self) -> None:
+        await super().clear()
         self.save()
     
-    def pop_entry(self) -> BacklogEntry | None:
-        entry = super().pop_entry()
+    async def pop_entry(self) -> BacklogEntry | None:
+        entry = await super().pop_entry()
         self.save()
         return entry
 
-    def remove_entries(self, indices: list[int]) -> list[BacklogEntry]:
-        removed = super().remove_entries(indices)
+    async def remove_entries(self, indices: list[int]) -> list[BacklogEntry]:
+        removed = await super().remove_entries(indices)
         if removed:
             self.save()
         return removed

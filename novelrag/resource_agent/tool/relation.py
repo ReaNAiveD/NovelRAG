@@ -106,7 +106,7 @@ class ResourceRelationWriteTool(SchematicTool):
             new_source_to_target = updated_relations
             undo_relationships = await self.repo.update_relationships(source_resource_uri, target_resource_uri, new_source_to_target)
             if self.undo is not None:
-                self.undo.add_undo_item(ReversibleAction(
+                await self.undo.add_undo_item(ReversibleAction(
                     method="update_relationships",
                     params={
                         "source_uri": source_resource_uri,
@@ -127,7 +127,7 @@ class ResourceRelationWriteTool(SchematicTool):
                 new_target_to_source = updated_relations
                 undo_relationships = await self.repo.update_relationships(target_resource_uri, source_resource_uri, new_target_to_source)
                 if self.undo is not None:
-                    self.undo.add_undo_item(ReversibleAction(
+                    await self.undo.add_undo_item(ReversibleAction(
                         method="update_relationships",
                         params={
                             "source_uri": target_resource_uri,
