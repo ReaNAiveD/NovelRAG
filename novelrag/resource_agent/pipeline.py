@@ -514,7 +514,7 @@ class BacklogDiscoveryProcedure:
         self._context = context
         self._backlog = backlog
         self._lang_directive = lang_directive
-        self._discover_backlog_llm = chat_llm.with_structured_output(DiscoverBacklogResponse)
+        self._discover_backlog_llm = chat_llm.with_structured_output(DiscoverBacklogResponse).with_config()
         template_env = TemplateEnvironment(package_name=self.PACKAGE_NAME, default_lang=lang)
         self._discover_backlog_tmpl = template_env.load_template(self.DISCOVER_BACKLOG_TEMPLATE)
 

@@ -23,7 +23,8 @@ A **context-driven intelligent agent framework** for managing narrative content 
 
 ### Requirements
 
-- Python 3.9 or higher
+- Python 3.9 or higher (3.12 recommended)
+- [uv](https://docs.astral.sh/uv/) package manager
 - An LLM API key (OpenAI, Azure OpenAI, or DeepSeek)
 
 ### Install from Source
@@ -33,12 +34,16 @@ A **context-driven intelligent agent framework** for managing narrative content 
 git clone https://github.com/ReaNAiveD/NovelRAG.git
 cd NovelRAG
 
-# Install in development mode
-pip install -e .
+# Install with core dependencies
+uv sync
 
-# Install with optional dependencies
-pip install -e ".[openai]"           # For OpenAI API
-pip install -e ".[azure-ai]"         # For Azure AI Inference
+# Install with optional dependency groups
+uv sync --extra openai               # OpenAI API support
+uv sync --extra azure-identity       # Azure identity support
+uv sync --extra server               # FastAPI server interface
+uv sync --extra pg                   # PostgreSQL + pgvector storage
+uv sync --extra server --extra pg    # Full server deployment
+uv sync --all-extras                 # Everything
 ```
 
 ### Dependencies
@@ -46,8 +51,19 @@ pip install -e ".[azure-ai]"         # For Azure AI Inference
 Core dependencies are automatically installed:
 - `jinja2` - Template engine for LLM prompts
 - `lancedb` - Vector database for semantic search
+- `langchain-core` - LLM abstraction layer
 - `pydantic` - Data validation and settings management
-- `numpy`, `pandas`, `pyarrow` - Data processing
+- `pyyaml` / `pyaml-env` - YAML configuration with environment variable support
+
+Optional dependency groups:
+
+| Group | Packages | Purpose |
+|---|---|---|
+| `openai` | `langchain-openai` | OpenAI / Azure OpenAI model support |
+| `azure-identity` | `azure-identity` | Azure managed identity authentication |
+| `server` | `fastapi`, `uvicorn`, `python-multipart` | HTTP API server interface |
+| `pg` | `asyncpg`, `sqlalchemy`, `pgvector`, `alembic` | PostgreSQL storage with vector search |
+| `test` | `pytest`, `pytest-asyncio`, `pytest-cov` | Testing and coverage |
 
 ## Quick Start
 
@@ -105,14 +121,14 @@ location:
 # Set your API key
 export OPENAI_API_KEY="your-api-key"
 
-# Run the shell
-python -m novelrag.cli --config config.yml
+# Run the CLI shell
+uv run python -m novelrag.cli --config config.yml
 
 # With verbose logging
-python -m novelrag.cli --config config.yml -v
+uv run python -m novelrag.cli --config config.yml -v
 
 # Execute a single request
-python -m novelrag.cli --config config.yml "Find the protagonist"
+uv run python -m novelrag.cli --config config.yml "Find the protagonist"
 ```
 
 ## Documentation

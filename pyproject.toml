@@ -24,9 +24,6 @@ dependencies = [
     "jinja2",
     "lancedb",
     "langchain-core>=0.3",
-    "numpy",
-    "pandas",
-    "pyarrow",
     "pydantic",
     "pyyaml",
     "pyaml-env",
@@ -47,6 +44,17 @@ openai = [
 ]
 azure-identity = [
     "azure-identity",
+]
+server = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "python-multipart>=0.0.18",
+]
+pg = [
+    "asyncpg>=0.30",
+    "sqlalchemy[asyncio]>=2.0",
+    "pgvector>=0.3",
+    "alembic>=1.14",
 ]
 
 [build-system]
