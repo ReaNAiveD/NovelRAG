@@ -9,11 +9,12 @@ from novelrag.cli.handler.builtin.redo import RedoHandler
 from novelrag.cli.handler.builtin.undo import UndoHandler
 from novelrag.cli.handler.interaction import InteractionHistory, InteractionRecord
 from novelrag.config.novel_rag import NovelRagConfig
-from novelrag.resource.repository import LanceDBResourceRepository
+from novelrag.storage.local.resource import LanceDBResourceRepository
 from novelrag.resource_agent.factory import create_executor
-from novelrag.resource_agent.backlog.local import LocalBacklog
+from novelrag.storage.local.backlog import LocalBacklog
 from novelrag.resource_agent.goal_decider import CompositeGoalDecider
-from novelrag.resource_agent.undo import LocalUndoQueue, MemoryUndoQueue, UndoQueue
+from novelrag.resource_agent.undo import UndoQueue
+from novelrag.storage.local.undo import LocalUndoQueue, MemoryUndoQueue
 from novelrag.utils.language import content_directive
 from novelrag.cli.handler.builtin.agent import AgentHandler
 from novelrag.exceptions import HandlerNotFoundError, SessionQuitError
@@ -86,7 +87,7 @@ class Session:
         embedding_factory = EmbeddingLLMFactory(embedder)
 
         # Initialize repository
-        repository = await LanceDBResourceRepository.from_config(
+        repository = await LanceDBResourceRepository.load_from_disk(
             config.resource_config,
             config.vector_store,
             embedder,

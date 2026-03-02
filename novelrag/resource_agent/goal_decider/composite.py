@@ -5,7 +5,7 @@ from novelrag.agenturn.goal import Goal, GoalDecider
 from novelrag.agenturn.interaction import InteractionContext
 from langchain_core.language_models import BaseChatModel
 from novelrag.resource.repository import ResourceRepository
-from novelrag.resource_agent.backlog.types import Backlog, BacklogEntry
+from novelrag.resource_agent.backlog import Backlog, BacklogEntry
 from novelrag.resource_agent.undo import UndoQueue
 
 from .backlog_source import BacklogGoalDecider

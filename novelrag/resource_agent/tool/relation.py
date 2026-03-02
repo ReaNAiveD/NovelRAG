@@ -11,7 +11,7 @@ from novelrag.agenturn.tool import ToolOutput
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import SystemMessage, HumanMessage
 from novelrag.resource.aspect import ResourceAspect
-from novelrag.resource.element import DirectiveElement
+from novelrag.resource.element import Element
 from novelrag.resource.repository import ResourceRepository
 from novelrag.resource_agent.undo import ReversibleAction, UndoQueue
 from novelrag.template import TemplateEnvironment
@@ -97,7 +97,7 @@ class ResourceRelationWriteTool(SchematicTool):
         if not target_resource:
             await ctx.error(f"Target resource URI '{target_resource_uri}' not found in the repository.")
             return self.error(f"Target resource URI '{target_resource_uri}' not found in the repository.")
-        if isinstance(source_resource, DirectiveElement):
+        if isinstance(source_resource, Element):
             # --- Source → Target ---
             old_source_to_target = source_resource.relationships.get(target_resource_uri, [])
             updated_relations = await self.get_updated_relations(
@@ -119,7 +119,7 @@ class ResourceRelationWriteTool(SchematicTool):
             # --- Target → Source ---
             old_target_to_source: list[str] = []
             new_target_to_source: list[str] = []
-            if isinstance(target_resource, DirectiveElement):
+            if isinstance(target_resource, Element):
                 old_target_to_source = target_resource.relationships.get(source_resource_uri, [])
                 updated_relations = await self.get_updated_relations(
                     target_resource, source_resource, old_target_to_source or [], operation, relation_description
@@ -184,7 +184,7 @@ class ResourceRelationWriteTool(SchematicTool):
         return response.content
 
     @trace_llm("update_relations")
-    async def get_updated_relations(self, source_resource: DirectiveElement, target_resource: DirectiveElement | ResourceAspect, existing_relation: list[str], operation: str, relation_description: str) -> list[str]:
+    async def get_updated_relations(self, source_resource: Element, target_resource: Element | ResourceAspect, existing_relation: list[str], operation: str, relation_description: str) -> list[str]:
         prompt = self._template.render(
             source_resource=source_resource.context_dict,
             target_resource=target_resource.context_dict,

@@ -263,14 +263,14 @@ No content results provided.
 
 **Context**:
 {% for segment in context.segments %}
-{%- if segment.included_data or segment.relations or segment.child_ids %}
+{%- if segment.included_data or segment.relations or segment.children_names %}
 ### {{ segment.uri }}
 {%- for key, value in segment.included_data.items() %}
 - {{ key }}: {{ value }}
 {%- endfor %}
-{%- for key, ids in segment.child_ids.items() %}
-{%- if ids %}
-- {{ key }}: {{ ids }}
+{%- for key, names in segment.children_names.items() %}
+{%- if names %}
+- {{ key }}: {{ names }}
 {%- endif %}
 {%- endfor %}
 {%- for rel_uri, rel_desc in segment.relations.items() %}

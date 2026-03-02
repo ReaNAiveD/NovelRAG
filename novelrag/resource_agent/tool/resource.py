@@ -10,7 +10,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import SystemMessage, HumanMessage
 from novelrag.resource.repository import ResourceRepository
 from novelrag.resource.operation import validate_op
-from novelrag.resource_agent.backlog.types import Backlog, BacklogEntry
+from novelrag.resource_agent.backlog import Backlog, BacklogEntry
 from novelrag.resource_agent.undo import ReversibleAction, UndoQueue
 from novelrag.template import TemplateEnvironment
 from novelrag.tracer import trace_llm

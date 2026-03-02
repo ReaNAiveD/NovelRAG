@@ -158,7 +158,7 @@ class LanceDBStore:
         return await self._upsert_element(
             element.uri,
             element.aspect,
-            element.element_dict(),
+            element.element_dict,
             unchecked=unchecked
         )
 
@@ -171,7 +171,7 @@ class LanceDBStore:
         return await self._update_element(
             element.uri,
             element.aspect,
-            element.element_dict()
+            element.element_dict
         )
 
     async def delete(self, resource_uri: str):
@@ -204,17 +204,17 @@ class LanceDBStore:
         uri_conditions = " OR ".join([f'resource_uri = "{uri}"' for uri in resource_uris])
         await self.table.delete(where=uri_conditions)
 
-    async def cleanup_invalid_resources(self, valid_resource_uris: set[str]) -> int:
+    async def cleanup_invalid_resources(self, valid_uris: set[str]) -> int:
         """Remove all resources from vector store that are not in the valid set.
         
         Args:
-            valid_resource_uris: Set of URIs that should remain in the vector store
+            valid_uris: Set of URIs that should remain in the vector store
             
         Returns:
             Number of invalid resources that were removed
         """
         all_stored_uris = await self.get_all_resource_uris()
-        invalid_uris = [uri for uri in all_stored_uris if uri not in valid_resource_uris]
+        invalid_uris = [uri for uri in all_stored_uris if uri not in valid_uris]
         
         if invalid_uris:
             await self.batch_delete_by_uris(invalid_uris)
@@ -230,7 +230,7 @@ class LanceDBStore:
     async def _create_line(self, element: Element) -> EmbeddingSearch:
         """Create EmbeddingSearch instance from an Element."""
         serialized_data = json.dumps(
-            element.element_dict(),
+            element.element_dict,
             ensure_ascii=False,
             sort_keys=True
         )

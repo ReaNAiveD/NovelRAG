@@ -3,7 +3,7 @@
 from novelrag.agenturn.agent import GoalExecutor
 from novelrag.agenturn.procedure import ExecutionContext
 from novelrag.agenturn.pursuit import LLMPursuitAssessor
-from novelrag.resource_agent.backlog.types import Backlog, BacklogEntry
+from novelrag.resource_agent.backlog import Backlog, BacklogEntry
 from novelrag.resource_agent.undo import UndoQueue
 from novelrag.utils.language import content_directive
 

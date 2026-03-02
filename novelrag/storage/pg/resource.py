@@ -1,18 +1,23 @@
 from typing import Any
 
-from asyncpg.pool import Pool
+from psycopg.rows import dict_row
+from psycopg_pool import AsyncConnectionPool
 from novelrag.resource.aspect import ResourceAspect
-from novelrag.resource.element import DirectiveElement
+from novelrag.resource.element import Element
 from novelrag.resource.operation import Operation
 from novelrag.resource.repository import ResourceRepository, SearchResult
 
 
 class PostgresResourceRepository(ResourceRepository):
-    def __init__(self, pool: Pool):
+    def __init__(self, pool: AsyncConnectionPool):
         self.pool = pool
 
     async def all_aspects(self) -> list[ResourceAspect]:
-        pass
+        async with self.pool.connection() as conn:
+            async with conn.cursor(row_factory=dict_row) as cur:
+                await cur.execute('SELECT id, name, uri, description, children_keys, metadata FROM resource_aspects')
+                rows = await cur.fetchall()
+                return [ResourceAspect(id=r['id'], name=r['name'], uri=r['uri'], description=r['description'], children_keys=r['children_keys'], aspect_meta=r['metadata']) for r in rows]
 
     async def get_aspect(self, name: str) -> ResourceAspect | None:
         pass
@@ -33,7 +38,7 @@ class PostgresResourceRepository(ResourceRepository):
         """
         pass
 
-    async def find_by_uri(self, resource_uri: str) -> list[ResourceAspect] | ResourceAspect | DirectiveElement | None:
+    async def find_by_uri(self, resource_uri: str) -> list[ResourceAspect] | ResourceAspect | Element | None:
         """Find a resource by its URI in the repository.
         
         Args:
@@ -42,7 +47,7 @@ class PostgresResourceRepository(ResourceRepository):
         Returns:
             - list[ResourceAspect]: All aspects if resource_uri is '/'
             - ResourceAspect: Single aspect if resource_uri matches '/{aspect_name}'
-            - DirectiveElement: Element if found by URI
+            - Element: Element if found by URI
             - None: If no match is found
         """
         pass

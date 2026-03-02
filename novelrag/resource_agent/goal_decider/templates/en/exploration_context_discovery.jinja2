@@ -30,10 +30,10 @@ surrounding context to understand its neighbourhood before analysing it.
 - **{{ target_uri }}**: {{ descriptions | join("; ") }}
 {%- endfor %}
 {% endif %}
-{% if element.children_ids %}
-### Children (construct URI: `{{ element.uri }}/{child_id}`)
-{% for type, ids in element.children_ids.items() %}
-- **{{ type }}**: {{ ids | join(", ") }}
+{% if element.children_names %}
+### Children (construct URI: `{{ element.uri }}/{child_name}`)
+{% for type, names in element.children_names.items() %}
+- **{{ type }}**: {{ names | join(", ") }}
 {%- endfor %}
 {% endif %}
 

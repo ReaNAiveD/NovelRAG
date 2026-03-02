@@ -7,7 +7,7 @@ authors = [
 ]
 license = "MIT"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 keywords = ["novel", "ai"]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -51,7 +51,7 @@ server = [
     "python-multipart>=0.0.18",
 ]
 pg = [
-    "asyncpg>=0.30",
+    "psycopg[binary,pool]>=3.3",
     "sqlalchemy[asyncio]>=2.0",
     "pgvector>=0.3",
     "alembic>=1.14",

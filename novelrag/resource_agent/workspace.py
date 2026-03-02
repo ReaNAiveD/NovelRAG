@@ -37,7 +37,7 @@ class SegmentData:
     uri: str
     included_data: dict[str, Any]
     excluded_properties: list[str]
-    child_ids: dict[str, list[str]]
+    children_names: dict[str, list[str]]
     relations: dict[str, str]
 
 
@@ -52,9 +52,9 @@ class ContextWorkspace:
         """Filter out relationships that are excluded in the workspace."""
         return {uri: desc for uri, desc in relationships.items() if uri not in self.excluded_uris}
     
-    def filter_children_ids(self, base_uri: str, children_ids: list[str]) -> list[str]:
-        """Filter out children IDs that are excluded in the workspace."""
-        return [uri for uri in children_ids if f"{base_uri}/{uri}" not in self.excluded_uris]
+    def filter_children_names(self, base_uri: str, children_names: list[str]) -> list[str]:
+        """Filter out children names that are excluded in the workspace."""
+        return [name for name in children_names if f"{base_uri}/{name}" not in self.excluded_uris]
 
     def sorted_segments(self) -> list[ResourceSegment]:
         """Get the list of resource segments in sorted order."""
@@ -124,32 +124,32 @@ class ResourceContext:
         if not resource:
             return None
         if isinstance(resource, list):
-            child_ids = [aspect.name for aspect in resource]
-            filtered_child_ids = self.workspace.filter_children_ids("", child_ids)
+            children_names = list(resource)
+            filtered_children_names = self.workspace.filter_children_names("", children_names)
             return SegmentData(
                 uri=segment.uri,
                 included_data={},
                 excluded_properties=sorted(segment.excluded_properties),
-                child_ids={"aspects": filtered_child_ids},
+                children_names={"aspects": filtered_children_names},
                 relations={},
             )
         elif isinstance(resource, ResourceAspect):
             data = resource.aspect_dict
-            child_ids = [element.id for element in resource.root_elements]
-            filtered_child_ids = self.workspace.filter_children_ids(segment.uri, child_ids)
+            children_names = resource.root_elements
+            filtered_children_names = self.workspace.filter_children_names(segment.uri, children_names)
             included_properties = set(data.keys()) - segment.excluded_properties
             included_data = {k: v for k, v in data.items() if k in included_properties}
             return SegmentData(
                 uri=segment.uri,
                 included_data=included_data,
                 excluded_properties=sorted(segment.excluded_properties),
-                child_ids={"top_child_resources": filtered_child_ids},
+                children_names={"top_child_resources": filtered_children_names},
                 relations={},
             )
         else:
             data = resource.props
-            child_ids = resource.flattened_child_ids
-            filtered_child_ids = {key: self.workspace.filter_children_ids(segment.uri, ids) for key, ids in child_ids.items()}
+            children_names = resource.children_names
+            filtered_children_names = {key: self.workspace.filter_children_names(segment.uri, names) for key, names in children_names.items()}
             included_properties = set(data.keys()) - segment.excluded_properties
             included_data = {k: v for k, v in data.items() if k in included_properties}
             relations = self.workspace.filter_relationships({uri: " ".join(desc) for uri, desc in resource.relationships.items()})
@@ -157,7 +157,7 @@ class ResourceContext:
                 uri=segment.uri,
                 included_data=included_data,
                 excluded_properties=sorted(segment.excluded_properties),
-                child_ids=filtered_child_ids,
+                children_names=filtered_children_names,
                 relations=relations,
             )
     

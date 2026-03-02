@@ -6,373 +6,113 @@ This document defines the core terminology used throughout the NovelRAG system.
 
 ## Table of Contents
 
-1. [Resource System Terminology](#resource-system-terminology)
-2. [Agent System Terminology](#agent-system-terminology)
+1. [Resource System](#resource-system)
+2. [Agent System](#agent-system)
 
 ---
 
-## Resource System Terminology
-
-### Resource System
-The hierarchical data management system for organizing and managing narrative content. It provides a unified interface for storing, querying, and manipulating story-related data.
+## Resource System
 
 ### Aspect
-A **category or type** of resources in the system. Aspects define the classification of narrative entities.
 
-**Examples:**
-- `character` - Character entities
-- `location` - Location entities  
-- `scene` - Scene entities
-
-**Technical Details:**
-- Defined in configuration as `AspectConfig`
-- Stored in `ResourceAspect` class at runtime
-- Each aspect has its own root-level resource list
+A named category of resources (e.g. `character`, `faction`, `narrative_event`). Each aspect owns a collection of root-level resources, is backed by its own YAML file, and carries schema metadata such as `children_keys` and `description` that define the shape of its resource tree.
 
 ### Resource
-An **individual instance** within an aspect. Resources are the conceptual entities that represent actual narrative elements.
 
-**Examples:**
-- `/character/sarah_chen_detective`
-- `/location/europe/london`
+An individual narrative entity within an aspect — a character, a location, an event, etc. Each resource is identified by a **URI** (a hierarchical path like `/<aspect>/<resource_id>[/<nested_id>...]`), carries arbitrary properties, and may contain nested child resources.
 
-**Characteristics:**
-- Identified by a **URI** (Unique Resource Identifier)
-- Has properties (attributes/fields)
-- May have children (nested resources)
-- Represented by an `Element` data structure
-
-### Element
-The **atomic data unit** - the actual data structure that represents a resource in memory.
-
-**Key Classes:**
-- `Element` (Pydantic model) - Core data structure
-- `DirectiveElement` - Wrapper providing tree structure and manipulation
-- `ElementLookUpTable` - Index for fast element retrieval by URI
-
-### URI (Uniform Resource Identifier)
-A **hierarchical path** that uniquely identifies a resource in the system.
-
-**Format:** `/<aspect>[/<resource_id>[/<nested_id>...]]`
-
-**Examples:**
-- `/` - Root (all aspects)
-- `/character` - Character aspect
-- `/character/john_doe` - Specific character
+In memory, a resource is represented as an **element** — the atomic data unit. `Element` is the core Pydantic data model that carries tree-navigation pointers (parent) and supports in-place splicing of child lists, enabling traversal and mutation of the resource tree.
 
 ### Repository
-The `ResourceRepository` class manages the entire resource system.
 
-**Key Components:**
-- `resource_aspects: dict[str, ResourceAspect]` - All aspects
-- `lut: ElementLookUpTable` - Fast lookup by URI
-- `vector_store: LanceDBStore` - Vector embeddings for semantic search
-
-**Key Operations:**
-- `find_by_uri(resource_uri)` - Find resource by URI
-- `vector_search(query)` - Semantic search across resources
-- `apply(operation)` - Modify resources via operations
+The central manager for the entire resource system. Holds all aspects, an **element look-up table** (URI-keyed dictionary for O(1) element retrieval), and a **vector store** (LanceDB-backed embedding store for semantic search). Provides resource lookup by URI, semantic vector search, and atomic operation application. The concrete implementation is backed by YAML files and a LanceDB vector store.
 
 ### Operation
-An atomic change to the resource system with undo capability.
 
-**Operation Types:**
-- `PropertyOperation` - Updates properties of an existing resource
-- `ResourceOperation` - Adds, removes, or replaces resources in lists
+An atomic, undoable mutation to the resource system. Two variants exist:
+
+- **Property Operation** — updates properties on an existing element by URI.
+- **Resource Operation** — splices (inserts, removes, or replaces) elements in a resource list at a given location.
+
+Both produce an inverse operation on application, enabling undo.
 
 ---
 
-## Agent System Terminology
+## Agent System
 
-### GoalExecutor
-The **main controller** for goal pursuit. It coordinates the execution of goals using tools and an action determiner.
+### Agent
 
-**Location**: `novelrag/agenturn/agent.py`
+The goal-pursuing entity. Three variants exist:
 
-**Key Methods:**
-- `handle_goal(goal)` - Execute a goal and return outcome
-- `_execute_tool(tool_name, params, reason)` - Execute a single tool
-- `create_request_handler(goal_translator)` - Create a RequestHandler
-- `create_autonomous_agent(goal_decider)` - Create an AutonomousAgent
+- **Goal Executor** — the core agent loop. Given a goal, it repeatedly **determines the next action** — either an operation plan (execute a tool) or a resolution (terminate the pursuit) — based on current beliefs, pursuit progress, and available tools. It executes the chosen tool, records the outcome, and loops until a resolution is reached.
+- **Request Handler** — handles user request strings end-to-end. First **translates** the natural-language request into a goal (via an LLM-based translator), then delegates to a goal executor to pursue it.
+- **Autonomous Agent** — autonomously **decides** the next goal to pursue (or determines none is available), then delegates to a goal executor. Used for hands-free exploration and backlog processing.
 
 ### Goal
-A **refined statement of intent** describing what the agent aims to achieve.
 
-**Structure:**
-```python
-@dataclass
-class Goal:
-    description: str
-    source: GoalSource  # UserRequestSource or AutonomousSource
-```
+A clear objective for the agent, carrying a description and a source tracing its origin — either a user request or an autonomous decision.
 
-### GoalTranslator
-Protocol for translating user requests into goals.
+The **goal decision** subsystem is used by the autonomous agent. A composite decider selects among multiple sources via weighted random, dynamically adjusting weights based on data availability:
 
-**Implementation**: `LLMGoalTranslator` uses LLM to translate requests.
+- **Backlog Goal Decider** — formulates goals from the highest-priority backlog entries via LLM, consuming used entries.
+- **Exploration Goal Decider** — generates goals by exploring the repository in three tiers: *bootstrap* (no aspects — propose first aspects from beliefs), *populate* (empty aspects — populate one), *explore* (random-walk, context expansion, concept-gap analysis).
+- **Recency Weighter** — derives per-aspect and per-element weight penalties from recent undo history to promote exploration diversity.
 
-### ActionDeterminer
-Protocol for determining the next action during goal pursuit.
+### Pursuit
 
-**Implementation**: `ActionDetermineLoop` in `novelrag/resource_agent/action_determine_loop.py`
+The lifecycle of executing a goal.
 
-**Method:**
-```python
-async def determine_action(
-    beliefs: list[str],
-    pursuit_progress: PursuitProgress,
-    available_tools: dict[str, SchematicTool]
-) -> OperationPlan | Resolution
-```
+- **Pursuit Progress** — tracks the in-flight state: the goal itself and the list of operation outcomes executed so far.
+- **Pursuit Outcome** — an immutable record of a completed pursuit: status (completed, failed, or abandoned), all executed steps, the final resolution, and a user-facing response.
+- **Pursuit Assessment** — a structured LLM assessment of current progress: finished tasks, remaining work, required context, expected actions, boundary conditions, exception conditions, and success criteria. Produced during action determination to guide the next decision.
 
-### PursuitProgress
-Tracks the **progress** of a goal pursuit.
+### Step
 
-**Structure:**
-```python
-@dataclass
-class PursuitProgress:
-    goal: Goal
-    pending_steps: list[str]
-    executed_steps: list[OperationOutcome]
-```
+A single unit of work within a pursuit.
 
-### PursuitOutcome
-The **final outcome** of a goal pursuit.
-
-**Structure:**
-```python
-@dataclass
-class PursuitOutcome:
-    goal: Goal
-    reason: str
-    response: str
-    status: PursuitStatus  # COMPLETED, FAILED, ABANDONED
-    executed_steps: list[OperationOutcome]
-    resolution: Resolution
-    resolve_at: datetime
-```
-
-### PursuitAssessment
-Assessment of current pursuit progress toward a goal.
-
-**Structure:**
-```python
-@dataclass
-class PursuitAssessment:
-    finished_tasks: list[str]
-    remaining_work_summary: str
-    required_context: str
-    expected_actions: str
-    boundary_conditions: list[str]
-    exception_conditions: list[str]
-    success_criteria: list[str]
-```
-
-### OperationPlan
-A directive to **execute a specific tool** and continue the pursuit.
-
-**Structure:**
-```python
-@dataclass(frozen=True)
-class OperationPlan:
-    reason: str
-    tool: str
-    parameters: dict
-```
-
-### Resolution
-A directive to **terminate the pursuit** with a final status.
-
-**Structure:**
-```python
-@dataclass(frozen=True)
-class Resolution:
-    reason: str
-    response: str
-    status: str  # success, failed, abandoned
-```
-
-### OperationOutcome
-The **result of executing** an OperationPlan.
-
-**Structure:**
-```python
-@dataclass
-class OperationOutcome:
-    operation: OperationPlan
-    status: StepStatus  # SUCCESS, FAILED, CANCELLED
-    results: list[str]
-    error_message: str | None
-    started_at: datetime | None
-    completed_at: datetime | None
-```
+- **Operation Plan** — an immutable directive to execute a specific tool, containing a reason, tool name, and parameters.
+- **Resolution** — an immutable directive to terminate the pursuit with a final status, a reason, and a user-facing response.
+- **Operation Outcome** — the result of executing an operation plan: success or failure status, result text, error message, and timing information.
 
 ### Tool
-An **executable unit** that performs a specific action.
 
-**Types:**
-- `BaseTool` - Abstract base interface
-- `SchematicTool` - Tools with JSON schema for parameters
+An executable unit that performs a specific action. Each tool has a name, description, a JSON Schema for its input parameters, and an async execution method. The agent can only invoke tools registered in its tool set. Results are either a successful `ToolResult` or a `ToolError`.
 
-**Interface:**
-```python
-class SchematicTool:
-    name: str
-    description: str
-    input_schema: dict
-    
-    async def call(runtime: ToolRuntime, **params) -> ToolOutput
-```
+The concrete **resource tools** available to the agent:
 
-### ToolRuntime
-The **interface provided to tools** during execution.
+- **Resource Fetch Tool** — read-only; fetches a resource, aspect, or repository root by URI.
+- **Resource Search Tool** — read-only; performs semantic vector search across all resources.
+- **Aspect Create Tool** — creates new aspects with LLM-generated metadata. Supports undo.
+- **Resource Write Tool** — the main editing tool. Orchestrates a four-phase workflow: content generation → operation building & application → cascade updates → backlog discovery. Supports undo.
+- **Resource Relation Write Tool** — manages bidirectional relationships between resources. Supports undo.
 
-**Methods:**
-- `debug(content)`, `message(content)` - Output messages
-- `warning(content)`, `error(content)` - Error messages
-- `confirmation(prompt)` - Ask yes/no question
-- `user_input(prompt)` - Request input from user
-- `progress(key, value, description)` - Track progress
-- `backlog(content, priority)` - Add to backlog
+### Action Determination
 
-### ToolOutput
-The **result returned by a tool** after execution.
+The multi-phase orchestration system that **determines the next action** during goal pursuit. Composes two sub-loops:
 
-**Types:**
-- `ToolResult` - Successful execution with result string
-- `ToolError` - Failed execution with error message
+- **Context Discovery Loop** — iteratively discovers and refines the relevant context. Each iteration has a *discovery* phase (proposes search queries, resource URIs to load, and tools to expand) and a *refinement* phase (filters out irrelevant resources/properties, collapses verbose tool schemas, reorders segments by priority). Repeats until context is sufficient.
+- **Action Loop** — makes the action decision and validates it. Each iteration has a *decision* phase (analyzes the situation, decides to execute a tool or finalize) and a *refinement analysis* phase (approves the decision or requests refinement with an updated pursuit assessment).
 
-### AgentChannel
-The **communication interface** between agent and user.
+The **resource context** maintains the evolving workspace state during action determination. Wraps the repository to provide resource querying, semantic search, inclusion/exclusion of resources and properties, and immutable context snapshots for LLM prompt rendering. Internally tracks each loaded resource as a **segment** — a partially loaded resource identified by URI with a set of excluded properties.
 
-**Methods:**
-- `send_message(content, level)` - Send message at specified level
-- `confirm(prompt)` - Boolean confirmation
-- `request(prompt)` - String input
+### Content Pipeline
 
-**Implementations:**
-- `SessionChannel` - Session-based communication in CLI
+Reusable multi-step procedures for content generation and consistency maintenance:
 
-### RequestHandler
-Handles incoming requests by translating them to goals and executing.
+- **Content Generation** — generates content through a competitive proposal process. Multiple content proposers independently produce proposals using Sequential Diverse Prompting (generate diverse creative perspectives, then produce content from sampled perspectives). Proposals are ranked via LLM and selected by weighted random.
+- **Cascade Update** — after a primary write operation, discovers and applies follow-on updates — both perspective/content changes and relationship changes on related resources — to maintain cross-resource consistency.
+- **Backlog Discovery** — analyzes completed operations and discovers follow-up work items to add to the backlog for future autonomous processing.
 
-**Usage:**
-```python
-handler = executor.create_request_handler(goal_translator)
-response = await handler.handle_request("Find the protagonist")
-```
+### Backlog
 
-### AutonomousAgent
-Agent that autonomously generates and pursues goals.
+A priority-sorted work queue for tracking follow-up work items. Each entry has a type, numeric priority (`high=30`, `normal=20`, `low=10`), description, and extensible metadata. Provides in-memory and file-persisted implementations.
 
-**Usage:**
-```python
-agent = executor.create_autonomous_agent(goal_decider)
-outcome = await agent.pursue_next_goal()
-```
+### Undo System
 
----
+Tracks reversible actions for undo/redo. Each reversible action records a method name, parameters, and optional group tag for batched undo. The undo queue provides in-memory and file-persisted implementations with bounded stack size.
 
-## ActionDetermineLoop Terminology
+### Execution Context
 
-### ActionDetermineLoop
-The **resource-aware action determiner** using multi-phase orchestration.
+The unified runtime interface shared by procedures, tools, and the agent loop. Provides three facets: messaging (info, debug, warning, error), user-facing output, and bidirectional prompts (confirm, request). Implementations route these to CLI, logger, or test harnesses.
 
-**Location**: `novelrag/resource_agent/action_determine_loop.py`
-
-**Phases:**
-1. Context Discovery - Find relevant context
-2. Context Refinement - Filter and prioritize context
-3. Action Decision - Decide to execute tool or finalize
-4. Refinement Analysis - Validate decision or refine assessment
-
-### DiscoveryPlan
-Result from context discovery phase.
-
-**Fields:**
-- `discovery_analysis` - Analysis text
-- `search_queries` - Terms to search
-- `query_resources` - URIs to load
-- `expand_tools` - Tools to expand
-
-### RefinementPlan
-Result from context refinement phase.
-
-**Fields:**
-- `exclude_resources` - URIs to exclude
-- `exclude_properties` - Properties to exclude
-- `collapse_tools` - Tools to collapse
-- `sorted_segments` - Priority ordering
-
-### ActionDecision
-Result from action decision phase.
-
-**Fields:**
-- `situation_analysis` - Current state assessment
-- `decision_type` - "execute" or "finalize"
-- `execution` - Tool and params if executing
-- `finalization` - Response if finalizing
-- `context_verification` - Verification details
-
-### RefinementDecision
-Result from refinement analysis phase.
-
-**Fields:**
-- `analysis` - Quality assessment
-- `verdict` - "approve" or "refine"
-- `approval` - Details if approving
-- `refinement` - Updated assessment if refining
-
-### ResourceContext
-The **context builder** that manages workspace state during orchestration.
-
-**Location**: `novelrag/resource_agent/workspace.py`
-
-**Key Operations:**
-- `search_resources(query)` - Semantic search
-- `query_resource(uri)` - Load specific resource
-- `exclude_resource(uri)` - Remove from context
-
----
-
-## Decision Matrix
-
-| Scenario | Use Term | Example |
-|----------|----------|---------|
-| Main execution controller | **GoalExecutor** | `executor.handle_goal(goal)` |
-| User request to goal | **GoalTranslator** | `translator.translate(request)` |
-| Action determination | **ActionDeterminer** | `determiner.determine_action()` |
-| Tool execution directive | **OperationPlan** | Execute a specific tool |
-| Pursuit termination | **Resolution** | End with success/failure |
-| Execution result | **OperationOutcome** | Tracks status and results |
-| Tool interface | **SchematicTool** | Has name, schema, call() |
-| Tool result | **ToolOutput** | ToolResult or ToolError |
-| User communication | **AgentChannel** | send_message, confirm, request |
-| Request handling | **RequestHandler** | handle_request() |
-| Autonomous operation | **AutonomousAgent** | pursue_next_goal() |
-
----
-
-## Package Structure
-
-```
-novelrag/
-+-- agenturn/                    # Generic agent framework
-|   +-- agent.py                 # GoalExecutor, RequestHandler, AutonomousAgent
-|   +-- channel.py               # AgentChannel protocol
-|   +-- goal.py                  # Goal, GoalTranslator
-|   +-- pursuit.py               # PursuitProgress, PursuitOutcome, ActionDeterminer
-|   +-- step.py                  # OperationPlan, OperationOutcome, Resolution
-|   +-- tool/                    # Tool abstractions
-|
-+-- resource_agent/              # Resource-specific implementation
-|   +-- action_determine_loop.py # ActionDetermineLoop
-|   +-- workspace.py             # ResourceContext
-|   +-- tool/                    # Resource tools
-|
-+-- resource/                    # Resource system
-    +-- repository.py            # ResourceRepository
-    +-- aspect.py                # ResourceAspect
-    +-- element.py               # Element, DirectiveElement
-```
+A **procedure error** is an exception that preserves partial side effects already applied when a procedure fails midway, enabling informed rollback decisions.

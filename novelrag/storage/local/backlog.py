@@ -1,12 +1,61 @@
-from novelrag.resource_agent.backlog.memory import MemoryBacklog
-from novelrag.resource_agent.backlog.types import BacklogEntry
+"""In-process and local-file backlog implementations."""
+
+from novelrag.resource_agent.backlog import Backlog, BacklogEntry
+
+
+class MemoryBacklog(Backlog[BacklogEntry]):
+    """Priority-sorted backlog kept entirely in memory."""
+
+    def __init__(self, entries: list[BacklogEntry] | None = None) -> None:
+        self.entries: list[BacklogEntry] = entries if entries is not None else []
+        self._sort()
+
+    def _sort(self) -> None:
+        """Keep entries in descending priority order."""
+        self.entries.sort(key=lambda e: e.priority, reverse=True)
+
+    async def add_entry(self, entry: BacklogEntry) -> None:
+        self.entries.append(entry)
+        self._sort()
+
+    async def get_entries(self) -> list[BacklogEntry]:
+        return self.entries
+
+    async def clear(self) -> None:
+        self.entries = []
+
+    async def get_top(self, n: int) -> list[BacklogEntry]:
+        return self.entries[:n]
+
+    async def pop_entry(self) -> BacklogEntry | None:
+        if not self.entries:
+            return None
+        return self.entries.pop(0)
+
+    async def remove_entries(self, indices: list[int]) -> list[BacklogEntry]:
+        """Remove entries at the given 0-based indices and return them.
+
+        Indices refer to the current (sorted) order of ``self.entries``.
+        Out-of-range indices are silently ignored.
+        """
+        valid = sorted(set(idx for idx in indices if 0 <= idx < len(self.entries)), reverse=True)
+        removed = []
+        for idx in valid:
+            removed.append(self.entries.pop(idx))
+        removed.reverse()  # return in ascending-index order
+        return removed
+
+    def __len__(self) -> int:
+        return len(self.entries)
 
 
 class LocalBacklog(MemoryBacklog):
+    """Memory backlog that persists to a local JSON file."""
+
     def __init__(self, path: str, entries: list[BacklogEntry] | None = None) -> None:
         self.path = path
         super().__init__(entries)
-    
+
     @classmethod
     def load(cls, path: str) -> "LocalBacklog":
         import os
@@ -33,7 +82,7 @@ class LocalBacklog(MemoryBacklog):
                 ))
 
         return cls(path, entries)
-    
+
     def save(self) -> None:
         import os
         import json
@@ -44,15 +93,15 @@ class LocalBacklog(MemoryBacklog):
         with open(self.path, "w", encoding="utf-8") as f:
             data = [entry.to_dict() for entry in self.entries]
             json.dump(data, f, indent=4, ensure_ascii=False)
-    
+
     async def add_entry(self, entry: BacklogEntry) -> None:
         await super().add_entry(entry)
         self.save()
-    
+
     async def clear(self) -> None:
         await super().clear()
         self.save()
-    
+
     async def pop_entry(self) -> BacklogEntry | None:
         entry = await super().pop_entry()
         self.save()

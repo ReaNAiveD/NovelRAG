@@ -122,10 +122,10 @@ No additional tools available for expansion.
 {%- if segment.excluded_properties %}
 **Excluded Properties**: {{ segment.excluded_properties | join(", ") }}
 {%- endif %}
-{%- if segment.child_ids %}
+{%- if segment.children_names %}
 **Children** (construct URI by appending to parent: `{{ segment.uri }}/child_name`):
-{%- for type, ids in segment.child_ids.items() %}
-  - {{ type }}: {{ ids | join(", ") }}
+{%- for type, names in segment.children_names.items() %}
+  - {{ type }}: {{ names | join(", ") }}
 {%- endfor %}
 {%- endif %}
 {%- if segment.relations %}

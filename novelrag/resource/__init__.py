@@ -1,4 +1,4 @@
 from .aspect import ResourceAspect
-from .element import DirectiveElement, Element, DirectiveElementList
+from .element import Element
 from .operation import Operation
-from .repository import ResourceRepository, LanceDBResourceRepository
+from .repository import ResourceRepository

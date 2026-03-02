@@ -7,7 +7,7 @@ from novelrag.agenturn.tool import SchematicTool
 from novelrag.agenturn.procedure import ExecutionContext
 from novelrag.agenturn.tool import ToolOutput
 from novelrag.resource.aspect import ResourceAspect
-from novelrag.resource.element import DirectiveElement
+from novelrag.resource.element import Element
 from novelrag.resource.repository import ResourceRepository
 
 
@@ -60,7 +60,7 @@ class ResourceFetchTool(SchematicTool):
     async def call(self, ctx: ExecutionContext, **kwargs) -> ToolOutput:
         """Fetch a resource or aspect by URI and return its content.
 
-        For Root URI ('/'): Returns all aspects in the repository.
+        For Root URI ('/'): Returns all aspect names in the repository.
     
         For aspect URIs (e.g., '/aspect'): Returns the aspect metadata including name, path, 
         children_keys, and a list of root elements.
@@ -79,8 +79,12 @@ class ResourceFetchTool(SchematicTool):
             await ctx.error(f"Resource or aspect with URI {uri} not found in the repository.")
             return self.error(f"Resource or aspect with URI {uri} not found in the repository.")
 
-        if isinstance(resource, ResourceAspect | DirectiveElement):
-            return self.result(json.dumps(resource.context_dict, ensure_ascii=False))
+        if isinstance(resource, ResourceAspect):
+            data = resource.context_dict
+            return self.result(json.dumps(data, ensure_ascii=False))
+        elif isinstance(resource, Element):
+            data = resource.context_dict
+            return self.result(json.dumps(data, ensure_ascii=False))
         elif isinstance(resource, list):
-            return self.result(json.dumps([item.aspect_dict for item in resource], ensure_ascii=False))
+            return self.result(json.dumps([item for item in resource], ensure_ascii=False))
         return self.error(f"Unexpected resource type for URI {uri}. Please check the URI and try again.")

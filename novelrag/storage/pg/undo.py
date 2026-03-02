@@ -1,9 +1,15 @@
-from asyncpg import Pool
+import logging
+
+from psycopg.rows import dict_row
+from psycopg_pool import AsyncConnectionPool
 from novelrag.resource_agent.undo import ReversibleAction, UndoQueue
+
+logger = logging.getLogger(__name__)
 
 
 class PostgresUndoQueue(UndoQueue):
-    def __init__(self, pool: Pool) -> None:
+    def __init__(self, workspace_id: int, pool: AsyncConnectionPool) -> None:
+        self.workspace_id = workspace_id
         self.pool = pool
 
     async def add_undo_item(self, item: ReversibleAction, clear_redo: bool = True) -> list[ReversibleAction] | None:
@@ -15,7 +21,27 @@ class PostgresUndoQueue(UndoQueue):
         Returns:
             The overwritten list of RedoItems, if any.
         """
-        pass
+        async with self.pool.connection() as conn:
+            async with conn.transaction():
+                deleted_items = None
+                if clear_redo:
+                    async with conn.cursor(row_factory=dict_row) as cur:
+                        await cur.execute('''
+                            DELETE FROM redo_items WHERE workspace_id = %(ws)s
+                            RETURNING method, params, "group"
+                        ''', {'ws': self.workspace_id})
+                        deleted = await cur.fetchall()
+                        deleted_items = [ReversibleAction(method=r['method'], params=r['params'], group=r['group']) for r in deleted]
+                async with conn.cursor(row_factory=dict_row) as cur:
+                    await cur.execute('''
+                        INSERT INTO undo_items (workspace_id, method, params, "group")
+                        VALUES (%(ws)s, %(method)s, %(params)s, %(group)s)
+                        RETURNING id, method, params, "group"
+                    ''', {'ws': self.workspace_id, 'method': item.method, 'params': item.params, 'group': item.group})
+                    result = await cur.fetchone()
+                    assert result is not None  # Should never be None since we're inserting
+                    logger.debug(f"Added undo item(id: {result['id']}) to workspace {self.workspace_id}: {result['method']} with params {result['params']} in group {result['group']}")
+                return deleted_items
 
     async def add_redo_item(self, item: ReversibleAction) -> None:
         """
@@ -23,7 +49,17 @@ class PostgresUndoQueue(UndoQueue):
         Args:
             item: The RedoItem to add.
         """
-        pass
+        async with self.pool.connection() as conn:
+            async with conn.transaction():
+                async with conn.cursor(row_factory=dict_row) as cur:
+                    await cur.execute('''
+                        INSERT INTO redo_items (workspace_id, method, params, "group")
+                        VALUES (%(ws)s, %(method)s, %(params)s, %(group)s)
+                        RETURNING id, method, params, "group"
+                    ''', {'ws': self.workspace_id, 'method': item.method, 'params': item.params, 'group': item.group})
+                    result = await cur.fetchone()
+                    assert result is not None  # Should never be None since we're inserting
+                    logger.debug(f"Added redo item(id: {result['id']}) to workspace {self.workspace_id}: {result['method']} with params {result['params']} in group {result['group']}")
 
     async def pop_undo_item(self) -> ReversibleAction | None:
         """
@@ -31,8 +67,22 @@ class PostgresUndoQueue(UndoQueue):
         Returns:
             The last UndoItem, or None if the queue is empty.
         """
-        pass
-    
+        async with self.pool.connection() as conn:
+            async with conn.transaction():
+                async with conn.cursor(row_factory=dict_row) as cur:
+                    await cur.execute('''
+                        DELETE FROM undo_items
+                        WHERE id = (
+                            SELECT id FROM undo_items
+                            WHERE workspace_id = %(ws)s ORDER BY id DESC LIMIT 1
+                        )
+                        RETURNING method, params, "group"
+                    ''', {'ws': self.workspace_id})
+                    result = await cur.fetchone()
+                    if result is None:
+                        return None
+                    return ReversibleAction(method=result['method'], params=result['params'], group=result['group'])
+
     async def pop_undo_group(self) -> list[ReversibleAction] | None:
         """
         Pop the last group of undo items from the queue.

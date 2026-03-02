@@ -19,10 +19,10 @@ from langchain_core.messages import SystemMessage, HumanMessage
 
 from novelrag.agenturn.procedure import ExecutionContext
 from novelrag.exceptions import OperationError
-from novelrag.resource.element import DirectiveElement
+from novelrag.resource.element import Element
 from novelrag.resource.repository import ResourceRepository
 from novelrag.resource.operation import validate_op
-from novelrag.resource_agent.backlog.types import Backlog, BacklogEntry
+from novelrag.resource_agent.backlog import Backlog, BacklogEntry
 from novelrag.resource_agent.undo import ReversibleAction, UndoQueue
 from novelrag.resource_agent.workspace import ResourceContext, ContextSnapshot
 from novelrag.resource_agent.propose import ContentProposer
@@ -392,9 +392,9 @@ class CascadeUpdateProcedure:
 
         source_to_target_existing: list[str] = []
         target_to_source_existing: list[str] = []
-        if isinstance(source_resource, DirectiveElement):
+        if isinstance(source_resource, Element):
             source_to_target_existing = source_resource.relationships.get(target_uri, [])
-        if isinstance(target_resource, DirectiveElement):
+        if isinstance(target_resource, Element):
             target_to_source_existing = target_resource.relationships.get(source_uri, [])
 
         updated_relations = await self._build_relation_update(
@@ -418,7 +418,7 @@ class CascadeUpdateProcedure:
             "new_target_to_source": target_to_source_existing,
         }
 
-        if isinstance(source_resource, DirectiveElement):
+        if isinstance(source_resource, Element):
             source_to_target_relations = updated_relations.source_to_target_relations
             old_relationships = await self._repo.update_relationships(source_uri, target_uri, source_to_target_relations)
             if self._undo is not None:
@@ -430,7 +430,7 @@ class CascadeUpdateProcedure:
             rel_result["old_source_to_target"] = old_relationships
             rel_result["new_source_to_target"] = source_to_target_relations
 
-        if isinstance(target_resource, DirectiveElement):
+        if isinstance(target_resource, Element):
             target_to_source_relations = updated_relations.target_to_source_relations
             old_relationships = await self._repo.update_relationships(target_uri, source_uri, target_to_source_relations)
             if self._undo is not None:

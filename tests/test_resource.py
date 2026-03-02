@@ -7,10 +7,10 @@ import yaml
 
 from novelrag.config.llm import AzureOpenAIEmbeddingConfig, EmbeddingLLMType
 from novelrag.config.resource import AspectConfig, VectorStoreConfig
-from novelrag.resource import LanceDBResourceRepository
+from novelrag.storage.local.resource import LanceDBResourceRepository
 from novelrag.resource.operation import ResourceOperation, PropertyOperation, ResourceLocation, OperationTarget
 from langchain_core.embeddings import Embeddings
-from novelrag.resource.element import Element, DirectiveElement, DirectiveElementList
+from novelrag.resource.element import Element
 
 
 class TestData:
@@ -93,7 +93,7 @@ class DummyVectorStore:
     async def add(self, element: Element, *, unchecked: bool = False):
         self._store[element.uri] = {
             'aspect': element.aspect,
-            'data': element.element_dict(),
+            'data': element.element_dict,
         }
 
     async def update(self, element: Element):
@@ -111,10 +111,10 @@ class DummyVectorStore:
         for uri in resource_uris:
             self._store.pop(uri, None)
 
-    async def cleanup_invalid_resources(self, valid_resource_uris: set[str]) -> int:
+    async def cleanup_invalid_resources(self, valid_uris: set[str]) -> int:
         """Remove resources not in the valid set and return count removed."""
         all_uris = list(self._store.keys())
-        invalid_uris = [uri for uri in all_uris if uri not in valid_resource_uris]
+        invalid_uris = [uri for uri in all_uris if uri not in valid_uris]
         for uri in invalid_uris:
             self._store.pop(uri, None)
         return len(invalid_uris)
@@ -171,10 +171,14 @@ async def create_test_repository(*, use_mock: bool = True):
                 'children_keys': ['subEvents']
             }
         }, f, allow_unicode=True)
+    # Create empty aspect files so load_from_disk can read them
+    for aspect_file in ['resource/characters.yml', 'resource/events.yml']:
+        with open(aspect_file, 'w', encoding='utf-8') as f:
+            yaml.safe_dump([], f)
 
     # Patch LanceDBStore.create to return our dummy store
-    with patch('novelrag.resource.repository.LanceDBStore.create', new=AsyncMock(side_effect=lambda **kwargs: DummyVectorStore(embedder))):
-        return await LanceDBResourceRepository.from_config(
+    with patch('novelrag.storage.local.resource.LanceDBStore.create', new=AsyncMock(side_effect=lambda **kwargs: DummyVectorStore(embedder))):
+        return await LanceDBResourceRepository.load_from_disk(
             cfg_path,
             vector_store_config,
             embedder
@@ -197,12 +201,12 @@ class RepositoryTestCase(unittest.IsolatedAsyncioTestCase):
             ]
         ))
 
-        # Verify characters were added
+        # root_elements is list[str] of element names
         self.assertEqual(len(self.repository.resource_aspects['character'].root_elements), 2)
-        self.assertEqual(
-            self.repository.resource_aspects['character'].root_elements[0].inner.props()['name'],
-            "Alice"
-        )
+        # Verify via lut
+        alice = self.repository.lut.find_by_uri('/character/alice')
+        self.assertIsNotNone(alice)
+        self.assertEqual(alice.props['name'], "Alice")
 
     async def test_modify_element(self):
         """Test modifying an existing element"""
@@ -212,8 +216,9 @@ class RepositoryTestCase(unittest.IsolatedAsyncioTestCase):
             data=[self.test_data.create_character("Alice", 25)]
         ))
 
-        # Get the element's ID
-        resource_uri = str(self.repository.resource_aspects['character'].root_elements[0].uri)
+        # root_elements is list[str]; construct URI from aspect name + element id
+        root_name = self.repository.resource_aspects['character'].root_elements[0]
+        resource_uri = f'/character/{root_name}'
 
         # Modify the element
         await self.repository.apply(PropertyOperation(
@@ -247,7 +252,7 @@ class RepositoryTestCase(unittest.IsolatedAsyncioTestCase):
         self.assertGreater(len(results), 0)
         found_alice = False
         for result in results[:2]:  # Check top 2 results
-            if "Alice" in result.element.inner.props()['mainCharacters']:
+            if "Alice" in result.element.props['mainCharacters']:
                 found_alice = True
                 break
         self.assertTrue(found_alice, "Vector search failed to find relevant results")
@@ -265,13 +270,19 @@ class RepositoryTestCase(unittest.IsolatedAsyncioTestCase):
             data=[main_event]
         ))
 
-        # Verify the structure
-        root_element = self.repository.resource_aspects['event'].root_elements[0]
-        self.assertEqual(len(root_element.children['subEvents']), 2)
-        self.assertEqual(
-            root_element.children['subEvents'][0].inner.props()['name'],
-            "Sub Event 1"
-        )
+        # root_elements is list[str]
+        root_name = self.repository.resource_aspects['event'].root_elements[0]
+        root_element = self.repository.lut.find_by_uri(f'/event/{root_name}')
+        self.assertIsNotNone(root_element)
+
+        # children_names_of returns list[str]
+        sub_event_names = root_element.children_names_of('subEvents')
+        self.assertEqual(len(sub_event_names), 2)
+
+        # Look up actual child elements via lut
+        child1 = self.repository.lut.find_by_uri(f'/event/{root_name}/{sub_event_names[0]}')
+        self.assertIsNotNone(child1)
+        self.assertEqual(child1.props['name'], "Sub Event 1")
 
     async def test_lookup_table(self):
         """Test lookup table functionality"""
@@ -284,9 +295,10 @@ class RepositoryTestCase(unittest.IsolatedAsyncioTestCase):
             ]
         ))
 
-        # Get IDs
-        alice_uri = str(self.repository.resource_aspects['character'].root_elements[0].inner.uri)
-        bob_uri = str(self.repository.resource_aspects['character'].root_elements[1].inner.uri)
+        # root_elements is list[str]; construct URIs
+        root_names = self.repository.resource_aspects['character'].root_elements
+        alice_uri = f'/character/{root_names[0]}'
+        bob_uri = f'/character/{root_names[1]}'
 
         # Test lookup
         alice = self.repository.lut.find_by_uri(alice_uri)
@@ -302,14 +314,14 @@ class RepositoryTestCase(unittest.IsolatedAsyncioTestCase):
             shutil.rmtree('resource')
 
 
-class DirectiveElementTestCase(unittest.TestCase):
-    """Test cases for DirectiveElement and DirectiveElementList"""
+class ElementTreeTestCase(unittest.TestCase):
+    """Test cases for Element flat structure and children_names"""
     
     def setUp(self):
         self.test_data = TestData()
         
-    def test_directive_element_wrap(self):
-        """Test wrapping a basic Element in DirectiveElement"""
+    def test_element_properties(self):
+        """Test basic Element property access"""
         # Create a basic character element
         character = Element.build(
             self.test_data.create_character("Alice", 25),
@@ -318,92 +330,62 @@ class DirectiveElementTestCase(unittest.TestCase):
             children_keys=['relationships']
         )
         
-        # Wrap it in DirectiveElement
-        directive = DirectiveElement.wrap(character, ['relationships'])
-        
         # Verify basic properties
-        self.assertEqual(directive.props['name'], "Alice")
-        self.assertEqual(directive.props['age'], 25)
-        self.assertIsNone(directive.parent)
-        self.assertIsNone(directive.prev)
-        self.assertIsNone(directive.next)
+        self.assertEqual(character.props['name'], "Alice")
+        self.assertEqual(character.props['age'], 25)
+        self.assertEqual(character.uri, 'character/alice')
+        self.assertEqual(character.aspect, 'character')
         
-    def test_directive_element_list_linking(self):
-        """Test that DirectiveElementList properly links elements"""
-        # Create multiple character elements
-        characters = [
-            Element.build(self.test_data.create_character(name, age), 
-                        parent_uri='character',
-                        aspect='character', 
-                        children_keys=['relationships'])
-            for name, age in [("Alice", 25), ("Bob", 30), ("Charlie", 35)]
-        ]
-        
-        # Create DirectiveElementList
-        directive_list = DirectiveElementList.wrap(characters, ['relationships'])
-        
-        # Verify linking
-        self.assertIsNone(directive_list[0].prev)
-        self.assertEqual(directive_list[0].next, directive_list[1])
-        self.assertEqual(directive_list[1].prev, directive_list[0])
-        self.assertEqual(directive_list[1].next, directive_list[2])
-        self.assertEqual(directive_list[2].prev, directive_list[1])
-        self.assertIsNone(directive_list[2].next)
-        
-    def test_nested_directive_elements(self):
-        """Test handling of nested elements in DirectiveElement"""
+    def test_nested_element_children_names(self):
+        """Test that Element.build normalises nested children to name lists"""
         # Create an event with sub-events
         main_event = self.test_data.create_event("Main Event", ["Alice"])
         sub_event1 = self.test_data.create_event("Sub Event 1", ["Bob"])
         sub_event2 = self.test_data.create_event("Sub Event 2", ["Charlie"])
         main_event['subEvents'] = [sub_event1, sub_event2]
 
-        # Create and wrap the element
+        # Element.build normalises children dicts to list[str]
         event_element = Element.build(main_event, parent_uri='event', aspect='event', children_keys=['subEvents'])
-        directive = DirectiveElement.wrap(event_element, ['subEvents'])
 
-        # Verify structure
-        self.assertEqual(len(directive.children['subEvents']), 2)
-        self.assertEqual(directive.children['subEvents'][0].props['name'], "Sub Event 1")
-        self.assertEqual(directive.children['subEvents'][1].props['name'], "Sub Event 2")
+        # children_names_of returns list[str] (just the ids)
+        sub_names = event_element.children_names_of('subEvents')
+        self.assertEqual(len(sub_names), 2)
+        self.assertEqual(sub_names[0], 'sub_event_1')
+        self.assertEqual(sub_names[1], 'sub_event_2')
 
-        # Verify parent-child relationships
-        for child in directive.children['subEvents']:
-            self.assertEqual(child.parent, directive)
+        # children_names returns dict[str, list[str]]
+        all_children = event_element.children_names
+        self.assertIn('subEvents', all_children)
+        self.assertEqual(len(all_children['subEvents']), 2)
             
-    def test_directive_element_splice(self):
-        """Test splicing elements in DirectiveElement"""
+    def test_element_set_children_names(self):
+        """Test setting and modifying children name lists"""
         # Create main event with sub-events
         main_event = self.test_data.create_event("Main Event", ["Alice"])
         sub_events = [
-            self.test_data.create_event(f"Sub Event {i}", ["Character{i}"])
+            self.test_data.create_event(f"Sub Event {i}", [f"Character{i}"])
             for i in range(1, 4)
         ]
         main_event['subEvents'] = sub_events
         
-        # Create and wrap the element
+        # Create the element
         event_element = Element.build(main_event, parent_uri='event', aspect='event', children_keys=['subEvents'])
-        directive = DirectiveElement.wrap(event_element, ['subEvents'])
         
-        # Create new sub-event to splice in
-        new_sub_event = Element.build(
-            self.test_data.create_event("New Sub Event", ["Dave"]),
-            parent_uri='event',
-            aspect='event',
-            children_keys=['subEvents']
-        )
+        # Verify initial children
+        initial_names = event_element.children_names_of('subEvents')
+        self.assertEqual(len(initial_names), 3)
         
-        # Splice the new event in place of the second event
-        new_elements, old_elements = directive.splice_at('subEvents', 1, 2, new_sub_event)
+        # Set new children names (simulating a splice: replace index 1 with new name)
+        new_names = initial_names[:1] + ['new_sub_event'] + initial_names[2:]
+        event_element.set_children_names('subEvents', new_names)
         
-        # Verify the splice
-        self.assertEqual(len(directive.children['subEvents']), 3)
-        self.assertEqual(directive.children['subEvents'][1].props['name'], "New Sub Event")
-        self.assertEqual(len(old_elements), 1)
-        self.assertEqual(old_elements[0].props['name'], "Sub Event 2")
-
-        # Verify the linking is maintained
-        self.assertEqual(directive.children['subEvents'][0].next, directive.children['subEvents'][1])
-        self.assertEqual(directive.children['subEvents'][1].prev, directive.children['subEvents'][0])
-        self.assertEqual(directive.children['subEvents'][1].next, directive.children['subEvents'][2])
-        self.assertEqual(directive.children['subEvents'][2].prev, directive.children['subEvents'][1])
+        # Verify the update
+        updated_names = event_element.children_names_of('subEvents')
+        self.assertEqual(len(updated_names), 3)
+        self.assertEqual(updated_names[1], 'new_sub_event')
+        
+        # Test add_child_names
+        event_element.add_child_names('subEvents', ['extra_event'])
+        final_names = event_element.children_names_of('subEvents')
+        self.assertEqual(len(final_names), 4)
+        self.assertEqual(final_names[3], 'extra_event')

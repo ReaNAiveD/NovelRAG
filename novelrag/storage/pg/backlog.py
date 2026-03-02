@@ -1,5 +1,5 @@
 from asyncpg import Pool
-from novelrag.resource_agent.backlog.types import Backlog, BacklogEntry
+from novelrag.resource_agent.backlog import Backlog, BacklogEntry
 
 
 class PostgresBacklog(Backlog[BacklogEntry]):

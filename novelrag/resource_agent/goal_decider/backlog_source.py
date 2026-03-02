@@ -7,7 +7,7 @@ from novelrag.agenturn.goal import Goal, AutonomousSource
 from novelrag.agenturn.interaction import InteractionContext
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import SystemMessage, HumanMessage
-from novelrag.resource_agent.backlog.types import Backlog, BacklogEntry
+from novelrag.resource_agent.backlog import Backlog, BacklogEntry
 from novelrag.template import TemplateEnvironment
 from novelrag.tracer import trace_llm
 

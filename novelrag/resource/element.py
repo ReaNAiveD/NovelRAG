@@ -1,8 +1,7 @@
 import json
 import logging
 
-from dataclasses import dataclass
-from typing import Optional, Any
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 from typing_extensions import Annotated
@@ -13,6 +12,14 @@ logger = logging.getLogger(__name__)
 
 
 class Element(BaseModel):
+    """A flat data record belonging to an aspect.
+
+    Children relationships are represented as **ordered lists of names**
+    stored in ``model_extra`` under the appropriate ``children_keys``
+    entry.  The application layer can reconstruct URIs from these names
+    (``{parent_uri}/{child_name}``).
+    """
+
     id: Annotated[str, Field(description='Id of the element')]
     uri: Annotated[str, Field(description='URI of the element')]
     relationships: Annotated[dict[str, list[str]], Field(description='Related Elements. <Id>: <Description>', default_factory=lambda: {})]
@@ -33,9 +40,10 @@ class Element(BaseModel):
             from_attributes: bool | None = None,
             context: Any | None = None
     ):
-        """
-        Build an Element instance from a dictionary value.
-        Note that the value must contain 'id', 'relationships', 'aspect', and 'children_keys' keys.
+        """Build a *flat* Element instance from a dictionary value.
+
+        Children entries (keys listed in *children_keys*) are normalised to
+        ``list[str]``.
         """
         if 'id' not in value:
             raise ValueError(
@@ -44,15 +52,26 @@ class Element(BaseModel):
                 f"Every resource (including items in children_keys lists) must have an 'id' field."
             )
         uri = f'{parent_uri}/{value["id"]}'
+        value = dict(value)
         value['uri'] = uri
         value['aspect'] = aspect
         value['children_keys'] = children_keys
-        ele = cls.model_validate(value, strict=strict, from_attributes=from_attributes, context=context)
-        for key in children_keys:
-            if ele.model_extra and key in ele.model_extra and isinstance(ele.model_extra[key], list):
-                ele.model_extra[key] = [cls.build(child, uri, aspect, children_keys, strict=strict, from_attributes=from_attributes, context=context) for child in ele.model_extra[key]]
-        return ele
 
+        for key in children_keys:
+            if key in value and isinstance(value[key], list):
+                normalised: list[str] = []
+                for item in value[key]:
+                    if isinstance(item, dict) and 'id' in item:
+                        normalised.append(item['id'])
+                    elif isinstance(item, str):
+                        normalised.append(item)
+                value[key] = normalised
+
+        return cls.model_validate(value, strict=strict, from_attributes=from_attributes, context=context)
+
+    # -- Property access -----------------------------------------------------
+
+    @property
     def props(self):
         """
         Returns a dictionary of properties excluding children keys.
@@ -60,64 +79,62 @@ class Element(BaseModel):
         Excludes properties like 'id', 'relationships', 'aspect', and 'children_keys'.
         """
         return dict((k, v) for k, v in self.model_extra.items() if k not in self.children_keys) if self.model_extra else {}
-    
-    def flattened_child_ids(self):
-        return dict((key, [child.id for child in self.children_of(key)]) for key in self.children_keys)
 
-    def children_ids(self):
-        """Returns id of children elements only"""
-        return dict((key, [{"id": child.id} for child in self.children_of(key)]) for key in self.children_keys)
+    @property
+    def children_names(self) -> dict[str, list[str]]:
+        """Return ``{children_key: [child_name, …]}`` for every children key."""
+        if not self.model_extra:
+            return {key: [] for key in self.children_keys}
+        return {
+            key: list(self.model_extra.get(key, []))
+            for key in self.children_keys
+        }
+
+    def children_names_of(self, key: str) -> list[str]:
+        """Return the ordered list of child names for *key*."""
+        if key not in self.children_keys:
+            raise ChildrenKeyNotFoundError(key, self.aspect)
+        if not self.model_extra:
+            return []
+        return list(self.model_extra.get(key, []))
 
     def __getitem__(self, key: str):
         return self.model_extra[key] if self.model_extra and key in self.model_extra else None
 
-    def children_of(self, key: str) -> list['Element']:
-        if key not in self.children_keys:
-            raise ChildrenKeyNotFoundError(key, self.aspect)
-        return self.model_extra.get(key, []) if self.model_extra else []
+    # -- Dict representations -----------------------------------------------
 
+    @property
     def element_dict(self):
-        """Returns a dictionary composed of id and props"""
-        return {"id": self.id, "uri": self.uri, **self.props()}
-    
+        """Returns a dictionary composed of id, uri and props (no children)."""
+        return {"id": self.id, "uri": self.uri, **self.props}
+
+    @property
     def context_dict(self):
-        """Returns a dictionary composed of id, uri, relationships, props and children_ids"""
+        """Returns a dictionary composed of id, uri, relationships, props and children names."""
         return {
-            **self.element_dict(),
+            **self.element_dict,
             "relationships": self.relationships,
             "aspect": self.aspect,
-            **self.children_ids(),
+            **self.children_names,
         }
 
     def element_str(self):
-        return json.dumps(self.element_dict(), ensure_ascii=False, sort_keys=True)
-
-    def children_dict(self):
-        """Returns id + props + children (children elements are child-level element_dict results)"""
-        data = self.element_dict()
-        for key in self.children_keys:
-            children = self.children_of(key)
-            data[key] = [child.context_dict() for child in children]
-        return data
-
-    def nested_dict(self):
-        """Returns id + props + children (children elements recursively call nested_dict)"""
-        data = self.element_dict()
-        for key in self.children_keys:
-            children = self.children_of(key)
-            data[key] = [child.nested_dict() for child in children]
-        return data
+        return json.dumps(self.element_dict, ensure_ascii=False, sort_keys=True)
 
     def dumped_dict(self):
-        """Returns id + relationships + props + children (children elements recursively call dumped_dict)"""
-        data = {"id": self.id, "relationships": self.relationships, **self.props()}
-        for key in self.children_keys:
-            children = self.children_of(key)
-            data[key] = [child.dumped_dict() for child in children]
-        return data
+        """Serialisation-ready dict: id + relationships + props + children names."""
+        return {"id": self.id, "relationships": self.relationships, **self.props, **self.children_names}
+
+    # -- Mutations -----------------------------------------------------------
 
     def update(self, props: dict[str, Any]):
-        undo = {}
+        """Update properties on this element.
+
+        Returns a dict of previous values suitable for undo.  Children-key
+        fields, core fields (``id``, ``uri``, …) and embedding metadata are
+        silently skipped.
+        """
+        undo: dict[str, Any] = {}
         for k, v in props.items():
             if k in ['id', 'uri', 'relationships', 'aspect', 'children_keys', 'embedding', 'hash']:
                 logger.warning(f'Ignore Private Property "{k}" Update.')
@@ -129,133 +146,30 @@ class Element(BaseModel):
                 undo[k] = self.model_extra[k]
                 del self.model_extra[k]
             elif v is not None:
+                undo[k] = self.model_extra.get(k)
                 self.model_extra[k] = v
-                undo[k] = None
         return undo
-
-    def update_children(self, key: str, children: list['Element']):
-        if self.model_extra is not None:
-            self.model_extra[key] = children
-        else:
-            logger.warning(f'Ignore Update for Element with no model_extra: {self.uri}')
 
     def update_relationships(self, target_uri: str, relationships: list[str]):
         old = self.relationships.get(target_uri, [])
         self.relationships[target_uri] = relationships
         return old
 
+    def set_children_names(self, key: str, names: list[str]):
+        """Replace the ordered children-name list for *key*."""
+        if key not in self.children_keys:
+            raise ChildrenKeyNotFoundError(key, self.aspect)
+        if self.model_extra is not None:
+            self.model_extra[key] = names
+        else:
+            logger.warning(f'Ignore set_children_names for Element with no model_extra: {self.uri}')
 
-@dataclass
-class DirectiveElement:
-    inner: Element
-    parent: Optional['DirectiveElement']
-    prev: Optional['DirectiveElement']
-    next: Optional['DirectiveElement']
-    children: dict[str, 'DirectiveElementList']
-
-    @classmethod
-    def wrap(cls, ele: Element, children_keys: list[str], *, parent: Optional['DirectiveElement'] = None):
-        wrapped = cls(inner=ele, parent=parent, prev=None, next=None, children={})
-        for key in children_keys:
-            if ele.model_extra and key in ele.model_extra and isinstance(ele.model_extra[key], list):
-                wrapped.children[key] = DirectiveElementList.wrap(ele.model_extra[key], children_keys, parent=wrapped)
-        return wrapped
-
-    @staticmethod
-    def wrap_list(elements: list[Element], children_keys: list[str], *, parent: Optional['DirectiveElement'] = None):
-        wrapped = [DirectiveElement.wrap(ele, children_keys, parent=parent) for ele in elements]
-        for idx, ele in enumerate(wrapped):
-            if idx > 0:
-                ele.prev = wrapped[idx - 1]
-            if idx < len(wrapped) - 1:
-                ele.next = wrapped[idx + 1]
-        return wrapped
-
-    @property
-    def props(self):
-        return self.inner.props()
-
-    @property
-    def id(self):
-        return str(self.inner.id)
-    
-    @property
-    def uri(self):
-        return self.inner.uri
-
-    @property
-    def aspect(self):
-        return self.inner.aspect
-
-    @property
-    def flattened_child_ids(self):
-        return self.inner.flattened_child_ids()
-
-    @property
-    def element_dict(self):
-        """Returns a dictionary composed of id and props"""
-        return self.inner.element_dict()
-    
-    @property
-    def context_dict(self):
-        """Returns a dictionary composed of id, uri, relationships, props and children_ids"""
-        return self.inner.context_dict()
-
-    @property
-    def children_dict(self):
-        """Returns id + props + children (children elements are child-level element_dict results)"""
-        return self.inner.children_dict()
-
-    @property
-    def nested_dict(self):
-        """Returns id + props + children (children elements recursively call nested_dict)"""
-        return self.inner.nested_dict()
-
-    @property
-    def relationships(self):
-        return self.inner.relationships
-
-    def __getitem__(self, key: str):
-        return self.inner[key]
-
-    def children_of(self, key: str):
-        if key not in self.inner.children_keys:
-            raise ChildrenKeyNotFoundError(key, self.inner.aspect)
-        return self.children.get(key, DirectiveElementList())
-
-    def update(self, props: dict[str, Any]):
-        return self.inner.update(props)
-
-    def update_relationships(self, target_uri: str, relationships: list[str]):
-        return self.inner.update_relationships(target_uri, relationships)
-
-    def splice_at(self, children_key: str, start: int, end: int, *items: 'Element') -> tuple[list['DirectiveElement'], list['DirectiveElement']]:
-        old = self.children_of(children_key)[start: end]
-        new = DirectiveElementList.wrap(list(items), self.inner.children_keys, parent=self)
-        new_list = self.children_of(children_key).splice(start, end, *new)
-        self.children[children_key] = new_list
-        self.inner.update_children(children_key, [ele.inner for ele in new_list])
-        return new, old
-
-
-class DirectiveElementList(list[DirectiveElement]):
-    def __init__(self, children: list[DirectiveElement] | None = None):
-        super().__init__(children or [])
-        self._ensure_link()
-
-    def _ensure_link(self):
-        for idx, ele in enumerate(self):
-            if idx > 0:
-                ele.prev = self[idx - 1]
-            if idx < len(self) - 1:
-                ele.next = self[idx + 1]
-
-    @classmethod
-    def wrap(cls, elements: list[Element], children_keys: list[str], *, parent: Optional['DirectiveElement'] = None):
-        wrapped = [DirectiveElement.wrap(ele, children_keys, parent=parent) for ele in elements]
-        wrapped = cls(wrapped)
-        return wrapped
-
-    def splice(self, start: int, end: int, *items: DirectiveElement):
-        result = self[:start] + list(items) + self[end:]
-        return DirectiveElementList(result)
+    def add_child_names(self, key: str, names: list[str]):
+        """Add to the ordered children-name list for *key*."""
+        if key not in self.children_keys:
+            raise ChildrenKeyNotFoundError(key, self.aspect)
+        if self.model_extra is not None:
+            existing = self.model_extra.get(key, [])
+            self.model_extra[key] = existing + names
+        else:
+            logger.warning(f'Ignore add_child_names for Element with no model_extra: {self.uri}')

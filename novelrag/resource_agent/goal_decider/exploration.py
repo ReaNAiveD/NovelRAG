@@ -21,7 +21,7 @@ from novelrag.agenturn.interaction import InteractionContext
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import SystemMessage, HumanMessage
 from novelrag.resource.aspect import ResourceAspect
-from novelrag.resource.element import DirectiveElement
+from novelrag.resource.element import Element
 from novelrag.resource.repository import ResourceRepository
 from novelrag.resource_agent.goal_decider.recency import RecencyWeighter
 from novelrag.template import TemplateEnvironment
@@ -141,9 +141,9 @@ class ExplorationGoalDecider:
             return await self._bootstrap(beliefs)
 
         # Collect every element across all aspects
-        all_elements: list[tuple[ResourceAspect, DirectiveElement]] = []
+        all_elements: list[tuple[ResourceAspect, Element]] = []
         for aspect in aspects:
-            for element in aspect.iter_elements():
+            for element in await self.repo.iter_elements(aspect.name):
                 all_elements.append((aspect, element))
 
         if not all_elements:
@@ -224,14 +224,14 @@ class ExplorationGoalDecider:
     async def _explore(
         self,
         aspects: list[ResourceAspect],
-        all_elements: list[tuple[ResourceAspect, DirectiveElement]],
+        all_elements: list[tuple[ResourceAspect, Element]],
         beliefs: list[str],
         interaction_history: InteractionContext | None = None,
     ) -> Goal | None:
         # 1. Select element via random walk (recency-biased)
         if self.recency is not None:
             weights = await self.recency.element_weights(
-                [(a.name, e.inner.uri) for a, e in all_elements]
+                [(a.name, e.uri) for a, e in all_elements]
             )
             aspect, element = random.choices(all_elements, weights=weights, k=1)[0]
         else:
@@ -239,7 +239,7 @@ class ExplorationGoalDecider:
 
         logger.info(
             "ExplorationGoalDecider: walked to '%s' in aspect '%s'.",
-            element.inner.uri, aspect.name,
+            element.uri, aspect.name,
         )
 
         # 2. Context expansion (LLM-driven discovery + resolution)
@@ -256,11 +256,11 @@ class ExplorationGoalDecider:
 
         # 4. Generate goal (LLM call #3)
         element_content = {
-            "uri": element.inner.uri,
+            "uri": element.uri,
             "id": element.id,
             "aspect": aspect.name,
-            "properties": element.inner.props(),
-            "relationships": element.inner.relationships,
+            "properties": element.props,
+            "relationships": element.relationships,
         }
 
         history_text = interaction_history.format_recent(5) if interaction_history else ""
@@ -303,7 +303,7 @@ class ExplorationGoalDecider:
             source=AutonomousSource(
                 decider_name="exploration",
                 context=(
-                    f"phase=explore, element='{element.inner.uri}', "
+                    f"phase=explore, element='{element.uri}', "
                     f"aspect='{aspect.name}', focus={focus}"
                 ),
             ),
@@ -312,7 +312,7 @@ class ExplorationGoalDecider:
     @trace_llm("exploration_context")
     async def _expand_context(
         self,
-        element: DirectiveElement,
+        element: Element,
         aspect: ResourceAspect,
         aspects: list[ResourceAspect],
         beliefs: list[str],
@@ -326,13 +326,13 @@ class ExplorationGoalDecider:
 
         # --- aspect summaries (code-only) ---
         summaries: list[_AspectSummary] = []
-        for asp in aspects:
-            elements_iter = list(asp.iter_elements())
+        for aspect in aspects:
+            elements_iter = await self.repo.iter_elements(aspect.name)
             sample_ids = [e.id for e in elements_iter[:10]]
             summaries.append(
                 _AspectSummary(
-                    name=asp.name,
-                    description=asp.description,
+                    name=aspect.name,
+                    description=aspect.description,
                     element_count=len(elements_iter),
                     sample_element_ids=sample_ids,
                 )
@@ -340,12 +340,12 @@ class ExplorationGoalDecider:
 
         # --- LLM-driven discovery ---
         element_content = {
-            "uri": element.inner.uri,
+            "uri": element.uri,
             "id": element.id,
             "aspect": aspect.name,
-            "properties": element.inner.props(),
-            "relationships": element.inner.relationships,
-            "children_ids": element.inner.flattened_child_ids(),
+            "properties": element.props,
+            "relationships": element.relationships,
+            "children_names": element.children_names,
         }
         aspect_summary_dicts = [
             {
@@ -373,14 +373,14 @@ class ExplorationGoalDecider:
 
         # Always include declared relationship URIs so we get
         # factual resolved/unresolved data for gap analysis.
-        declared_uris = set(element.inner.relationships.keys())
+        declared_uris = set(element.relationships.keys())
 
-        # Walk up the parent chain to include ancestor element / aspect URIs.
+        # Walk up ancestor URIs by splitting the element URI.
         ancestor_uris: set[str] = set()
-        cur = element.parent
-        while cur is not None:
-            ancestor_uris.add(cur.inner.uri)
-            cur = cur.parent
+        parts = element.uri.strip('/').split('/')
+        # parts[0] is the aspect name; intermediate parts are ancestors
+        for i in range(1, len(parts)):
+            ancestor_uris.add('/' + '/'.join(parts[:i]))
         # The aspect itself acts as the root container.
         ancestor_uris.add(f"/{aspect.name}")
 
@@ -394,21 +394,21 @@ class ExplorationGoalDecider:
 
         for uri in all_uris_to_resolve:
             # Skip the element itself
-            if uri == element.inner.uri:
+            if uri == element.uri:
                 continue
             found = await self.repo.find_by_uri(uri)
-            descriptions = element.inner.relationships.get(uri, [])
+            descriptions = element.relationships.get(uri, [])
             if found is None:
                 unresolved.append(
                     _UnresolvedReference(uri=uri, declared_descriptions=descriptions)
                 )
-            elif isinstance(found, DirectiveElement):
+            elif isinstance(found, Element):
                 resolved.append(
                     _ResolvedReference(
-                        uri=found.inner.uri,
+                        uri=found.uri,
                         id=found.id,
-                        aspect=found.inner.aspect,
-                        properties=found.inner.props(),
+                        aspect=found.aspect,
+                        properties=found.props,
                     )
                 )
             elif isinstance(found, ResourceAspect):
@@ -420,7 +420,7 @@ class ExplorationGoalDecider:
 
         # --- run LLM-suggested search queries ---
         related_resources: list[dict[str, Any]] = []
-        seen_uris: set[str] = {element.inner.uri}
+        seen_uris: set[str] = {element.uri}
 
         for query in search_queries:
             if not query or not query.strip():
@@ -429,7 +429,7 @@ class ExplorationGoalDecider:
                 query.strip(), limit=self.SEARCH_LIMIT
             )
             for sr in results:
-                uri = sr.element.inner.uri
+                uri = sr.element.uri
                 if uri not in seen_uris:
                     seen_uris.add(uri)
                     related_resources.append(
@@ -446,7 +446,7 @@ class ExplorationGoalDecider:
     @trace_llm("exploration_gaps")
     async def _analyse_gaps(
         self,
-        element: DirectiveElement,
+        element: Element,
         aspect: ResourceAspect,
         ctx: _ContextBundle,
         beliefs: list[str],
@@ -454,11 +454,11 @@ class ExplorationGoalDecider:
         """Run concept-gap analysis over the expanded context (LLM call)."""
 
         element_content = {
-            "uri": element.inner.uri,
+            "uri": element.uri,
             "id": element.id,
             "aspect": aspect.name,
-            "properties": element.inner.props(),
-            "relationships": element.inner.relationships,
+            "properties": element.props,
+            "relationships": element.relationships,
         }
 
         resolved_refs = [

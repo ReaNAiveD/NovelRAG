@@ -1,6 +1,7 @@
 from typing import Any
 
-from sqlalchemy import ARRAY, JSON, ForeignKey, String, UniqueConstraint
+from pgvector.sqlalchemy import Vector
+from sqlalchemy import ARRAY, JSON, ForeignKey, Index, String, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -58,13 +59,24 @@ class ResourceElement(Base):
     __tablename__ = 'resource_elements'
     __table_args__ = (
         UniqueConstraint('aspect_id', 'uri', name='uq_resource_elements_aspect_uri'),
+        Index(
+            'ix_resource_elements_embedding',
+            'embedding',
+            # Considering the heavy insert/update operations and smaller scale of data, we choose HNSW for better overall performance.
+            postgresql_using="hnsw",
+            postgresql_with={"m": 16, "ef_construction": 64},
+            postgresql_ops={"embedding": "vector_cosine_ops"},
+        ),
+        {"postgresql_partition_by": "LIST (workspace_id)"},
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    workspace_id: Mapped[int] = mapped_column()
     aspect_id: Mapped[int] = mapped_column(ForeignKey('resource_aspects.id', ondelete='CASCADE'))
     name: Mapped[str] = mapped_column()
     uri: Mapped[str] = mapped_column()
     data: Mapped[dict[str, Any]] = mapped_column(JSON, default_factory=dict)
+    embedding: Mapped[list[float]] = mapped_column(Vector(3072))
 
     aspect: Mapped['ResourceAspect'] = relationship(back_populates='elements')
 

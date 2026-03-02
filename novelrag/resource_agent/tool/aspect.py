@@ -38,13 +38,13 @@ class AspectCreateTool(SchematicTool):
     @property
     def description(self):
         return "This tool is used to create new aspects in the resource repository. " \
-                "It allows you to define the structure and metadata of a new aspect, including its name, path, and any additional fields required for your application." \
+                "It allows you to define the structure and metadata of a new aspect, including its name and any additional fields required for your application. " \
                 "Before using this tool, you should have a clear understanding of all other aspects in the repository, " \
                 "as the new aspect will be added to the existing structure."
     
     @property
     def output_description(self) -> str | None:
-        return "Returns the newly created aspect's metadata, including its name, path, and any additional fields defined during creation."
+        return "Returns the newly created aspect's metadata, including its name and any additional fields defined during creation."
     
     @property
     def input_schema(self) -> dict[str, Any]:
@@ -82,7 +82,8 @@ class AspectCreateTool(SchematicTool):
                 ReversibleAction(method="remove_aspect", params={"name": name}),
                 clear_redo=True,
             )
-        return self.result(json.dumps(aspect.context_dict, ensure_ascii=False))
+        data = aspect.context_dict
+        return self.result(json.dumps(data, ensure_ascii=False))
 
     @trace_llm("aspect_metadata")
     async def initialize_aspect_metadata(self, name: str, description: list[str]) -> dict[str, Any]:
