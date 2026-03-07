@@ -91,22 +91,6 @@ List of edge cases or error conditions that should be handled going forward.
 ### success_criteria
 List of specific, verifiable conditions that indicate the goal has been fully achieved.
 
-## Response Format
-
-Respond with a valid JSON object:
-
-```json
-{
-  "finished_tasks": ["completed task 1", "completed task 2"],
-  "remaining_work_summary": "Comprehensive description of what still needs to be done to achieve the goal",
-  "required_context": "Description of context still needed",
-  "expected_actions": "Actions that will need to be performed",
-  "boundary_conditions": ["constraint 1", "constraint 2"],
-  "exception_conditions": ["edge case 1", "error condition to handle"],
-  "success_criteria": ["criterion 1 for goal completion", "criterion 2"]
-}
-```
-
 ## Guidelines
 
 1. **Goal-focused**: All fields describe progress and requirements relative to the overall goal, not individual steps.

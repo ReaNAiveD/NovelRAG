@@ -51,16 +51,4 @@ Select the most important pending work item from the backlog and formulate a con
 
 If multiple backlog entries are related, you may combine them into a single coherent goal.
 
-## Response Format
 
-Respond in JSON:
-```json
-{
-  "selected_entries": [1],
-  "goal": "A clear, concise goal statement based on the backlog",
-  "reasoning": "Brief explanation of which backlog item(s) this addresses and why"
-}
-```
-
-- **selected_entries**: A list of entry numbers (1-based, matching "Entry 1", "Entry 2", etc.) that this goal addresses. The selected entries will be removed from the backlog.
-- If you combine multiple entries into a single goal, list all of them.

@@ -21,6 +21,7 @@ class BacklogGoalResponse(BaseModel):
         default=[1],
         description="1-based indices of the backlog entries selected for this goal.",
     )]
+    reasoning: Annotated[str, Field(default="", description="Brief explanation of which backlog item(s) this addresses and why.")]
 
 
 class BacklogGoalDecider:

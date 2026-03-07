@@ -77,24 +77,6 @@ identify concepts that are referenced but missing from the repository.
    but don't? Check the sample element IDs for each aspect.
 5. **Priority concern**: What is the single most impactful thing to address right now?
 
-## Response Format
-
-Respond in JSON:
-{
-  "referenced_concepts": ["concept_1", "concept_2"],
-  "unresolved_references": [
-    {"reference": "/aspect/entity_id", "context": "Why this is referenced"}
-  ],
-  "missing_aspects": [
-    {"name": "aspect_name", "description": "What it would contain", "reason": "Why it's needed"}
-  ],
-  "missing_elements": [
-    {"aspect": "existing_aspect", "id": "missing_entity_id", "reason": "Why it should exist"}
-  ],
-  "priority_concern": "creation_aspect | creation_element | enrichment | verification",
-  "reasoning": "Why this concern is the most impactful to address now"
-}
-
 ## Priority Guidelines
 
 - **creation_aspect**: Choose this if an important category of knowledge is entirely absent

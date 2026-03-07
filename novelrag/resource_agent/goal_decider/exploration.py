@@ -32,11 +32,17 @@ logger = logging.getLogger(__name__)
 
 class GoalResponse(BaseModel):
     """LLM response containing a single goal statement."""
+    reasoning: Annotated[str, Field(default="", description="Brief explanation of the goal choice.")]
+    search_query: Annotated[str, Field(default="", description="A search query to find related resources for additional context.")]
+    aspect_name: Annotated[str, Field(default="", description="A lowercase snake_case name for the proposed aspect.")]
+    aspect_description: Annotated[str, Field(default="", description="A one-sentence description of the proposed aspect.")]
+    seed_elements: Annotated[list[str], Field(default_factory=list, description="IDs of seed elements for the proposed aspect.")]
     goal: Annotated[str, Field(description="A clear, actionable goal statement.")]
 
 
 class ContextDiscoveryResponse(BaseModel):
     """LLM response for context discovery around an element."""
+    analysis: Annotated[str, Field(default="", description="Brief analysis of what context this element needs.")]
     query_resources: Annotated[list[str], Field(
         default_factory=list,
         description="Resource URIs to load from the workspace.",
@@ -49,6 +55,10 @@ class ContextDiscoveryResponse(BaseModel):
 
 class GapAnalysisResponse(BaseModel):
     """LLM response for concept-gap analysis."""
+    referenced_concepts: Annotated[list[str], Field(
+        default_factory=list,
+        description="Entities, places, items, events, etc. mentioned in the element that could be standalone resources.",
+    )]
     priority_concern: Annotated[
         Literal["creation_aspect", "creation_element", "enrichment", "verification"],
         Field(description="The highest-priority concern type identified."),

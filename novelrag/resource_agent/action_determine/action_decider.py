@@ -60,15 +60,16 @@ _FINALIZE_TOOL_DEF = {
                 },
                 "response": {
                     "type": "string",
-                    "description": "Complete user-facing response explaining the outcome. "
+                    "description": "Complete user-facing response summarizing what was accomplished. "
+                                   "This text is shown directly to the human user — write it as a clear, friendly outcome summary. "
                                    "The response MUST be grounded in the actual data from the Knowledge Base segments. "
                                    "Cite specific resource properties and values — do NOT invent, embellish, or "
                                    "narrativize beyond what the data contains. "
-                                   "Use a structured format (lists, tables, or concise paragraphs) that directly "
-                                   "addresses the user's question. "
-                                   "Respond in the same language as the user's request. "
-                                   "If the user writes in a specific language, provide your entire response "
-                                   "in that language.",
+                                   "Use a structured format (lists, tables, or concise paragraphs). "
+                                   "If answering a user request, directly address their question. "
+                                   "If this is an autonomous goal, summarize what was created, modified, or discovered. "
+                                   "Respond in the same language as the goal. "
+                                   "NEVER include meta-commentary about the finalization decision itself.",
                 },
                 "evidence": {
                     "type": "array",

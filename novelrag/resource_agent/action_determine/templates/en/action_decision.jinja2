@@ -22,6 +22,7 @@ You must ALWAYS make a decisive choice - no deferring or requesting more context
 - For root's children: `/{child_id}` (e.g., root child `cne` → `/cne`)
 - For all others: `{parent_uri}/{child_id}` (e.g., `/location` + child `europe` → `/location/europe`)
 
+
 ## Current Goal
 {{ goal.description }}
 
@@ -119,10 +120,12 @@ No tools currently prepared. You should call `Finalize` to provide a response fr
 - Request has been fully satisfied
 
 **Response Format Requirements for FINALIZE (Success):**
+- The response is **shown directly to the user** — write it as a clear, friendly summary of what was accomplished
 - Ground every claim in specific Knowledge Base segment data — cite properties and values
 - Do NOT invent details, embellish with narrative prose, or generate creative fiction
 - Use structured formats: bullet lists, numbered items, or concise factual paragraphs
-- Directly answer the user's original question; do not reframe it as a story or essay
+- If the goal originated from a user request, directly answer their question
+- If the goal is autonomous (no user request), summarize the outcome: what was created, modified, or discovered, and any notable results
 - If the knowledge base contains partial information, state what is known and what is absent
 
 ### When to FINALIZE (Failed)
@@ -146,6 +149,6 @@ No tools currently prepared. You should call `Finalize` to provide a response fr
 6. **Context First** - If answerable from context alone, finalize with success
 7. **Explain Gaps** - If finalizing incomplete, detail what's missing and why
 8. **Factual Grounding** - NEVER fabricate content beyond loaded segments. Response must be traceable to actual resource data.
-9. **Direct Answers** - Respond to the user's question directly. Do not rewrite it as a narrative, story, or creative essay.
+9. **Direct Answers** - Respond to the user's question directly, or for autonomous goals, summarize what was done. Do not rewrite the outcome as a narrative, story, or creative essay. Never write about the decision to finalize itself.
 
 Focus on making confident, well-justified decisions based on thorough context analysis.

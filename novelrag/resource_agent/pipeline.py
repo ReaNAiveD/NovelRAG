@@ -38,6 +38,9 @@ from novelrag.tracer import trace_llm
 
 class RankedProposal(BaseModel):
     """A single proposal with its rank."""
+    brief_summary: Annotated[str, Field(default="", description="Brief summary of the proposal.")]
+    key_strengths: Annotated[list[str], Field(default_factory=list, description="Key strengths of the proposal.")]
+    diversity_note: Annotated[str, Field(default="", description="What unique aspect this proposal addresses.")]
     rank: Annotated[int, Field(description="Rank position (1 = best).")]
     proposal_number: Annotated[int, Field(description="1-based index of the proposal in the original list.")]
 
@@ -48,6 +51,7 @@ class RankProposalsResponse(BaseModel):
         default_factory=list,
         description="Proposals sorted by quality.",
     )]
+    rationale_summary: Annotated[str, Field(default="", description="Brief explanation of why this ordering maximizes story improvement.")]
 
 
 class CascadeUpdate(BaseModel):
