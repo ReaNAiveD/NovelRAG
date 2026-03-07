@@ -7,48 +7,12 @@ import yaml
 
 from novelrag.config.resource import AspectConfig, VectorStoreConfig
 from novelrag.resource.aspect import ResourceAspect
-from novelrag.resource.element import Element
+from novelrag.resource.element import Element, load_elements
 from novelrag.resource.operation import Operation, PropertyOperation, ResourceOperation
-from novelrag.resource.repository import ResourceRepository, SearchResult
+from novelrag.resource.repository import ResourceRepository, RemovedAspectResult, SearchResult
 from novelrag.storage.local.vector import LanceDBStore
 
 logger = logging.getLogger(__name__)
-
-
-def _load_element(
-    element_data: dict,
-    parent_uri: str,
-    aspect: str,
-    children_keys: list[str],
-) -> tuple[Element, list[Element]]:
-    """Recursively load an Element and its children from a nested dictionary.
-
-    Uses ``Element.build`` so that *uri*, *aspect* and *children_keys* are
-    set correctly and children fields are normalised to ``list[str]``.
-    """
-    if 'id' not in element_data:
-        raise ValueError(
-            f"Element data under '{parent_uri}' is missing required 'id' field. "
-            f"Got keys: {list(element_data.keys())}. "
-            f"Every resource (including items in children_keys lists) must have an 'id' field."
-        )
-    descendants: list[Element] = []
-    # Capture nested children *before* Element.build normalises them to list[str]
-    for key in children_keys:
-        raw_children = element_data.get(key, [])
-        if isinstance(raw_children, list):
-            for child_data in raw_children:
-                if isinstance(child_data, dict) and 'id' in child_data:
-                    child, child_descendants = _load_element(
-                        child_data,
-                        parent_uri=f'{parent_uri}/{element_data["id"]}',
-                        aspect=aspect,
-                        children_keys=children_keys,
-                    )
-                    descendants.append(child)
-                    descendants.extend(child_descendants)
-    element = Element.build(element_data, parent_uri, aspect, children_keys)
-    return element, descendants
 
 
 class ElementLookUpTable:
@@ -183,21 +147,17 @@ class LanceDBResourceRepository(ResourceRepository):
     @staticmethod
     async def _load_aspect_from_disk(name: str, aspect: AspectConfig) -> tuple[ResourceAspect, list[Element]]:
         """Load root elements for a given aspect from disk."""
-        root_elements = []
-        all_elements = []
         if not os.path.exists(aspect.path):
             logger.warning(f"Aspect file for aspect '{name}' not found at path '{aspect.path}'. Initializing with empty root elements.")
-            aspect_obj = ResourceAspect.from_config(name, aspect, root_elements=[])
+            aspect_obj = ResourceAspect.from_config(name, aspect, root_element_names=[])
             return aspect_obj, []
         with open(aspect.path, 'r', encoding='utf-8') as f:
             elements_data = yaml.safe_load(f)
-        for root_element_data in elements_data:
-            root_element, children = _load_element(root_element_data, parent_uri=f'/{name}', aspect=name, children_keys=aspect.children_keys)
-            root_elements.append(root_element.id)
-            all_elements.append(root_element)
-            all_elements.extend(children)
-        aspect_obj = ResourceAspect.from_config(name, aspect, root_elements=root_elements)
-        return aspect_obj, all_elements
+        root_elements, descendants = load_elements(
+            elements_data, parent_uri=f'/{name}', aspect=name, children_keys=aspect.children_keys,
+        )
+        aspect_obj = ResourceAspect.from_config(name, aspect, root_element_names=[e.id for e in root_elements])
+        return aspect_obj, root_elements + descendants
 
     async def _dump_aspects(self):
         """Dump all aspects to the registry."""
@@ -208,7 +168,7 @@ class LanceDBResourceRepository(ResourceRepository):
     async def _dump_aspect_elements(self, config: AspectConfig, aspect: ResourceAspect):
         """Dump the elements of a given aspect to disk."""
         elements_data = []
-        for root_element_name in aspect.root_elements:
+        for root_element_name in aspect.root_element_names:
             root_uri = f'/{aspect.name}/{root_element_name}'
             if root_uri not in self.lut.table:
                 logger.warning(
@@ -264,7 +224,7 @@ class LanceDBResourceRepository(ResourceRepository):
             index += 1
 
     def _iter_elements_of_aspect(self, aspect: ResourceAspect) -> Generator[Element, None, None]:
-        for root_element_name in aspect.root_elements:
+        for root_element_name in aspect.root_element_names:
             root_uri = f'/{aspect.name}/{root_element_name}'
             if root_uri not in self.lut.table:
                 logger.warning(
@@ -284,36 +244,66 @@ class LanceDBResourceRepository(ResourceRepository):
         """Get a ResourceAspect by name, or None if it doesn't exist."""
         return self.resource_aspects.get(name)
 
-    async def add_aspect(self, name: str, metadata: dict[str, Any]) -> ResourceAspect:
-        """Add a new aspect to the repository."""
+    async def add_aspect(self, name: str, metadata: dict[str, Any], elements: list[dict] | None = None) -> ResourceAspect:
+        """Add a new aspect to the repository.
+        """
         if name in self.resource_aspects:
             raise ValueError(f"Aspect with name '{name}' already exists.")
         if 'path' not in metadata:
             metadata['path'] = self._find_valid_path(name)
         config = AspectConfig.model_validate(metadata)
         aspect = ResourceAspect.from_config(name, config)
+        if elements:
+            root_elements, descendants = load_elements(
+                elements, parent_uri=f'/{name}', aspect=name, children_keys=config.children_keys,
+            )
+            all_elements = root_elements + descendants
+            aspect.root_element_names = [e.id for e in root_elements]
+            self.lut.batch_add(all_elements)
+            await self.vector_store.batch_add(all_elements)
         self.aspect_configs[name] = config
         self.resource_aspects[name] = aspect
         await self._dump_aspects()
+        if elements:
+            await self._dump_aspect_elements(config, aspect)
         return aspect
 
-    async def remove_aspect(self, name: str) -> ResourceAspect | None:
-        """Remove an aspect and its elements from the repository."""
+    async def remove_aspect(self, name: str) -> RemovedAspectResult | None:
+        """Remove an aspect and its elements from the repository.
+
+        Returns a :class:`RemovedAspectResult` with the full element tree
+        so the operation can be undone.
+        """
         aspect = self.resource_aspects.pop(name, None)
-        if aspect:
-            popped_elements = []
-            for root_element_name in aspect.root_elements:
-                root_uri = f'/{aspect.name}/{root_element_name}'
-                popped = self.lut.pop(root_uri)
-                if popped:
-                    popped_elements.extend(popped)
-            if popped_elements:
-                await self.vector_store.batch_delete_by_uris([e.uri for e in popped_elements])
-            config = self.aspect_configs.pop(name, None)
-            if config and os.path.exists(config.path):
-                os.remove(config.path)
-            await self._dump_aspects()
-        return aspect
+        if not aspect:
+            return None
+        # Dump root element trees *before* popping from the LUT
+        dumped_elements: list[dict] = []
+        for root_element_name in aspect.root_element_names:
+            root_uri = f'/{aspect.name}/{root_element_name}'
+            if root_uri in self.lut.table:
+                dumped_elements.append(self.lut.dump_element(self.lut[root_uri]))
+        # Now pop elements from LUT and vector store
+        popped_elements: list[Element] = []
+        for root_element_name in aspect.root_element_names:
+            root_uri = f'/{aspect.name}/{root_element_name}'
+            popped = self.lut.pop(root_uri)
+            if popped:
+                popped_elements.extend(popped)
+        if popped_elements:
+            await self.vector_store.batch_delete_by_uris([e.uri for e in popped_elements])
+        # Capture config as dict before removing
+        config = self.aspect_configs.pop(name, None)
+        config_dict: dict[str, Any] = config.model_dump() if config else {}
+        if config and os.path.exists(config.path):
+            os.remove(config.path)
+        await self._dump_aspects()
+
+        return RemovedAspectResult(
+            aspect=aspect,
+            restore_context=config_dict,
+            elements=dumped_elements,
+        )
 
     async def iter_elements(self, aspect_name: str) -> list[Element]:
         aspect = self.resource_aspects.get(aspect_name)
@@ -357,16 +347,16 @@ class LanceDBResourceRepository(ResourceRepository):
                 raise ValueError(f"Resource at URI '{op.resource_uri}' not found for PropertyOperation.")
         elif isinstance(op, ResourceOperation):
             target = await self.find_by_uri(op.location.resource_uri)
-            new_elements = []
-            new_children = []
             aspect_name = op.location.resource_uri.strip('/').split('/')[0]
             aspect_obj = self.resource_aspects.get(aspect_name)
-            ck = aspect_obj.children_keys if aspect_obj else []
-            for element_data in op.data or []:
-                element, children = _load_element(element_data, parent_uri=op.location.resource_uri, aspect=aspect_name, children_keys=ck)
-                new_elements.append(element)
-                new_children.extend(children)
-            new_children_names = [e.id for e in new_elements]
+            if not aspect_obj:
+                raise ValueError(f"Aspect '{aspect_name}' not found for ResourceOperation at URI '{op.location.resource_uri}'.")
+            ck = aspect_obj.children_keys
+            new_direct, new_descendants = load_elements(
+                op.data or [], parent_uri=op.location.resource_uri, aspect=aspect_name, children_keys=ck,
+            )
+            all_new = new_direct + new_descendants
+            new_children_names = [e.id for e in new_direct]
             if isinstance(target, Element):
                 if op.location.children_key is None:
                     raise ValueError(f"ResourceOperation with target 'resource' must specify a children_key for element targets.")
@@ -377,10 +367,10 @@ class LanceDBResourceRepository(ResourceRepository):
             elif isinstance(target, ResourceAspect):
                 if op.location.children_key is not None:
                     logger.warning(f"ResourceOperation with target 'resource' on aspect '{target.name}' should not specify a children_key. Ignoring children_key '{op.location.children_key}'.")
-                current_children = target.root_elements
+                current_children = target.root_element_names
                 undo_uris = [f'/{target.name}/{name}' for name in current_children[op.start:op.end]]
                 # Splice the root elements list
-                target.root_elements = current_children[:op.start] + new_children_names + current_children[op.end:]
+                target.root_element_names = current_children[:op.start] + new_children_names + current_children[op.end:]
             elif isinstance(target, list):
                 raise ValueError(f"Cannot apply ResourceOperation to aspect list at URI '{op.location.resource_uri}'.")
             else:
@@ -397,8 +387,8 @@ class LanceDBResourceRepository(ResourceRepository):
                 popped_elements.extend(self.lut.pop(child_uri) or [])
             if popped_elements:
                 await self.vector_store.batch_delete_by_uris([e.uri for e in popped_elements])
-            await self.vector_store.batch_add(new_elements + new_children)
-            self.lut.batch_add(new_elements + new_children)
+            await self.vector_store.batch_add(all_new)
+            self.lut.batch_add(all_new)
             await self._dump_with_uri(op.location.resource_uri)
             return op.create_undo(undo_data)
         else:

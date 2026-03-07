@@ -202,7 +202,7 @@ class RepositoryTestCase(unittest.IsolatedAsyncioTestCase):
         ))
 
         # root_elements is list[str] of element names
-        self.assertEqual(len(self.repository.resource_aspects['character'].root_elements), 2)
+        self.assertEqual(len(self.repository.resource_aspects['character'].root_element_names), 2)
         # Verify via lut
         alice = self.repository.lut.find_by_uri('/character/alice')
         self.assertIsNotNone(alice)
@@ -217,7 +217,7 @@ class RepositoryTestCase(unittest.IsolatedAsyncioTestCase):
         ))
 
         # root_elements is list[str]; construct URI from aspect name + element id
-        root_name = self.repository.resource_aspects['character'].root_elements[0]
+        root_name = self.repository.resource_aspects['character'].root_element_names[0]
         resource_uri = f'/character/{root_name}'
 
         # Modify the element
@@ -271,7 +271,7 @@ class RepositoryTestCase(unittest.IsolatedAsyncioTestCase):
         ))
 
         # root_elements is list[str]
-        root_name = self.repository.resource_aspects['event'].root_elements[0]
+        root_name = self.repository.resource_aspects['event'].root_element_names[0]
         root_element = self.repository.lut.find_by_uri(f'/event/{root_name}')
         self.assertIsNotNone(root_element)
 
@@ -296,7 +296,7 @@ class RepositoryTestCase(unittest.IsolatedAsyncioTestCase):
         ))
 
         # root_elements is list[str]; construct URIs
-        root_names = self.repository.resource_aspects['character'].root_elements
+        root_names = self.repository.resource_aspects['character'].root_element_names
         alice_uri = f'/character/{root_names[0]}'
         bob_uri = f'/character/{root_names[1]}'
 

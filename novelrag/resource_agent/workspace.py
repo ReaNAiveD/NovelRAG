@@ -135,7 +135,7 @@ class ResourceContext:
             )
         elif isinstance(resource, ResourceAspect):
             data = resource.aspect_dict
-            children_names = resource.root_elements
+            children_names = resource.root_element_names
             filtered_children_names = self.workspace.filter_children_names(segment.uri, children_names)
             included_properties = set(data.keys()) - segment.excluded_properties
             included_data = {k: v for k, v in data.items() if k in included_properties}

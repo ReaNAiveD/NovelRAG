@@ -20,20 +20,20 @@ class ResourceAspect:
         children_keys: list[str],
         description: str | None = None,
         metadata: dict[str, Any] | None = None,
-        root_elements: list[str] | None = None,
+        root_element_names: list[str] | None = None,
     ):
         self.name = name
         self.description = description
         self.children_keys = children_keys
         self.metadata = metadata or {}
-        self.root_elements: list[str] = root_elements or []
+        self.root_element_names: list[str] = root_element_names or []
 
     @classmethod
     def from_config(
         cls,
         name: str,
         config: AspectConfig,
-        root_elements: list[str] | None = None,
+        root_element_names: list[str] | None = None,
     ) -> 'ResourceAspect':
         """Create a ResourceAspect from an AspectConfig object."""
         return cls(
@@ -41,7 +41,7 @@ class ResourceAspect:
             description=config.description,
             children_keys=config.children_keys,
             metadata=config.model_extra,
-            root_elements=root_elements,
+            root_element_names=root_element_names,
         )
 
     def to_config(self, path: str) -> AspectConfig:
@@ -87,7 +87,7 @@ class ResourceAspect:
         return {
             'name': self.name,
             'children_keys': self.children_keys,
-            'root_elements': self.root_elements,
+            'root_elements': self.root_element_names,
             **({"description": self.description} if self.description else {}),
             **self.metadata,  # Include any additional metadata as extra fields
         }

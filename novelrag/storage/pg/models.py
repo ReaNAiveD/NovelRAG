@@ -1,7 +1,7 @@
 from typing import Any
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import ARRAY, JSON, ForeignKey, Index, String, UniqueConstraint
+from sqlalchemy import ARRAY, JSON, ForeignKey, Index, Integer, String, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -31,6 +31,7 @@ class Workspace(Base):
     user: Mapped['User'] = relationship(back_populates='workspaces')
     aspects: Mapped[list['ResourceAspect']] = relationship(back_populates='workspace', cascade='all, delete-orphan')
     backlog_entries: Mapped[list['BacklogEntry']] = relationship(back_populates='workspace', cascade='all, delete-orphan')
+    undo_redo_table: Mapped['UndoRedoTable'] = relationship(back_populates='workspace', uselist=False, cascade='all, delete-orphan')
     undo_items: Mapped[list['UndoItem']] = relationship(back_populates='workspace', cascade='all, delete-orphan')
     redo_items: Mapped[list['RedoItem']] = relationship(back_populates='workspace', cascade='all, delete-orphan')
 
@@ -50,9 +51,9 @@ class ResourceAspect(Base):
     # By default, SQLAlchemy does not detect in-place mutations to JSON.
     # We should submit the update manually.
     aspect_meta: Mapped[dict[str, Any]] = mapped_column(JSON, name='metadata', default_factory=dict)
+    root_element_names: Mapped[list[str]] = mapped_column(ARRAY(String), default_factory=list)
 
     workspace: Mapped['Workspace'] = relationship(back_populates='aspects')
-    elements: Mapped[list['ResourceElement']] = relationship(back_populates='aspect', cascade='all, delete-orphan')
 
 
 class ResourceElement(Base):
@@ -72,13 +73,14 @@ class ResourceElement(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     workspace_id: Mapped[int] = mapped_column()
-    aspect_id: Mapped[int] = mapped_column(ForeignKey('resource_aspects.id', ondelete='CASCADE'))
+    # The element aspect relationship is maintained with a foreign key without CASCADE delete
+    # because we want to return the deleted elements for undo purposes before deleting them.
+    aspect_id: Mapped[int] = mapped_column(ForeignKey('resource_aspects.id'))
     name: Mapped[str] = mapped_column()
     uri: Mapped[str] = mapped_column()
+    relationships: Mapped[dict[str, list[str]]] = mapped_column(JSON, default_factory=dict)
     data: Mapped[dict[str, Any]] = mapped_column(JSON, default_factory=dict)
     embedding: Mapped[list[float]] = mapped_column(Vector(3072))
-
-    aspect: Mapped['ResourceAspect'] = relationship(back_populates='elements')
 
 
 class BacklogEntry(Base):
@@ -92,6 +94,16 @@ class BacklogEntry(Base):
     backlog_meta: Mapped[dict[str, Any]] = mapped_column(JSON, name='metadata', default_factory=dict)
 
     workspace: Mapped['Workspace'] = relationship(back_populates='backlog_entries')
+
+
+class UndoRedoTable(Base):
+    __tablename__ = 'undo_redo_table'
+
+    workspace_id: Mapped[int] = mapped_column(ForeignKey('workspaces.id', ondelete='CASCADE'), primary_key=True)
+    undo_stack: Mapped[list[int]] = mapped_column(ARRAY(Integer), default_factory=list)
+    last_undo_group: Mapped[str | None] = mapped_column(name='last_undo_group', default=None)
+    redo_stack: Mapped[list[int]] = mapped_column(ARRAY(Integer), default_factory=list)
+    curr_redo_group: Mapped[str | None] = mapped_column(name='curr_redo_group', default=None)
 
 
 class UndoItem(Base):

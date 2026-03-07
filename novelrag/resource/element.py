@@ -173,3 +173,46 @@ class Element(BaseModel):
             self.model_extra[key] = existing + names
         else:
             logger.warning(f'Ignore add_child_names for Element with no model_extra: {self.uri}')
+
+
+def load_elements(
+    elements_data: list[dict],
+    parent_uri: str,
+    aspect: str,
+    children_keys: list[str],
+) -> tuple[list[Element], list[Element]]:
+    """Load a list of raw element dicts, returning direct and descendant elements.
+
+    Each entry in *elements_data* is treated as a direct element under
+    *parent_uri*.  Recursively loads nested children found under each
+    *children_key*.  Returns ``(direct_elements, descendants)`` where
+    *direct_elements* are the elements built at this level and
+    *descendants* includes all recursively-loaded children.
+    """
+    direct_elements: list[Element] = []
+    descendants: list[Element] = []
+    for element_data in elements_data:
+        if 'id' not in element_data:
+            raise ValueError(
+                f"Element data under '{parent_uri}' is missing required 'id' field. "
+                f"Got keys: {list(element_data.keys())}. "
+                f"Every resource (including items in children_keys lists) must have an 'id' field."
+            )
+        element_uri = f'{parent_uri}/{element_data["id"]}'
+        # Capture nested children *before* Element.build normalises them to list[str]
+        for key in children_keys:
+            raw_children = element_data.get(key, [])
+            if isinstance(raw_children, list):
+                valid_children = [c for c in raw_children if isinstance(c, dict) and 'id' in c]
+                if valid_children:
+                    child_direct, child_descendants = load_elements(
+                        valid_children,
+                        parent_uri=element_uri,
+                        aspect=aspect,
+                        children_keys=children_keys,
+                    )
+                    descendants.extend(child_direct)
+                    descendants.extend(child_descendants)
+        element = Element.build(element_data, parent_uri, aspect, children_keys)
+        direct_elements.append(element)
+    return direct_elements, descendants

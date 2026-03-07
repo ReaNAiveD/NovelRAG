@@ -36,9 +36,19 @@ class RedoHandler(Handler):
                         'relationships': undo_relationships}, group=task.group), clear_redo=False)
                 case 'remove_aspect':
                     name = task.params['name']
-                    aspect = await self.resource_repo.remove_aspect(name)
-                    if aspect:
-                        await self.undo_queue.add_undo_item(ReversibleAction(method='add_aspect', params={'name': name, 'metadata': aspect.to_config().model_dump()}, group=task.group), clear_redo=False)
+                    result = await self.resource_repo.remove_aspect(name)
+                    if result:
+                        metadata = {
+                            'description': result.aspect.description,
+                            'children_keys': result.aspect.children_keys,
+                            'root_element_names': result.aspect.root_element_names,
+                            **result.aspect.metadata,
+                        }
+                        await self.undo_queue.add_undo_item(ReversibleAction(method='add_aspect', params={
+                            'name': name,
+                            'metadata': metadata,
+                            'elements': result.elements,
+                        }, group=task.group), clear_redo=False)
                     else:
                         return HandlerResult(
                             message=[f"Aspect '{name}' does not exist, redo operation skipped."],
@@ -46,7 +56,8 @@ class RedoHandler(Handler):
                 case 'add_aspect':
                     name = task.params['name']
                     metadata = task.params['metadata']
-                    await self.resource_repo.add_aspect(name, metadata)
+                    elements = task.params.get('elements')
+                    await self.resource_repo.add_aspect(name, metadata, elements=elements)
                     await self.undo_queue.add_undo_item(ReversibleAction(method='remove_aspect', params={'name': name}, group=task.group), clear_redo=False)
                 case _:
                     return HandlerResult(
