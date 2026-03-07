@@ -18,36 +18,36 @@ surrounding context to understand its neighbourhood before analysing it.
 - **URI**: {{ element.uri }}
 - **ID**: {{ element.id }}
 - **Aspect**: {{ element.aspect }}
-{% if element.properties %}
+{%- if element.properties %}
 ### Properties
-{% for key, value in element.properties.items() %}
+{%- for key, value in element.properties.items() %}
 - **{{ key }}**: {{ value }}
 {%- endfor %}
-{% endif %}
-{% if element.relationships %}
+{%- endif %}
+{%- if element.relationships %}
 ### Declared Relationships (full URIs — use as-is)
-{% for target_uri, descriptions in element.relationships.items() %}
+{%- for target_uri, descriptions in element.relationships.items() %}
 - **{{ target_uri }}**: {{ descriptions | join("; ") }}
 {%- endfor %}
-{% endif %}
-{% if element.children_names %}
+{%- endif %}
+{%- if element.children_names %}
 ### Children (construct URI: `{{ element.uri }}/{child_name}`)
-{% for type, names in element.children_names.items() %}
+{%- for type, names in element.children_names.items() %}
 - **{{ type }}**: {{ names | join(", ") }}
 {%- endfor %}
-{% endif %}
+{%- endif %}
 
 ## Repository Inventory
-{% for summary in aspect_summaries %}
+{%- for summary in aspect_summaries %}
 - **{{ summary.name }}**{% if summary.description %} — {{ summary.description }}{% endif %} ({{ summary.element_count }} elements{% if summary.sample_element_ids %}, e.g. {{ summary.sample_element_ids | join(", ") }}{% endif %})
 {%- endfor %}
 
-{% if beliefs %}
+{%- if beliefs %}
 ## Agent Beliefs
-{% for belief in beliefs %}
+{%- for belief in beliefs %}
 - {{ belief }}
 {%- endfor %}
-{% endif %}
+{%- endif %}
 
 ## Your Task
 

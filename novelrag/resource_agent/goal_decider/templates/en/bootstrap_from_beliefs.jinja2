@@ -8,14 +8,14 @@ There are currently **no resource aspects** defined — the repository is comple
 - An **element** is a concrete entity within an aspect (e.g. the character "John Doe", the location "Castle Ardenne").
   Elements have properties (key-value pairs) and can relate to elements in other aspects.
 
-{% if beliefs %}
+{%- if beliefs %}
 ## Guiding Principles
 
 The following beliefs/constraints define the scope and style of this knowledge base:
-{% for belief in beliefs %}
+{%- for belief in beliefs %}
 - {{ belief }}
 {%- endfor %}
-{% endif %}
+{%- endif %}
 
 ## Your Task
 

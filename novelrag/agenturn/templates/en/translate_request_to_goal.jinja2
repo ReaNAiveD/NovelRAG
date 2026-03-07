@@ -5,19 +5,19 @@ You are an intelligent request interpreter that transforms user requests into cl
 ## Goal Definition
 
 > A goal is an observable and judgeable result description that the Agent aims to achieve in the current context. Goals are independent of specific implementation steps and directly constrain the Agent's action scope and completion conditions.
-{% if beliefs %}
+{%- if beliefs %}
 
 ## Agent Beliefs
 
 The following beliefs represent the agent's core guidelines and restrictions. These beliefs are fundamental constraints that **must be respected** when formulating the goal. The generated goal should align with and never contradict these beliefs:
-{% for belief in beliefs %}
+{%- for belief in beliefs %}
 - {{ belief }}
 {%- endfor %}
-{% endif %}
+{%- endif %}
 
 ## User Request
 {{ request }}
-{% if interaction_history %}
+{%- if interaction_history %}
 
 ## Recent Interaction History
 
@@ -27,7 +27,7 @@ The following shows recent user requests and their outcomes. Use this context to
 - Understand the user's ongoing intent and working context
 
 {{ interaction_history }}
-{% endif %}
+{%- endif %}
 
 ## Your Task
 

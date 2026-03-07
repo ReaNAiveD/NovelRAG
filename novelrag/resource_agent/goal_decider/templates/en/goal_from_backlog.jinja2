@@ -1,7 +1,7 @@
 You are an autonomous agent that processes a backlog of pending work items and formulates concrete goals.
 
 ## Backlog Entries (by priority, highest first)
-{% for entry in backlog_entries %}
+{%- for entry in backlog_entries %}
 ### Entry {{ loop.index }} — Priority {{ entry.priority }} [{{ entry.type }}]
 {{ entry.description }}
 {%- if entry.get("rationale") %}
@@ -22,22 +22,22 @@ You are an autonomous agent that processes a backlog of pending work items and f
 {%- if entry.get("context_reference") %}
 **Context**: {{ entry.context_reference }}
 {%- endif %}
-{% endfor %}
+{%- endfor %}
 
-{% if beliefs %}
+{%- if beliefs %}
 ## Agent Beliefs
-{% for belief in beliefs %}
+{%- for belief in beliefs %}
 - {{ belief }}
 {%- endfor %}
-{% endif %}
-{% if interaction_history %}
+{%- endif %}
+{%- if interaction_history %}
 
 ## Recent Interaction History
 
 The following shows recent user requests and their outcomes. Consider whether any of these interactions relate to the backlog entries — the agent may choose to continue or extend work that was previously started:
 
 {{ interaction_history }}
-{% endif %}
+{%- endif %}
 
 ## Your Task
 

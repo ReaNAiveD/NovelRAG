@@ -9,15 +9,15 @@ You assess the current progress of a goal pursuit, summarizing what has been acc
 
 ### Original User Request
 {{ pursuit.goal.source.request }}
-{% if beliefs %}
+{%- if beliefs %}
 
 ### Agent Beliefs
 
 The following beliefs represent the agent's core guidelines and restrictions. These beliefs are fundamental constraints that **must be respected** when assessing progress and defining success criteria:
-{% for belief in beliefs %}
+{%- for belief in beliefs %}
 - {{ belief }}
 {%- endfor %}
-{% endif %}
+{%- endif %}
 
 ### Executed Steps
 {%- if pursuit.executed_steps %}
@@ -49,14 +49,14 @@ The previous assessment of this pursuit was:
   - {{ criterion }}
 {%- endfor %}
 {%- endif %}
-{% if interaction_history %}
+{%- if interaction_history %}
 
 ## Recent Interaction History
 
 The following shows recent user requests and their outcomes prior to the current pursuit. Use this to understand the broader context of the user's intent and any related work that was previously done:
 
 {{ interaction_history }}
-{% endif %}
+{%- endif %}
 
 ## Your Task
 
