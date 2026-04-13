@@ -19,9 +19,11 @@ Procedure support:
 
 # Main agent class
 from .agent import GoalExecutor
-
-# Goal abstractions
 from .goal import Goal
+from .interaction import InteractionContext
+
+# Procedure support
+from .procedure import ExecutionContext, ProcedureError
 
 # Action determination and pursuit assessment
 from .pursuit import (
@@ -34,61 +36,49 @@ from .pursuit import (
 )
 
 # Step definitions
-from .step import OperationPlan, OperationOutcome, Resolution, StepStatus
-
-# Core tool interfaces for extension
-from .tool import BaseTool, SchematicTool
+from .step import OperationOutcome, OperationPlan, Resolution, StepStatus
 
 # Essential types for public API
 from .tool import (
-    ToolOutputType,
-    ToolOutput,
-    ToolResult,
+    BaseTool,
+    SchematicTool,
     ToolError,
+    ToolOutput,
+    ToolOutputType,
+    ToolResult,
     validate_tool_output,
     validate_tool_output_json,
 )
-from .interaction import InteractionContext
-
-# Procedure support
-from .procedure import ExecutionContext, ProcedureError
 
 __all__ = [
     # Main agent
     "GoalExecutor",
-
     # Goal abstractions
     "Goal",
-
     # Action determination and pursuit
     "ActionDeterminer",
     "LLMPursuitAssessor",
     "PursuitAssessment",
-    "PursuitOutcome", 
+    "PursuitOutcome",
     "PursuitProgress",
     "PursuitStatus",
-
     # Step definitions
     "OperationPlan",
     "OperationOutcome",
     "Resolution",
     "StepStatus",
-
     # Core tool interfaces
     "BaseTool",
     "SchematicTool",
-
     # Tool output types
     "ToolOutputType",
     "ToolOutput",
     "ToolResult",
     "ToolError",
     "InteractionContext",
-
     # Procedure support
     "ExecutionContext",
     "ProcedureError",
-
     # Validation functions
     "validate_tool_output",
     "validate_tool_output_json",

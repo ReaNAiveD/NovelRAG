@@ -19,18 +19,17 @@ from .backlog import Backlog, BacklogEntry
 from .factory import create_executor
 from .undo import ReversibleAction, UndoQueue
 from .workspace import (
-    ResourceContext,
-    ContextWorkspace,
     ContextSnapshot,
+    ContextWorkspace,
+    ResourceContext,
     ResourceSegment,
-    SegmentData,
     SearchHistoryItem,
+    SegmentData,
 )
 
 __all__ = [
     # Factory
     "create_executor",
-
     # Workspace
     "ResourceContext",
     "ContextWorkspace",
@@ -38,11 +37,9 @@ __all__ = [
     "ResourceSegment",
     "SegmentData",
     "SearchHistoryItem",
-
     # Undo
     "ReversibleAction",
     "UndoQueue",
-
     # Backlog
     "Backlog",
     "BacklogEntry",

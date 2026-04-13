@@ -2,17 +2,16 @@ import logging
 
 from novelrag.agenturn.agent import RequestHandler
 from novelrag.cli.command import Command
-from novelrag.cli.handler.interaction import InteractionHistory
 from novelrag.cli.handler.handler import Handler
+from novelrag.cli.handler.interaction import InteractionHistory
 from novelrag.cli.handler.result import HandlerResult
-
 
 logger = logging.getLogger(__name__)
 
 
 class AgentHandler(Handler):
     """Handler that delegates to the resource agent for handling user requests."""
-    
+
     def __init__(self, agent: RequestHandler, history: InteractionHistory | None = None):
         self.agent = agent
         self.history = history

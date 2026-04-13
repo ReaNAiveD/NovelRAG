@@ -25,6 +25,7 @@ def resolve_priority(value: int | str) -> int:
 @dataclass
 class BacklogEntry:
     """A backlog work item with structured metadata."""
+
     type: str
     priority: int
     description: str

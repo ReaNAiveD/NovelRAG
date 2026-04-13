@@ -1,21 +1,21 @@
 """Data structures for goal pursuit and execution tracking."""
 
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-import logging
 from typing import Annotated, Protocol
 
+from langchain_core.language_models import BaseChatModel
+from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
 
 from novelrag.agenturn.goal import Goal
+from novelrag.agenturn.interaction import InteractionContext
 from novelrag.agenturn.procedure import ExecutionContext
 from novelrag.agenturn.tool import SchematicTool
-from novelrag.agenturn.interaction import InteractionContext
 from novelrag.template import TemplateEnvironment
 from novelrag.tracer import trace_llm
-from langchain_core.messages import SystemMessage, HumanMessage
-from langchain_core.language_models import BaseChatModel
 
 from .step import OperationOutcome, OperationPlan, Resolution
 
@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 
 class PursuitStatus(Enum):
     """Status of a goal pursuit."""
+
     COMPLETED = "completed"
     FAILED = "failed"
     ABANDONED = "abandoned"
@@ -32,6 +33,7 @@ class PursuitStatus(Enum):
 @dataclass(frozen=True)
 class PursuitOutcome:
     """Represents the final outcome of a goal pursuit."""
+
     goal: Goal
     reason: str  # Why goal pursuit ended
     response: str  # User-facing completion message
@@ -50,9 +52,7 @@ class PursuitOutcome:
         """
         parts: list[str] = []
         parts.append(
-            f"  → Goal: {self.goal.description} | "
-            f"Status: {self.status.value} | "
-            f"Steps: {len(self.executed_steps)}"
+            f"  → Goal: {self.goal.description} | Status: {self.status.value} | Steps: {len(self.executed_steps)}"
         )
         if self.status.value != "completed" and self.reason:
             parts.append(f"  → Reason: {self.reason}")
@@ -78,6 +78,7 @@ class PursuitOutcome:
 @dataclass(frozen=True)
 class PursuitProgress:
     """Tracks the progress of a goal pursuit."""
+
     goal: Goal
     executed_steps: list[OperationOutcome] = field(default_factory=list)
 
@@ -99,40 +100,42 @@ class PursuitProgress:
 
 class ActionDeterminer(Protocol):
     async def determine_action(
-            self,
-            beliefs: list[str],
-            pursuit_progress: PursuitProgress,
-            available_tools: dict[str, SchematicTool],
-            ctx: ExecutionContext,
-            interaction_history: InteractionContext | None = None,
-    ) -> OperationPlan | Resolution:
-        ...
+        self,
+        beliefs: list[str],
+        pursuit_progress: PursuitProgress,
+        available_tools: dict[str, SchematicTool],
+        ctx: ExecutionContext,
+        interaction_history: InteractionContext | None = None,
+    ) -> OperationPlan | Resolution: ...
 
 
 class PursuitAssessment(BaseModel):
     """Assessment of current pursuit progress toward a goal."""
+
     finished_tasks: Annotated[list[str], Field(description="List of tasks that have been completed toward the goal")]
-    remaining_work_summary: Annotated[str, Field(description="Summary of what still needs to be done to achieve the goal")]
+    remaining_work_summary: Annotated[
+        str, Field(description="Summary of what still needs to be done to achieve the goal")
+    ]
     required_context: Annotated[str, Field(description="Context still needed to complete the goal")]
     expected_actions: Annotated[str, Field(description="Actions expected to complete the goal")]
     boundary_conditions: Annotated[list[str], Field(description="Constraints for the remaining work")]
-    exception_conditions: Annotated[list[str], Field(description="Edge cases or error conditions to handle going forward")]
+    exception_conditions: Annotated[
+        list[str], Field(description="Edge cases or error conditions to handle going forward")
+    ]
     success_criteria: Annotated[list[str], Field(description="Conditions that indicate the goal is achieved")]
 
 
 class PursuitAssessor(Protocol):
     async def assess_progress(
-            self,
-            pursuit: PursuitProgress,
-            beliefs: list[str] | None = None,
-            previous_assessment: PursuitAssessment | None = None,
-            interaction_history: InteractionContext | None = None,
-    ) -> PursuitAssessment:
-        ...
+        self,
+        pursuit: PursuitProgress,
+        beliefs: list[str] | None = None,
+        previous_assessment: PursuitAssessment | None = None,
+        interaction_history: InteractionContext | None = None,
+    ) -> PursuitAssessment: ...
 
 
 class LLMPursuitAssessor:
-
     TEMPLATE_NAME = "assess_pursuit_progress.jinja2"
 
     def __init__(self, chat_llm: BaseChatModel, lang: str = "en", lang_directive: str = ""):
@@ -143,21 +146,21 @@ class LLMPursuitAssessor:
 
     @trace_llm("pursuit_assessment")
     async def assess_progress(
-            self,
-            pursuit: PursuitProgress,
-            beliefs: list[str] | None = None,
-            previous_assessment: PursuitAssessment | None = None,
-            interaction_history: InteractionContext | None = None,
+        self,
+        pursuit: PursuitProgress,
+        beliefs: list[str] | None = None,
+        previous_assessment: PursuitAssessment | None = None,
+        interaction_history: InteractionContext | None = None,
     ) -> PursuitAssessment:
         """Assess the current progress of a pursuit toward its goal.
-        
+
         Args:
             pursuit: The current pursuit progress with goal and executed steps
             beliefs: Optional list of agent beliefs (restrictions and guidelines)
                 that should guide the assessment.
             previous_assessment: The assessment from the previous iteration, if any
             interaction_history: Optional recent interaction history for richer context
-            
+
         Returns:
             A PursuitAssessment summarizing progress and remaining work
         """
@@ -169,9 +172,11 @@ class LLMPursuitAssessor:
             interaction_history=history_text,
         )
 
-        response = await self.chat_llm.ainvoke([
-            SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
-            HumanMessage(content="Assess the current pursuit progress.")
-        ])
+        response = await self.chat_llm.ainvoke(
+            [
+                SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
+                HumanMessage(content="Assess the current pursuit progress."),
+            ]
+        )
         assert isinstance(response, PursuitAssessment), "Expected PursuitAssessment from LLM response"
         return response

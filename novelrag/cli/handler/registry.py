@@ -1,12 +1,12 @@
 import importlib
 
-from novelrag.config.handler import HandlerConfig
 from novelrag.cli.handler.handler import Handler
+from novelrag.config.handler import HandlerConfig
 
 
 def build_handler(name: str, handler_config: HandlerConfig) -> tuple[str, Handler]:
     name = handler_config.name or name
-    pkg, cls_name = handler_config.cls.rsplit('.', maxsplit=1)
+    pkg, cls_name = handler_config.cls.rsplit(".", maxsplit=1)
     module = importlib.import_module(pkg)
     handler_cls = getattr(module, cls_name)
     handler = handler_cls(**handler_config.kwargs)
@@ -24,5 +24,5 @@ class HandlerRegistry:
 
     async def get(self, name: str | None) -> Handler | None:
         if name is None:
-            return self.handlers.get('_default')
+            return self.handlers.get("_default")
         return self.handlers.get(name)

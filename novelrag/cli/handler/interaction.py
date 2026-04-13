@@ -10,14 +10,15 @@ from typing import Literal
 
 from novelrag.agenturn.pursuit import PursuitOutcome
 
-
 # ---------------------------------------------------------------------------
 # Handler details
 # ---------------------------------------------------------------------------
 
+
 @dataclass(frozen=True)
 class UndoRedoDetails:
     """Details for an undo or redo handler invocation."""
+
     action: Literal["undo", "redo"]
     methods: list[str]
     count: int
@@ -45,9 +46,11 @@ HandlerDetails = PursuitOutcome | UndoRedoDetails
 # Interaction record & history
 # ---------------------------------------------------------------------------
 
+
 @dataclass(frozen=True)
 class InteractionRecord:
     """A single request/response interaction within a session."""
+
     request: str
     handler: str | None = None
     details: PursuitOutcome | UndoRedoDetails | None = None
@@ -65,10 +68,7 @@ class InteractionRecord:
             elif isinstance(self.details, UndoRedoDetails):
                 undo_info = self.details
                 verb = "Undid" if undo_info.action == "undo" else "Redid"
-                parts.append(
-                    f"  → {verb} {undo_info.count} action(s): "
-                    f"{', '.join(undo_info.methods)}"
-                )
+                parts.append(f"  → {verb} {undo_info.count} action(s): {', '.join(undo_info.methods)}")
                 if undo_info.descriptions:
                     parts.append("  Operations:")
                     for i, desc in enumerate(undo_info.descriptions, 1):
@@ -90,6 +90,7 @@ class InteractionHistory:
     Shared as a single mutable instance across the session so that
     handlers and the executor pipeline always see the latest state.
     """
+
     _records: list[InteractionRecord] = field(default_factory=list)
 
     def add(self, record: InteractionRecord) -> None:

@@ -1,6 +1,6 @@
 from novelrag.cli.command import Command
-from novelrag.cli.handler.interaction import UndoRedoDetails
 from novelrag.cli.handler.handler import Handler
+from novelrag.cli.handler.interaction import UndoRedoDetails
 from novelrag.cli.handler.result import HandlerResult
 from novelrag.resource.operation import validate_op
 from novelrag.resource.repository import ResourceRepository
@@ -20,45 +20,64 @@ class UndoHandler(Handler):
             )
         for task in undo_tasks:
             match task.method:
-                case 'apply':
-                    op = task.params.get('op')
-                    op = validate_op(op) # type: ignore
+                case "apply":
+                    op = task.params.get("op")
+                    op = validate_op(op)  # type: ignore
                     redo = await self.resource_repo.apply(op)
-                    await self.undo_queue.add_redo_item(ReversibleAction(method='apply', params={'op': redo.model_dump()}, group=task.group))
-                case 'update_relationships':
-                    source_uri = task.params['source_uri']
-                    target_uri = task.params['target_uri']
-                    relationships = task.params.get('relationships', [])
-                    redo_relationships = await self.resource_repo.update_relationships(source_uri, target_uri, relationships)
-                    await self.undo_queue.add_redo_item(ReversibleAction(method='update_relationships', params={
-                        'source_uri': source_uri,
-                        'target_uri': target_uri,
-                        'relationships': redo_relationships}, group=task.group))
-                case 'remove_aspect':
-                    name = task.params['name']
+                    await self.undo_queue.add_redo_item(
+                        ReversibleAction(method="apply", params={"op": redo.model_dump()}, group=task.group)
+                    )
+                case "update_relationships":
+                    source_uri = task.params["source_uri"]
+                    target_uri = task.params["target_uri"]
+                    relationships = task.params.get("relationships", [])
+                    redo_relationships = await self.resource_repo.update_relationships(
+                        source_uri, target_uri, relationships
+                    )
+                    await self.undo_queue.add_redo_item(
+                        ReversibleAction(
+                            method="update_relationships",
+                            params={
+                                "source_uri": source_uri,
+                                "target_uri": target_uri,
+                                "relationships": redo_relationships,
+                            },
+                            group=task.group,
+                        )
+                    )
+                case "remove_aspect":
+                    name = task.params["name"]
                     result = await self.resource_repo.remove_aspect(name)
                     if result:
                         metadata = {
-                            'description': result.aspect.description,
-                            'children_keys': result.aspect.children_keys,
-                            'root_element_names': result.aspect.root_element_names,
+                            "description": result.aspect.description,
+                            "children_keys": result.aspect.children_keys,
+                            "root_element_names": result.aspect.root_element_names,
                             **result.aspect.metadata,
                         }
-                        await self.undo_queue.add_redo_item(ReversibleAction(method='add_aspect', params={
-                            'name': name,
-                            'metadata': metadata,
-                            'elements': result.elements,
-                        }, group=task.group))
+                        await self.undo_queue.add_redo_item(
+                            ReversibleAction(
+                                method="add_aspect",
+                                params={
+                                    "name": name,
+                                    "metadata": metadata,
+                                    "elements": result.elements,
+                                },
+                                group=task.group,
+                            )
+                        )
                     else:
                         return HandlerResult(
                             message=[f"Aspect '{name}' does not exist, undo operation skipped."],
                         )
-                case 'add_aspect':
-                    name = task.params['name']
-                    metadata = task.params['metadata']
-                    elements = task.params.get('elements')
+                case "add_aspect":
+                    name = task.params["name"]
+                    metadata = task.params["metadata"]
+                    elements = task.params.get("elements")
                     await self.resource_repo.add_aspect(name, metadata, elements=elements)
-                    await self.undo_queue.add_redo_item(ReversibleAction(method='remove_aspect', params={'name': name}, group=task.group))
+                    await self.undo_queue.add_redo_item(
+                        ReversibleAction(method="remove_aspect", params={"name": name}, group=task.group)
+                    )
                 case _:
                     return HandlerResult(
                         message=[f"Unknown undo method '{task.method}', skipping."],

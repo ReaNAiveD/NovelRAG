@@ -1,4 +1,3 @@
-from novelrag.tracer.tracer import get_active_tracer
 from novelrag.tracer.decorators import (
     trace_intent,
     trace_llm,
@@ -8,7 +7,7 @@ from novelrag.tracer.decorators import (
 )
 from novelrag.tracer.exporter import YAMLExporter
 from novelrag.tracer.span import Span, SpanKind, get_current_span, set_current_span
-from novelrag.tracer.tracer import Tracer
+from novelrag.tracer.tracer import Tracer, get_active_tracer
 
 __all__ = [
     "Tracer",

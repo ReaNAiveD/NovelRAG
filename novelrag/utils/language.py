@@ -101,10 +101,7 @@ def schema_directive(language: str | None, beliefs: list[str] | None = None) -> 
             "All descriptions, definitions, and human-readable text "
             "MUST follow the language used in the agent's beliefs."
         )
-    return (
-        "[Language Policy] Schema/metadata keys and all descriptions "
-        "MUST be in English."
-    )
+    return "[Language Policy] Schema/metadata keys and all descriptions MUST be in English."
 
 
 def interaction_directive(language: str | None, is_autonomous: bool = False) -> str:

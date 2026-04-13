@@ -34,7 +34,7 @@ class ResourceAspect:
         name: str,
         config: AspectConfig,
         root_element_names: list[str] | None = None,
-    ) -> 'ResourceAspect':
+    ) -> "ResourceAspect":
         """Create a ResourceAspect from an AspectConfig object."""
         return cls(
             name=name,
@@ -46,12 +46,14 @@ class ResourceAspect:
 
     def to_config(self, path: str) -> AspectConfig:
         """Convert the ResourceAspect to an AspectConfig object."""
-        return AspectConfig.model_validate({
-            "path": path,
-            "children_keys": self.children_keys,
-            **({"description": self.description} if self.description else {}),
-            **self.metadata,  # Include any additional metadata as extra fields
-        })
+        return AspectConfig.model_validate(
+            {
+                "path": path,
+                "children_keys": self.children_keys,
+                **({"description": self.description} if self.description else {}),
+                **self.metadata,  # Include any additional metadata as extra fields
+            }
+        )
 
     def update(self, metadata_updates: dict[str, Any]) -> dict[str, Any]:
         """Update the aspect's metadata with the provided updates.
@@ -61,7 +63,7 @@ class ResourceAspect:
         """
         undo_data = {}
         for key, value in metadata_updates.items():
-            if key in ['name', 'children_keys', 'description', 'path']:
+            if key in ["name", "children_keys", "description", "path"]:
                 logger.warning(f'Ignore Reserved metadata key "{key}" Update in aspect "{self.name}".')
             elif key in self.metadata and value is None:
                 undo_data[key] = self.metadata[key]
@@ -75,9 +77,9 @@ class ResourceAspect:
     def aspect_dict(self):
         """Returns a dictionary representation of the aspect."""
         return {
-            'name': self.name,
-            **({'description': self.description} if self.description else {}),
-            **(({'children_keys': self.children_keys}) if self.children_keys else {}),
+            "name": self.name,
+            **({"description": self.description} if self.description else {}),
+            **(({"children_keys": self.children_keys}) if self.children_keys else {}),
             **self.metadata,  # Include any additional metadata as extra fields
         }
 
@@ -85,9 +87,9 @@ class ResourceAspect:
     def context_dict(self):
         """Returns a dictionary composed of name, children_keys, root_elements, description and metadata."""
         return {
-            'name': self.name,
-            'children_keys': self.children_keys,
-            'root_elements': self.root_element_names,
+            "name": self.name,
+            "children_keys": self.children_keys,
+            "root_elements": self.root_element_names,
             **({"description": self.description} if self.description else {}),
             **self.metadata,  # Include any additional metadata as extra fields
         }

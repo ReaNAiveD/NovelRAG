@@ -3,15 +3,14 @@
 import json
 from typing import Any
 
-from novelrag.agenturn.tool import SchematicTool
 from novelrag.agenturn.procedure import ExecutionContext
-from novelrag.agenturn.tool import ToolOutput
+from novelrag.agenturn.tool import SchematicTool, ToolOutput
 from novelrag.resource.repository import ResourceRepository
 
 
 class ResourceSearchTool(SchematicTool):
     """Tool for searching resources using semantic vector search."""
-    
+
     def __init__(self, repo: ResourceRepository):
         self.repo = repo
 
@@ -21,17 +20,21 @@ class ResourceSearchTool(SchematicTool):
 
     @property
     def description(self):
-        return "This tool performs semantic search across resources using embedding vector similarity. " \
-        "It finds resources related to your query based on meaning and context. " \
-        "Optionally filter by aspect and control the number of results returned."
-    
+        return (
+            "This tool performs semantic search across resources using embedding vector similarity. "
+            "It finds resources related to your query based on meaning and context. "
+            "Optionally filter by aspect and control the number of results returned."
+        )
+
     @property
     def output_description(self) -> str | None:
-        return "Returns a list of resources that are semantically similar to the search query, ordered by relevance. " \
-               "Each resource has a hierarchical URI structure: `/{aspect}/{resource_id}` or `/{aspect}/{parent_id}/{child_id}`. " \
-               "Use the URI to navigate between parent and child resources. " \
-               "The `relations` field maps related resource URIs to human-readable relationship descriptions. " \
-               "Child resources are listed by ID only - compose full child URIs by combining the parent URI with the child ID."
+        return (
+            "Returns a list of resources that are semantically similar to the search query, ordered by relevance. "
+            "Each resource has a hierarchical URI structure: `/{aspect}/{resource_id}` or `/{aspect}/{parent_id}/{child_id}`. "
+            "Use the URI to navigate between parent and child resources. "
+            "The `relations` field maps related resource URIs to human-readable relationship descriptions. "
+            "Child resources are listed by ID only - compose full child URIs by combining the parent URI with the child ID."
+        )
 
     @property
     def input_schema(self) -> dict[str, Any]:
@@ -40,27 +43,27 @@ class ResourceSearchTool(SchematicTool):
             "properties": {
                 "query": {
                     "type": "string",
-                    "description": "Search query for finding semantically similar resources using embedding vector similarity."
+                    "description": "Search query for finding semantically similar resources using embedding vector similarity.",
                 },
                 "aspect": {
                     "type": "string",
-                    "description": "Optional aspect to filter the search results to specific resource types."
+                    "description": "Optional aspect to filter the search results to specific resource types.",
                 },
                 "top_k": {
                     "type": "integer",
                     "description": "The maximum number of results to return. Defaults to 5.",
-                    "default": 5
-                }
+                    "default": 5,
+                },
             },
             "required": ["query"],
         }
 
     async def call(self, ctx: ExecutionContext, **kwargs) -> ToolOutput:
         """Perform semantic search and return matching resources."""
-        query = kwargs.get('query')
-        aspect = kwargs.get('aspect')
-        top_k = kwargs.get('top_k', 5)
-        
+        query = kwargs.get("query")
+        aspect = kwargs.get("aspect")
+        top_k = kwargs.get("top_k", 5)
+
         if not query:
             return self.error("No query provided. Please provide a search query string.")
 

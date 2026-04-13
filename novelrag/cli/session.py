@@ -3,23 +3,24 @@ from dataclasses import dataclass
 
 from novelrag.agenturn.goal import LLMGoalTranslator
 from novelrag.agenturn.procedure import ExecutionContext
+from novelrag.cli.handler.builtin.agent import AgentHandler
 from novelrag.cli.handler.builtin.next import NextHandler
 from novelrag.cli.handler.builtin.quit import QuitHandler
 from novelrag.cli.handler.builtin.redo import RedoHandler
 from novelrag.cli.handler.builtin.undo import UndoHandler
 from novelrag.cli.handler.interaction import InteractionHistory, InteractionRecord
+from novelrag.cli.handler.registry import HandlerRegistry
 from novelrag.config.novel_rag import NovelRagConfig
-from novelrag.storage.local.resource import LanceDBResourceRepository
-from novelrag.resource_agent.factory import create_executor
-from novelrag.storage.local.backlog import LocalBacklog
-from novelrag.resource_agent.goal_decider import CompositeGoalDecider
-from novelrag.resource_agent.undo import UndoQueue
-from novelrag.storage.local.undo import LocalUndoQueue, MemoryUndoQueue
-from novelrag.utils.language import content_directive
-from novelrag.cli.handler.builtin.agent import AgentHandler
 from novelrag.exceptions import HandlerNotFoundError, SessionQuitError
 from novelrag.llm.factory import ChatLLMFactory, EmbeddingLLMFactory
-from novelrag.cli.handler.registry import HandlerRegistry
+from novelrag.resource_agent.factory import create_executor
+from novelrag.resource_agent.goal_decider import CompositeGoalDecider
+from novelrag.resource_agent.undo import UndoQueue
+from novelrag.storage.local.backlog import LocalBacklog
+from novelrag.storage.local.resource import LanceDBResourceRepository
+from novelrag.storage.local.undo import LocalUndoQueue, MemoryUndoQueue
+from novelrag.utils.language import content_directive
+
 from .command import Command
 
 logger = logging.getLogger(__name__)
@@ -48,10 +49,8 @@ class SessionChannel(ExecutionContext):
         self.logger.error(content)
 
     async def confirm(self, prompt: str) -> bool:
-        result = input(prompt + 'y/N')
-        if result.lower() in ['y', 'yes']:
-            return True
-        return False
+        result = input(prompt + "y/N")
+        return result.lower() in ["y", "yes"]
 
     async def request(self, prompt: str) -> str:
         return input(prompt)
@@ -62,13 +61,13 @@ class SessionChannel(ExecutionContext):
 
 class Session:
     def __init__(
-            self,
-            *,
-            handlers: HandlerRegistry,
-            undo_queue: UndoQueue,
-            history: InteractionHistory | None = None,
-            chat_llm_factory: ChatLLMFactory | None = None,
-            embedding_factory: EmbeddingLLMFactory | None = None,
+        self,
+        *,
+        handlers: HandlerRegistry,
+        undo_queue: UndoQueue,
+        history: InteractionHistory | None = None,
+        chat_llm_factory: ChatLLMFactory | None = None,
+        embedding_factory: EmbeddingLLMFactory | None = None,
     ):
 
         self.chat_llm_factory: ChatLLMFactory = chat_llm_factory or ChatLLMFactory()
@@ -79,7 +78,7 @@ class Session:
         self.undo = undo_queue
 
     @classmethod
-    async def from_config(cls, config: NovelRagConfig) -> 'Session':
+    async def from_config(cls, config: NovelRagConfig) -> "Session":
         """Create a new session instance with configured components"""
         chat_llm = ChatLLMFactory.build(config.chat_llm)
         embedder = EmbeddingLLMFactory.build(config.embedding)
@@ -150,19 +149,21 @@ class Session:
         messages = []
         handler = None
         if self.handler_registry:
-            handler = await self.handler_registry.get(command.handler or '_default')
+            handler = await self.handler_registry.get(command.handler or "_default")
         if not handler:
-            raise HandlerNotFoundError(command.handler or '_default')
+            raise HandlerNotFoundError(command.handler or "_default")
 
         result = await handler.handle(command)
 
         # Record the interaction with structured details
-        self.history.add(InteractionRecord(
-            request=command.text,
-            handler=command.handler,
-            details=result.details,
-            message=result.message,
-        ))
+        self.history.add(
+            InteractionRecord(
+                request=command.text,
+                handler=command.handler,
+                details=result.details,
+                message=result.message,
+            )
+        )
 
         if result.message:
             messages.extend(result.message)

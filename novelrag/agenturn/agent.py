@@ -5,11 +5,11 @@ from datetime import datetime
 from typing import Any
 
 from novelrag.agenturn.goal import Goal, GoalDecider, GoalTranslator
+from novelrag.agenturn.interaction import InteractionContext
 from novelrag.agenturn.procedure import ExecutionContext
 from novelrag.agenturn.pursuit import ActionDeterminer, PursuitOutcome, PursuitProgress, PursuitStatus
-from novelrag.agenturn.step import OperationPlan, OperationOutcome, Resolution, StepStatus
-from novelrag.agenturn.tool import SchematicTool, ToolResult, ToolError
-from novelrag.agenturn.interaction import InteractionContext
+from novelrag.agenturn.step import OperationOutcome, OperationPlan, Resolution, StepStatus
+from novelrag.agenturn.tool import SchematicTool, ToolError, ToolResult
 from novelrag.tracer import trace_intent, trace_pursuit, trace_tool
 
 logger = logging.getLogger(__name__)
@@ -32,9 +32,9 @@ class GoalExecutor:
 
     @trace_pursuit("handle_goal")
     async def handle_goal(
-            self,
-            goal: Goal,
-            interaction_history: InteractionContext | None = None,
+        self,
+        goal: Goal,
+        interaction_history: InteractionContext | None = None,
     ) -> PursuitOutcome:
         await self.channel.info(f"Starting handle goal: {goal}")
 
@@ -59,7 +59,7 @@ class GoalExecutor:
                         status=PursuitStatus.COMPLETED,
                         executed_steps=pursuit_progress.executed_steps,
                         resolution=directive,
-                        resolve_at=datetime.now()
+                        resolve_at=datetime.now(),
                     )
                 elif isinstance(directive, OperationPlan):
                     # Execute the recommended tool
@@ -87,22 +87,18 @@ class GoalExecutor:
                 response=error_msg,
                 status=PursuitStatus.FAILED,
                 executed_steps=pursuit_progress.executed_steps,
-                resolution=Resolution(
-                    reason="Pursuit failed",
-                    response=error_msg,
-                    status="failed"
-                ),
-                resolve_at=datetime.now()
+                resolution=Resolution(reason="Pursuit failed", response=error_msg, status="failed"),
+                resolve_at=datetime.now(),
             )
 
     @trace_tool()
     async def _execute_tool(self, tool_name: str, params: dict[str, Any], reason: str) -> OperationOutcome:
         """Execute a single tool and return the outcome."""
         start_time = datetime.now()
-        
+
         # Create step definition for tracking
         step = OperationPlan(reason=reason, tool=tool_name, parameters=params)
-        
+
         # Check if tool exists
         if tool_name not in self.tools:
             return OperationOutcome(
@@ -110,7 +106,7 @@ class GoalExecutor:
                 status=StepStatus.FAILED,
                 error_message=f"Tool {tool_name} not found",
                 started_at=start_time,
-                completed_at=datetime.now()
+                completed_at=datetime.now(),
             )
 
         tool = self.tools[tool_name]
@@ -137,7 +133,7 @@ class GoalExecutor:
                 )
             else:
                 raise ValueError(f"Unexpected tool result type: {type(result)}")
-                
+
         except Exception as e:
             logger.exception(f"Error executing tool {tool_name}")
             return OperationOutcome(
@@ -147,12 +143,12 @@ class GoalExecutor:
                 started_at=start_time,
                 completed_at=datetime.now(),
             )
-    
-    def create_request_handler(self, goal_translator: GoalTranslator) -> 'RequestHandler':
+
+    def create_request_handler(self, goal_translator: GoalTranslator) -> "RequestHandler":
         """Create a RequestHandler that uses this executor."""
         return RequestHandler(executor=self, goal_translator=goal_translator)
 
-    def create_autonomous_agent(self, goal_decider: GoalDecider) -> 'AutonomousAgent':
+    def create_autonomous_agent(self, goal_decider: GoalDecider) -> "AutonomousAgent":
         """Create an AutonomousAgent that uses this executor."""
         return AutonomousAgent(executor=self, goal_decider=goal_decider)
 
@@ -163,20 +159,22 @@ class RequestHandler:
     def __init__(self, executor: GoalExecutor, goal_translator: GoalTranslator):
         self.executor = executor
         self.goal_translator = goal_translator
-    
+
     @trace_intent("handle_request")
     async def handle_request(
-            self,
-            request: str,
-            interaction_history: InteractionContext | None = None,
+        self,
+        request: str,
+        interaction_history: InteractionContext | None = None,
     ) -> PursuitOutcome:
-        """Translate request to goal, execute, and return response."""        
+        """Translate request to goal, execute, and return response."""
         goal = await self.goal_translator.translate(
-            request, self.executor.beliefs,
+            request,
+            self.executor.beliefs,
             interaction_history=interaction_history,
         )
         outcome = await self.executor.handle_goal(
-            goal, interaction_history=interaction_history,
+            goal,
+            interaction_history=interaction_history,
         )
         return outcome
 
@@ -191,11 +189,11 @@ class AutonomousAgent:
     ):
         self.executor = executor
         self.goal_decider = goal_decider
-    
+
     @trace_intent("autonomous_pursuit")
     async def pursue_next_goal(
-            self,
-            interaction_history: InteractionContext | None = None,
+        self,
+        interaction_history: InteractionContext | None = None,
     ) -> PursuitOutcome | None:
         """Decide on the next goal and pursue it."""
         goal = await self.goal_decider.next_goal(
@@ -207,6 +205,7 @@ class AutonomousAgent:
             return None
         await self.executor.channel.info(f"Decided to pursue new goal: {goal.description}")
         outcome = await self.executor.handle_goal(
-            goal, interaction_history=interaction_history,
+            goal,
+            interaction_history=interaction_history,
         )
         return outcome

@@ -1,9 +1,10 @@
 import logging
 import random
 
+from langchain_core.language_models import BaseChatModel
+
 from novelrag.agenturn.goal import Goal, GoalDecider
 from novelrag.agenturn.interaction import InteractionContext
-from langchain_core.language_models import BaseChatModel
 from novelrag.resource.repository import ResourceRepository
 from novelrag.resource_agent.backlog import Backlog, BacklogEntry
 from novelrag.resource_agent.undo import UndoQueue
@@ -55,16 +56,18 @@ class CompositeGoalDecider:
         self._deciders: dict[str, GoalDecider] = {}
 
         if backlog is not None:
-            self._deciders["backlog"] = BacklogGoalDecider(backlog, chat_llm, lang=template_lang, lang_directive=lang_directive)
+            self._deciders["backlog"] = BacklogGoalDecider(
+                backlog, chat_llm, lang=template_lang, lang_directive=lang_directive
+            )
 
         self._deciders["exploration"] = ExplorationGoalDecider(
             repo, chat_llm, lang=template_lang, recency=recency, lang_directive=lang_directive
         )
 
     async def next_goal(
-            self,
-            beliefs: list[str],
-            interaction_history: InteractionContext | None = None,
+        self,
+        beliefs: list[str],
+        interaction_history: InteractionContext | None = None,
     ) -> Goal | None:
         """Select a source decider via weighted random and delegate goal generation.
 
@@ -79,7 +82,7 @@ class CompositeGoalDecider:
         # Try deciders until one produces a goal or all are exhausted
         remaining = list(candidates)
         while remaining:
-            names, weights = zip(*remaining)
+            names, weights = zip(*remaining, strict=False)
             selected_name = random.choices(names, weights=weights, k=1)[0]
 
             logger.info(f"CompositeGoalDecider: selected source '{selected_name}'")
@@ -99,7 +102,7 @@ class CompositeGoalDecider:
         """Build the list of (name, weight) pairs, applying dynamic adjustments."""
         candidates = []
 
-        for name, decider in self._deciders.items():
+        for name, _decider in self._deciders.items():
             weight = self.base_weights.get(name, 1.0)
             if weight <= 0:
                 continue

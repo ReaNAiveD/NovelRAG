@@ -1,3 +1,4 @@
+#:schema https://json.schemastore.org/pyproject.json
 [project]
 name = "novelrag"
 version = "0.1.0"
@@ -13,10 +14,10 @@ classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 
@@ -55,6 +56,10 @@ pg = [
     "sqlalchemy[asyncio]>=2.0",
     "pgvector>=0.3",
     "alembic>=1.14",
+]
+dev = [
+    "ruff>=0.11",
+    "ty>=0.0.1a7",
 ]
 
 [build-system]
@@ -97,4 +102,36 @@ ignore_errors = true
 omit = [
     "tests/*",
     "setup.py",
-] 
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "SIM",  # flake8-simplify
+]
+ignore = [
+    "E501",  # line too long (handled by formatter)
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.ty.environment]
+root = ["."]
+
+[tool.ty.src]
+include = ["novelrag/**/*.py"]
+exclude = ["novelrag/**/*.pyi"]
+
+[tool.ty.rules]
+index-out-of-bounds = "ignore"

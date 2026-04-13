@@ -1,10 +1,11 @@
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_core.messages import HumanMessage, SystemMessage
+
 from novelrag.agenturn.goal import Goal
 from novelrag.agenturn.pursuit import PursuitAssessment
 from novelrag.agenturn.tool import SchematicTool
 from novelrag.resource_agent.action_determine.action_determine_loop import ContextDiscoverer, DiscoveryPlan
-from novelrag.resource_agent.workspace import SegmentData, SearchHistoryItem
+from novelrag.resource_agent.workspace import SearchHistoryItem, SegmentData
 from novelrag.template import TemplateEnvironment
 from novelrag.tracer import trace_llm
 
@@ -20,14 +21,14 @@ class LLMContextDiscoverer(ContextDiscoverer):
 
     @trace_llm("context_discovery")
     async def discover(
-            self,
-            goal: Goal,
-            pursuit_assessment: PursuitAssessment,
-            workspace_segment: list[SegmentData],
-            non_existed_uris: list[str],
-            search_history: list[SearchHistoryItem],
-            expanded_tools: dict[str, SchematicTool],
-            collapsed_tools: dict[str, SchematicTool],
+        self,
+        goal: Goal,
+        pursuit_assessment: PursuitAssessment,
+        workspace_segment: list[SegmentData],
+        non_existed_uris: list[str],
+        search_history: list[SearchHistoryItem],
+        expanded_tools: dict[str, SchematicTool],
+        collapsed_tools: dict[str, SchematicTool],
     ) -> DiscoveryPlan:
         prompt = self.template.render(
             goal=goal,
@@ -38,9 +39,13 @@ class LLMContextDiscoverer(ContextDiscoverer):
             expanded_tools=expanded_tools,
             collapsed_tools=collapsed_tools,
         )
-        response = await self.chat_llm.ainvoke([
-            SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
-            HumanMessage(content="Based on the above information, determine the following resource contexts to discover that would best support progress toward the goal.")
-        ])
+        response = await self.chat_llm.ainvoke(
+            [
+                SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
+                HumanMessage(
+                    content="Based on the above information, determine the following resource contexts to discover that would best support progress toward the goal."
+                ),
+            ]
+        )
         assert isinstance(response, DiscoveryPlan), "Expected DiscoveryPlan from LLM response"
         return response

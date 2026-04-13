@@ -4,13 +4,13 @@ import logging
 import random
 from typing import Annotated
 
-from pydantic import BaseModel, Field
-
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
+from pydantic import BaseModel, Field
+
+from novelrag.resource_agent.workspace import ContextSnapshot
 from novelrag.template import TemplateEnvironment
 from novelrag.tracer import trace_llm
-from novelrag.resource_agent.workspace import ContextSnapshot
 
 from .proposals import ContentProposal, ContentProposer
 
@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 class Perspective(BaseModel):
     """A single creative perspective for content generation."""
+
     id: Annotated[str, Field(description="Short identifier for the perspective.")]
     description: Annotated[str, Field(description="Description of the creative angle.")]
     rationale: Annotated[str, Field(description="Why this perspective is relevant.")]
@@ -26,10 +27,14 @@ class Perspective(BaseModel):
 
 class PerspectivesResponse(BaseModel):
     """LLM response containing diverse perspectives."""
-    perspectives: Annotated[list[Perspective], Field(
-        default_factory=list,
-        description="List of diverse perspectives for content generation.",
-    )]
+
+    perspectives: Annotated[
+        list[Perspective],
+        Field(
+            default_factory=list,
+            description="List of diverse perspectives for content generation.",
+        ),
+    ]
 
 
 class LLMContentProposer(ContentProposer):
@@ -39,7 +44,14 @@ class LLMContentProposer(ContentProposer):
     PERSPECTIVES_TEMPLATE = "generate_content_perspectives.jinja2"
     CONTENT_TEMPLATE = "generate_content_from_perspective.jinja2"
 
-    def __init__(self, chat_llm: BaseChatModel, lang: str = "en", lang_directive: str = "", num_perspectives: int = 5, num_proposals: int = 2):
+    def __init__(
+        self,
+        chat_llm: BaseChatModel,
+        lang: str = "en",
+        lang_directive: str = "",
+        num_perspectives: int = 5,
+        num_proposals: int = 2,
+    ):
         """Initialize the LLM content proposer.
 
         Args:
@@ -57,7 +69,9 @@ class LLMContentProposer(ContentProposer):
         self._perspectives_tmpl = template_env.load_template(self.PERSPECTIVES_TEMPLATE)
         self._content_tmpl = template_env.load_template(self.CONTENT_TEMPLATE)
 
-    async def propose(self, believes: list[str], content_description: str, context: ContextSnapshot) -> list[ContentProposal]:
+    async def propose(
+        self, believes: list[str], content_description: str, context: ContextSnapshot
+    ) -> list[ContentProposal]:
         """Propose content based on current beliefs using Sequential Diverse Prompting.
 
         Args:
@@ -67,7 +81,7 @@ class LLMContentProposer(ContentProposer):
 
         Returns:
             List of content proposals with reasoning
-        """        
+        """
         perspectives = await self._generate_perspectives(believes, content_description, context)
         logger.info(f"Generated {len(perspectives)} perspectives: {perspectives}")
 
@@ -80,7 +94,9 @@ class LLMContentProposer(ContentProposer):
                 perspective, believes, content_description, context
             )
             if content_proposal:
-                logger.debug(f"Generate Proposal from perspective {perspective.description}: {content_proposal.content}")
+                logger.debug(
+                    f"Generate Proposal from perspective {perspective.description}: {content_proposal.content}"
+                )
                 proposals.append(content_proposal)
 
         if not proposals:
@@ -89,7 +105,9 @@ class LLMContentProposer(ContentProposer):
         return proposals
 
     @trace_llm("content_perspectives")
-    async def _generate_perspectives(self, believes: list[str], content_description: str, context: ContextSnapshot) -> list[Perspective]:
+    async def _generate_perspectives(
+        self, believes: list[str], content_description: str, context: ContextSnapshot
+    ) -> list[Perspective]:
         """Generate diverse perspectives for content creation.
 
         Returns:
@@ -101,20 +119,18 @@ class LLMContentProposer(ContentProposer):
             context=context,
             believes=believes,
         )
-        response = await self._perspectives_llm.ainvoke([
-            SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
-            HumanMessage(content="Generate diverse perspectives."),
-        ])
+        response = await self._perspectives_llm.ainvoke(
+            [
+                SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
+                HumanMessage(content="Generate diverse perspectives."),
+            ]
+        )
         assert isinstance(response, PerspectivesResponse)
         return response.perspectives
 
     @trace_llm("content_generation")
     async def _generate_content_from_perspective(
-        self,
-        perspective: Perspective,
-        believes: list[str],
-        content_description: str,
-        context: ContextSnapshot
+        self, perspective: Perspective, believes: list[str], content_description: str, context: ContextSnapshot
     ) -> ContentProposal | None:
         """Generate content based on a specific perspective.
 
@@ -134,10 +150,12 @@ class LLMContentProposer(ContentProposer):
             context=context,
             believes=believes,
         )
-        response = await self.chat_llm.ainvoke([
-            SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
-            HumanMessage(content="Generate content based on the given perspective."),
-        ])
+        response = await self.chat_llm.ainvoke(
+            [
+                SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
+                HumanMessage(content="Generate content based on the given perspective."),
+            ]
+        )
         assert isinstance(response.content, str), "Expected string content from LLM response"
 
         content = response.content.strip()
@@ -151,10 +169,7 @@ class LLMContentProposer(ContentProposer):
 
     @trace_llm("content_fallback")
     async def _generate_fallback_proposal(
-        self,
-        believes: list[str],
-        content_description: str,
-        context: ContextSnapshot
+        self, believes: list[str], content_description: str, context: ContextSnapshot
     ) -> list[ContentProposal]:
         """Generate a fallback proposal when perspective generation fails.
 
@@ -175,33 +190,43 @@ class LLMContentProposer(ContentProposer):
                     context_text += f"\n{segment.uri}:\n"
                     context_text += "\n".join(f"- {k}: {v}" for k, v in segment.included_data.items())
                     context_text += "\n".join(f"- Related to {uri}: {desc}" for uri, desc in segment.relations.items())
-        
+
         fallback_prompt = f"""
         Based on the following content description and context, generate appropriate story content:
-        
+
         Content Description: {content_description}
-        
-        Context: {context_text if context_text else 'No specific context provided'}
-        
-        Story Beliefs: {' '.join(believes) if believes else 'No current beliefs'}
-        
+
+        Context: {context_text if context_text else "No specific context provided"}
+
+        Story Beliefs: {" ".join(believes) if believes else "No current beliefs"}
+
         Generate coherent, engaging content that addresses the step requirements.
         """
 
-        result = await self.chat_llm.ainvoke([
-            SystemMessage(content=f"{self._lang_directive}\n\nYou are a creative writing assistant. Generate story content based on the provided requirements." if self._lang_directive else 'You are a creative writing assistant. Generate story content based on the provided requirements.'),
-            HumanMessage(content=fallback_prompt),
-        ])
+        result = await self.chat_llm.ainvoke(
+            [
+                SystemMessage(
+                    content=f"{self._lang_directive}\n\nYou are a creative writing assistant. Generate story content based on the provided requirements."
+                    if self._lang_directive
+                    else "You are a creative writing assistant. Generate story content based on the provided requirements."
+                ),
+                HumanMessage(content=fallback_prompt),
+            ]
+        )
         content = result.content if isinstance(result.content, str) else str(result.content)
 
         if content.strip():
-            return [ContentProposal(
-                content=content.strip(),
-                perspective="Generated using fallback approach due to perspective generation failure"
-            )]
+            return [
+                ContentProposal(
+                    content=content.strip(),
+                    perspective="Generated using fallback approach due to perspective generation failure",
+                )
+            ]
 
         # Ultimate fallback
-        return [ContentProposal(
-            content="[Content generation failed - please provide more specific context or try again]",
-            perspective="Unable to generate content due to technical issues"
-        )]
+        return [
+            ContentProposal(
+                content="[Content generation failed - please provide more specific context or try again]",
+                perspective="Unable to generate content due to technical issues",
+            )
+        ]

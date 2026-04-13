@@ -1,10 +1,8 @@
 import json
 import logging
-
-from typing import Any
+from typing import Annotated, Any
 
 from pydantic import BaseModel, ConfigDict, Field
-from typing_extensions import Annotated
 
 from novelrag.exceptions import ChildrenKeyNotFoundError
 
@@ -20,49 +18,51 @@ class Element(BaseModel):
     (``{parent_uri}/{child_name}``).
     """
 
-    id: Annotated[str, Field(description='Id of the element')]
-    uri: Annotated[str, Field(description='URI of the element')]
-    relationships: Annotated[dict[str, list[str]], Field(description='Related Elements. <Id>: <Description>', default_factory=lambda: {})]
-    aspect: Annotated[str, Field(description='Aspect of the element')]
+    id: Annotated[str, Field(description="Id of the element")]
+    uri: Annotated[str, Field(description="URI of the element")]
+    relationships: Annotated[
+        dict[str, list[str]], Field(description="Related Elements. <Id>: <Description>", default_factory=lambda: {})
+    ]
+    aspect: Annotated[str, Field(description="Aspect of the element")]
     children_keys: Annotated[list[str], Field(default_factory=lambda: [])]
 
-    model_config = ConfigDict(extra='allow')
+    model_config = ConfigDict(extra="allow")
 
     @classmethod
     def build(
-            cls,
-            value: dict,
-            parent_uri: str,
-            aspect: str,
-            children_keys: list[str],
-            *,
-            strict: bool | None = None,
-            from_attributes: bool | None = None,
-            context: Any | None = None
+        cls,
+        value: dict,
+        parent_uri: str,
+        aspect: str,
+        children_keys: list[str],
+        *,
+        strict: bool | None = None,
+        from_attributes: bool | None = None,
+        context: Any | None = None,
     ):
         """Build a *flat* Element instance from a dictionary value.
 
         Children entries (keys listed in *children_keys*) are normalised to
         ``list[str]``.
         """
-        if 'id' not in value:
+        if "id" not in value:
             raise ValueError(
                 f"Element data under '{parent_uri}' is missing required 'id' field. "
                 f"Got keys: {list(value.keys())}. "
                 f"Every resource (including items in children_keys lists) must have an 'id' field."
             )
-        uri = f'{parent_uri}/{value["id"]}'
+        uri = f"{parent_uri}/{value['id']}"
         value = dict(value)
-        value['uri'] = uri
-        value['aspect'] = aspect
-        value['children_keys'] = children_keys
+        value["uri"] = uri
+        value["aspect"] = aspect
+        value["children_keys"] = children_keys
 
         for key in children_keys:
             if key in value and isinstance(value[key], list):
                 normalised: list[str] = []
                 for item in value[key]:
-                    if isinstance(item, dict) and 'id' in item:
-                        normalised.append(item['id'])
+                    if isinstance(item, dict) and "id" in item:
+                        normalised.append(item["id"])
                     elif isinstance(item, str):
                         normalised.append(item)
                 value[key] = normalised
@@ -78,17 +78,16 @@ class Element(BaseModel):
         Usually includes all properties in model_extra except those defined in children_keys.
         Excludes properties like 'id', 'relationships', 'aspect', and 'children_keys'.
         """
-        return dict((k, v) for k, v in self.model_extra.items() if k not in self.children_keys) if self.model_extra else {}
+        return (
+            dict((k, v) for k, v in self.model_extra.items() if k not in self.children_keys) if self.model_extra else {}
+        )
 
     @property
     def children_names(self) -> dict[str, list[str]]:
         """Return ``{children_key: [child_name, …]}`` for every children key."""
         if not self.model_extra:
             return {key: [] for key in self.children_keys}
-        return {
-            key: list(self.model_extra.get(key, []))
-            for key in self.children_keys
-        }
+        return {key: list(self.model_extra.get(key, [])) for key in self.children_keys}
 
     def children_names_of(self, key: str) -> list[str]:
         """Return the ordered list of child names for *key*."""
@@ -136,12 +135,12 @@ class Element(BaseModel):
         """
         undo: dict[str, Any] = {}
         for k, v in props.items():
-            if k in ['id', 'uri', 'relationships', 'aspect', 'children_keys', 'embedding', 'hash']:
+            if k in ["id", "uri", "relationships", "aspect", "children_keys", "embedding", "hash"]:
                 logger.warning(f'Ignore Private Property "{k}" Update.')
             elif k in self.children_keys:
                 logger.warning(f'Ignore Children Key "{k}" Update.')
             elif self.model_extra is None:
-                logger.warning(f'Ignore Update for Element with no model_extra: {self.uri}')
+                logger.warning(f"Ignore Update for Element with no model_extra: {self.uri}")
             elif k in self.model_extra and v is None:
                 undo[k] = self.model_extra[k]
                 del self.model_extra[k]
@@ -162,7 +161,7 @@ class Element(BaseModel):
         if self.model_extra is not None:
             self.model_extra[key] = names
         else:
-            logger.warning(f'Ignore set_children_names for Element with no model_extra: {self.uri}')
+            logger.warning(f"Ignore set_children_names for Element with no model_extra: {self.uri}")
 
     def add_child_names(self, key: str, names: list[str]):
         """Add to the ordered children-name list for *key*."""
@@ -172,7 +171,7 @@ class Element(BaseModel):
             existing = self.model_extra.get(key, [])
             self.model_extra[key] = existing + names
         else:
-            logger.warning(f'Ignore add_child_names for Element with no model_extra: {self.uri}')
+            logger.warning(f"Ignore add_child_names for Element with no model_extra: {self.uri}")
 
 
 def load_elements(
@@ -192,18 +191,18 @@ def load_elements(
     direct_elements: list[Element] = []
     descendants: list[Element] = []
     for element_data in elements_data:
-        if 'id' not in element_data:
+        if "id" not in element_data:
             raise ValueError(
                 f"Element data under '{parent_uri}' is missing required 'id' field. "
                 f"Got keys: {list(element_data.keys())}. "
                 f"Every resource (including items in children_keys lists) must have an 'id' field."
             )
-        element_uri = f'{parent_uri}/{element_data["id"]}'
+        element_uri = f"{parent_uri}/{element_data['id']}"
         # Capture nested children *before* Element.build normalises them to list[str]
         for key in children_keys:
             raw_children = element_data.get(key, [])
             if isinstance(raw_children, list):
-                valid_children = [c for c in raw_children if isinstance(c, dict) and 'id' in c]
+                valid_children = [c for c in raw_children if isinstance(c, dict) and "id" in c]
                 if valid_children:
                     child_direct, child_descendants = load_elements(
                         valid_children,

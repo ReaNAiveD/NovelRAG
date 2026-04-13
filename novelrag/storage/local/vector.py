@@ -1,15 +1,14 @@
 import abc
 import hashlib
 import json
-from dataclasses import dataclass
 import logging
-from typing import Optional
+from dataclasses import dataclass
 
 import lancedb
 from lancedb import AsyncConnection, AsyncTable
 from lancedb.pydantic import LanceModel, Vector
-
 from langchain_core.embeddings import Embeddings
+
 from novelrag.resource.element import Element
 
 logger = logging.getLogger(__name__)
@@ -18,6 +17,7 @@ logger = logging.getLogger(__name__)
 class Hasher(abc.ABC):
     """Abstract base class for hash generation utilities."""
 
+    @abc.abstractmethod
     def hash(self, target: str) -> str:
         """Generate hash from a string."""
         raise NotImplementedError()
@@ -33,12 +33,13 @@ class Md5Hasher(Hasher):
 
     def hash(self, target: str) -> str:
         """Generate MD5 hash from input string."""
-        return hashlib.md5(target.encode('utf-8')).hexdigest()
+        return hashlib.md5(target.encode("utf-8")).hexdigest()
 
 
 class EmbeddingSearch(LanceModel):
     """LanceDB schema for storing embedding vectors and metadata."""
-    vector: Vector(3072)
+
+    vector: Vector(3072)  # type: ignore[invalid-type-form]
     hash: str
     resource_uri: str
     aspect: str
@@ -52,7 +53,7 @@ class VectorSearchResult:
         self.hash = validated_item.hash
         self.resource_uri = validated_item.resource_uri
         self.aspect = validated_item.aspect
-        self.distance = item['_distance']
+        self.distance = item["_distance"]
 
 
 class LanceDBStore:
@@ -65,8 +66,7 @@ class LanceDBStore:
         hasher: Hash generator for data versioning
     """
 
-    def __init__(self, connection: AsyncConnection, table: AsyncTable,
-                 embedder: Embeddings, hasher: Hasher):
+    def __init__(self, connection: AsyncConnection, table: AsyncTable, embedder: Embeddings, hasher: Hasher):
         """Initialize with pre-configured dependencies."""
         self.connection = connection
         self.table = table
@@ -74,8 +74,9 @@ class LanceDBStore:
         self.hasher = hasher
 
     @classmethod
-    async def create(cls, uri: str, table_name: str, embedder: Embeddings,
-                     hasher: Optional[Hasher] = None) -> 'LanceDBStore':
+    async def create(
+        cls, uri: str, table_name: str, embedder: Embeddings, hasher: Hasher | None = None
+    ) -> "LanceDBStore":
         """Factory method to create and initialize a store instance.
 
         Args:
@@ -89,16 +90,12 @@ class LanceDBStore:
         """
         hasher = hasher or Md5Hasher()
         connection = await lancedb.connect_async(uri)
-        table = await connection.create_table(
-            table_name,
-            schema=EmbeddingSearch,
-            exist_ok=True
-        )
+        table = await connection.create_table(table_name, schema=EmbeddingSearch, exist_ok=True)
         return cls(connection, table, embedder, hasher)
 
-    async def vector_search(self, vector: list[float], *,
-                            aspect: Optional[str] = None,
-                            limit: Optional[int] = 20) -> list[VectorSearchResult]:
+    async def vector_search(
+        self, vector: list[float], *, aspect: str | None = None, limit: int | None = 20
+    ) -> list[VectorSearchResult]:
         """Search for similar vectors in the store.
 
         Args:
@@ -118,7 +115,7 @@ class LanceDBStore:
         results = await query.to_list()
         return [VectorSearchResult(item) for item in results]
 
-    async def get(self, resource_uri: str) -> Optional[EmbeddingSearch]:
+    async def get(self, resource_uri: str) -> EmbeddingSearch | None:
         """Retrieve a single resource by its unique ID.
 
         Args:
@@ -127,10 +124,7 @@ class LanceDBStore:
         Returns:
             EmbeddingSearch instance if found, None otherwise
         """
-        results = await self.table.query() \
-            .where(f'resource_uri = "{resource_uri}"') \
-            .limit(1) \
-            .to_list()
+        results = await self.table.query().where(f'resource_uri = "{resource_uri}"').limit(1).to_list()
 
         return EmbeddingSearch.model_validate(results[0]) if results else None
 
@@ -155,12 +149,7 @@ class LanceDBStore:
             element: Element to add
             unchecked: Skip existence verification when True
         """
-        return await self._upsert_element(
-            element.uri,
-            element.aspect,
-            element.element_dict,
-            unchecked=unchecked
-        )
+        return await self._upsert_element(element.uri, element.aspect, element.element_dict, unchecked=unchecked)
 
     async def update(self, element: Element):
         """Update an existing element's data.
@@ -168,11 +157,7 @@ class LanceDBStore:
         Args:
             element: Element with updated data
         """
-        return await self._update_element(
-            element.uri,
-            element.aspect,
-            element.element_dict
-        )
+        return await self._update_element(element.uri, element.aspect, element.element_dict)
 
     async def delete(self, resource_uri: str):
         """Remove a resource by its ID.
@@ -184,7 +169,7 @@ class LanceDBStore:
 
     async def get_all_resource_uris(self) -> list[str]:
         """Retrieve all resource URIs currently stored in the vector database.
-        
+
         Returns:
             List of all resource URIs in the vector store
         """
@@ -193,33 +178,33 @@ class LanceDBStore:
 
     async def batch_delete_by_uris(self, resource_uris: list[str]):
         """Batch delete multiple resources by their URIs.
-        
+
         Args:
             resource_uris: List of resource URIs to delete from the vector store
         """
         if not resource_uris:
             return
-        
+
         # Build WHERE clause for batch deletion
         uri_conditions = " OR ".join([f'resource_uri = "{uri}"' for uri in resource_uris])
         await self.table.delete(where=uri_conditions)
 
     async def cleanup_invalid_resources(self, valid_uris: set[str]) -> int:
         """Remove all resources from vector store that are not in the valid set.
-        
+
         Args:
             valid_uris: Set of URIs that should remain in the vector store
-            
+
         Returns:
             Number of invalid resources that were removed
         """
         all_stored_uris = await self.get_all_resource_uris()
         invalid_uris = [uri for uri in all_stored_uris if uri not in valid_uris]
-        
+
         if invalid_uris:
             await self.batch_delete_by_uris(invalid_uris)
             logger.info(f"Deleted {len(invalid_uris)} invalid resources from vector store: " + ", ".join(invalid_uris))
-        
+
         return len(invalid_uris)
 
     # Implementation details below
@@ -229,23 +214,13 @@ class LanceDBStore:
 
     async def _create_line(self, element: Element) -> EmbeddingSearch:
         """Create EmbeddingSearch instance from an Element."""
-        serialized_data = json.dumps(
-            element.element_dict,
-            ensure_ascii=False,
-            sort_keys=True
-        )
+        serialized_data = json.dumps(element.element_dict, ensure_ascii=False, sort_keys=True)
         hash_str = self.hasher.hash(serialized_data)
         vector = await self.embedder.aembed_query(serialized_data)
 
-        return EmbeddingSearch(
-            vector=vector,
-            resource_uri=element.uri,
-            aspect=element.aspect,
-            hash=hash_str
-        )
+        return EmbeddingSearch(vector=vector, resource_uri=element.uri, aspect=element.aspect, hash=hash_str)
 
-    async def _upsert_element(self, resource_uri: str, aspect: str, data: dict,
-                              unchecked: bool = False):
+    async def _upsert_element(self, resource_uri: str, aspect: str, data: dict, unchecked: bool = False):
         """Internal method to handle element insertion/update."""
         serialized_data = json.dumps(data, ensure_ascii=False, sort_keys=True)
         hash_str = self.hasher.hash(serialized_data)
@@ -262,12 +237,9 @@ class LanceDBStore:
         if existing:
             return await self._update_record(resource_uri, vector, hash_str)
 
-        return await self.table.add([EmbeddingSearch(
-            vector=vector,
-            resource_uri=resource_uri,
-            aspect=aspect,
-            hash=hash_str
-        )])
+        return await self.table.add(
+            [EmbeddingSearch(vector=vector, resource_uri=resource_uri, aspect=aspect, hash=hash_str)]
+        )
 
     async def _update_element(self, resource_uri: str, aspect: str, data: dict):
         """Internal method to handle element updates."""
@@ -275,21 +247,12 @@ class LanceDBStore:
         hash_str = self.hasher.hash(serialized_data)
         vectors = await self.embedder.aembed_documents([serialized_data])
 
-        return await self._update_record(
-            resource_uri,
-            vectors[0],
-            hash_str,
-            aspect
-        )
+        return await self._update_record(resource_uri, vectors[0], hash_str, aspect)
 
-    async def _update_record(self, resource_uri: str, vector: list[float],
-                             hash_str: str, aspect: Optional[str] = None):
+    async def _update_record(self, resource_uri: str, vector: list[float], hash_str: str, aspect: str | None = None):
         """Execute update operation on the database table."""
-        updates = {'vector': vector, 'hash': hash_str}
+        updates = {"vector": vector, "hash": hash_str}
         if aspect:
-            updates['aspect'] = aspect
+            updates["aspect"] = aspect
 
-        return await self.table.update(
-            updates=updates,
-            where=f'resource_uri = "{resource_uri}"'
-        )
+        return await self.table.update(updates=updates, where=f'resource_uri = "{resource_uri}"')

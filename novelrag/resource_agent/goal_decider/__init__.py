@@ -1,5 +1,5 @@
-from .composite import CompositeGoalDecider
 from .backlog_source import BacklogGoalDecider
+from .composite import CompositeGoalDecider
 from .exploration import ExplorationGoalDecider
 from .recency import RecencyWeighter
 

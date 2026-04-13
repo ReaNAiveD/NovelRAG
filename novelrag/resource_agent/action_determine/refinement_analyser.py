@@ -1,13 +1,13 @@
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 
 from novelrag.agenturn.goal import Goal
 from novelrag.agenturn.pursuit import PursuitAssessment
 from novelrag.agenturn.step import OperationOutcome
 from novelrag.agenturn.tool import SchematicTool
 from novelrag.resource_agent.action_determine.action_determine_loop import (
-    RefinementAnalyzer,
     ActionDecision,
+    RefinementAnalyzer,
     RefinementDecision,
 )
 from novelrag.resource_agent.workspace import SegmentData
@@ -26,14 +26,14 @@ class LLMRefinementAnalyzer(RefinementAnalyzer):
 
     @trace_llm("refinement_analysis")
     async def analyze(
-            self,
-            goal: Goal,
-            pursuit_assessment: PursuitAssessment,
-            action_decision: ActionDecision,
-            completed_steps: list[OperationOutcome],
-            workspace_segment: list[SegmentData],
-            expanded_tools: dict[str, SchematicTool],
-            collapsed_tools: dict[str, SchematicTool],
+        self,
+        goal: Goal,
+        pursuit_assessment: PursuitAssessment,
+        action_decision: ActionDecision,
+        completed_steps: list[OperationOutcome],
+        workspace_segment: list[SegmentData],
+        expanded_tools: dict[str, SchematicTool],
+        collapsed_tools: dict[str, SchematicTool],
     ) -> RefinementDecision:
         prompt = self.template.render(
             goal=goal,
@@ -44,9 +44,13 @@ class LLMRefinementAnalyzer(RefinementAnalyzer):
             expanded_tools=expanded_tools,
             collapsed_tools=collapsed_tools,
         )
-        response = await self.chat_llm.ainvoke([
-            SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
-            HumanMessage(content="Based on the above information, analyze the action decision and determine whether to approve execution or refine the approach."),
-        ])
+        response = await self.chat_llm.ainvoke(
+            [
+                SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
+                HumanMessage(
+                    content="Based on the above information, analyze the action decision and determine whether to approve execution or refine the approach."
+                ),
+            ]
+        )
         assert isinstance(response, RefinementDecision), "Expected RefinementDecision from LLM response"
         return response

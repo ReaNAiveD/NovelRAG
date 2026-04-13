@@ -14,51 +14,69 @@ import random
 from dataclasses import dataclass, field
 from typing import Annotated, Any, Literal
 
+from langchain_core.language_models import BaseChatModel
+from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
 
-from novelrag.agenturn.goal import Goal, AutonomousSource
+from novelrag.agenturn.goal import AutonomousSource, Goal
 from novelrag.agenturn.interaction import InteractionContext
-from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import SystemMessage, HumanMessage
 from novelrag.resource.aspect import ResourceAspect
 from novelrag.resource.element import Element
 from novelrag.resource.repository import ResourceRepository
 from novelrag.resource_agent.goal_decider.recency import RecencyWeighter
 from novelrag.template import TemplateEnvironment
-from novelrag.tracer import trace_llm, get_active_tracer
+from novelrag.tracer import get_active_tracer, trace_llm
 
 logger = logging.getLogger(__name__)
 
 
 class GoalResponse(BaseModel):
     """LLM response containing a single goal statement."""
+
     reasoning: Annotated[str, Field(default="", description="Brief explanation of the goal choice.")]
-    search_query: Annotated[str, Field(default="", description="A search query to find related resources for additional context.")]
+    search_query: Annotated[
+        str, Field(default="", description="A search query to find related resources for additional context.")
+    ]
     aspect_name: Annotated[str, Field(default="", description="A lowercase snake_case name for the proposed aspect.")]
-    aspect_description: Annotated[str, Field(default="", description="A one-sentence description of the proposed aspect.")]
-    seed_elements: Annotated[list[str], Field(default_factory=list, description="IDs of seed elements for the proposed aspect.")]
+    aspect_description: Annotated[
+        str, Field(default="", description="A one-sentence description of the proposed aspect.")
+    ]
+    seed_elements: Annotated[
+        list[str], Field(default_factory=list, description="IDs of seed elements for the proposed aspect.")
+    ]
     goal: Annotated[str, Field(description="A clear, actionable goal statement.")]
 
 
 class ContextDiscoveryResponse(BaseModel):
     """LLM response for context discovery around an element."""
+
     analysis: Annotated[str, Field(default="", description="Brief analysis of what context this element needs.")]
-    query_resources: Annotated[list[str], Field(
-        default_factory=list,
-        description="Resource URIs to load from the workspace.",
-    )]
-    search_queries: Annotated[list[str], Field(
-        default_factory=list,
-        description="New search terms for finding resources whose URIs are unknown.",
-    )]
+    query_resources: Annotated[
+        list[str],
+        Field(
+            default_factory=list,
+            description="Resource URIs to load from the workspace.",
+        ),
+    ]
+    search_queries: Annotated[
+        list[str],
+        Field(
+            default_factory=list,
+            description="New search terms for finding resources whose URIs are unknown.",
+        ),
+    ]
 
 
 class GapAnalysisResponse(BaseModel):
     """LLM response for concept-gap analysis."""
-    referenced_concepts: Annotated[list[str], Field(
-        default_factory=list,
-        description="Entities, places, items, events, etc. mentioned in the element that could be standalone resources.",
-    )]
+
+    referenced_concepts: Annotated[
+        list[str],
+        Field(
+            default_factory=list,
+            description="Entities, places, items, events, etc. mentioned in the element that could be standalone resources.",
+        ),
+    ]
     priority_concern: Annotated[
         Literal["creation_aspect", "creation_element", "enrichment", "verification"],
         Field(description="The highest-priority concern type identified."),
@@ -69,6 +87,7 @@ class GapAnalysisResponse(BaseModel):
 @dataclass
 class _ResolvedReference:
     """A relationship target that exists in the repository."""
+
     uri: str
     id: str
     aspect: str
@@ -78,6 +97,7 @@ class _ResolvedReference:
 @dataclass
 class _UnresolvedReference:
     """A relationship target declared on an element but absent from the repo."""
+
     uri: str
     declared_descriptions: list[str] = field(default_factory=list)
 
@@ -93,6 +113,7 @@ class _AspectSummary:
 @dataclass
 class _ContextBundle:
     """Aggregated context gathered around a selected element."""
+
     related_resources: list[dict[str, Any]]
     resolved_refs: list[_ResolvedReference]
     unresolved_refs: list[_UnresolvedReference]
@@ -141,9 +162,9 @@ class ExplorationGoalDecider:
         self._goal_tmpl = template_env.load_template(self.GOAL_TEMPLATE)
 
     async def next_goal(
-            self,
-            beliefs: list[str],
-            interaction_history: InteractionContext | None = None,
+        self,
+        beliefs: list[str],
+        interaction_history: InteractionContext | None = None,
     ) -> Goal | None:
         aspects = await self.repo.all_aspects()
 
@@ -166,10 +187,12 @@ class ExplorationGoalDecider:
         logger.info("ExplorationGoalDecider: no aspects – bootstrapping from beliefs.")
 
         prompt = self._bootstrap_tmpl.render(beliefs=beliefs)
-        response = await self._goal_llm.ainvoke([
-            SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
-            HumanMessage(content="Generate a bootstrap goal."),
-        ])
+        response = await self._goal_llm.ainvoke(
+            [
+                SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
+                HumanMessage(content="Generate a bootstrap goal."),
+            ]
+        )
         assert isinstance(response, GoalResponse)
 
         goal_description = response.goal.strip()
@@ -206,17 +229,16 @@ class ExplorationGoalDecider:
             gap_analysis=None,
             focus="populate",
             aspect=aspect.aspect_dict,
-            aspect_summaries=[
-                {"name": a.name, "description": a.description}
-                for a in aspects
-            ],
+            aspect_summaries=[{"name": a.name, "description": a.description} for a in aspects],
             beliefs=beliefs,
             interaction_history=history_text,
         )
-        response = await self._goal_llm.ainvoke([
-            SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
-            HumanMessage(content="Generate a goal to populate this aspect."),
-        ])
+        response = await self._goal_llm.ainvoke(
+            [
+                SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
+                HumanMessage(content="Generate a goal to populate this aspect."),
+            ]
+        )
         assert isinstance(response, GoalResponse)
 
         goal_description = response.goal.strip()
@@ -240,16 +262,15 @@ class ExplorationGoalDecider:
     ) -> Goal | None:
         # 1. Select element via random walk (recency-biased)
         if self.recency is not None:
-            weights = await self.recency.element_weights(
-                [(a.name, e.uri) for a, e in all_elements]
-            )
+            weights = await self.recency.element_weights([(a.name, e.uri) for a, e in all_elements])
             aspect, element = random.choices(all_elements, weights=weights, k=1)[0]
         else:
             aspect, element = random.choice(all_elements)
 
         logger.info(
             "ExplorationGoalDecider: walked to '%s' in aspect '%s'.",
-            element.uri, aspect.name,
+            element.uri,
+            aspect.name,
         )
 
         # 2. Context expansion (LLM-driven discovery + resolution)
@@ -260,7 +281,10 @@ class ExplorationGoalDecider:
 
         focus = gap_analysis.priority_concern
         if focus not in (
-            "creation_aspect", "creation_element", "enrichment", "verification",
+            "creation_aspect",
+            "creation_element",
+            "enrichment",
+            "verification",
         ):
             focus = "enrichment"
 
@@ -293,15 +317,21 @@ class ExplorationGoalDecider:
         tracer = get_active_tracer()
         if tracer is not None:
             async with tracer.llm_span("exploration_goal"):
-                response = await self._goal_llm.ainvoke([
+                response = await self._goal_llm.ainvoke(
+                    [
+                        SystemMessage(
+                            content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt
+                        ),
+                        HumanMessage(content="Generate an exploration goal."),
+                    ]
+                )
+        else:
+            response = await self._goal_llm.ainvoke(
+                [
                     SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
                     HumanMessage(content="Generate an exploration goal."),
-                ])
-        else:
-            response = await self._goal_llm.ainvoke([
-                SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
-                HumanMessage(content="Generate an exploration goal."),
-            ])
+                ]
+            )
         assert isinstance(response, GoalResponse)
 
         goal_description = response.goal.strip()
@@ -312,10 +342,7 @@ class ExplorationGoalDecider:
             description=goal_description,
             source=AutonomousSource(
                 decider_name="exploration",
-                context=(
-                    f"phase=explore, element='{element.uri}', "
-                    f"aspect='{aspect.name}', focus={focus}"
-                ),
+                context=(f"phase=explore, element='{element.uri}', aspect='{aspect.name}', focus={focus}"),
             ),
         )
 
@@ -372,10 +399,12 @@ class ExplorationGoalDecider:
             aspect_summaries=aspect_summary_dicts,
             beliefs=beliefs,
         )
-        discovery = await self._context_llm.ainvoke([
-            SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
-            HumanMessage(content="Discover relevant context."),
-        ])
+        discovery = await self._context_llm.ainvoke(
+            [
+                SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
+                HumanMessage(content="Discover relevant context."),
+            ]
+        )
         assert isinstance(discovery, ContextDiscoveryResponse)
 
         query_uris: list[str] = discovery.query_resources
@@ -387,16 +416,14 @@ class ExplorationGoalDecider:
 
         # Walk up ancestor URIs by splitting the element URI.
         ancestor_uris: set[str] = set()
-        parts = element.uri.strip('/').split('/')
+        parts = element.uri.strip("/").split("/")
         # parts[0] is the aspect name; intermediate parts are ancestors
         for i in range(1, len(parts)):
-            ancestor_uris.add('/' + '/'.join(parts[:i]))
+            ancestor_uris.add("/" + "/".join(parts[:i]))
         # The aspect itself acts as the root container.
         ancestor_uris.add(f"/{aspect.name}")
 
-        all_uris_to_resolve = list(
-            declared_uris | set(query_uris) | ancestor_uris
-        )
+        all_uris_to_resolve = list(declared_uris | set(query_uris) | ancestor_uris)
 
         # --- resolve URIs ---
         resolved: list[_ResolvedReference] = []
@@ -409,9 +436,7 @@ class ExplorationGoalDecider:
             found = await self.repo.find_by_uri(uri)
             descriptions = element.relationships.get(uri, [])
             if found is None:
-                unresolved.append(
-                    _UnresolvedReference(uri=uri, declared_descriptions=descriptions)
-                )
+                unresolved.append(_UnresolvedReference(uri=uri, declared_descriptions=descriptions))
             elif isinstance(found, Element):
                 resolved.append(
                     _ResolvedReference(
@@ -422,11 +447,7 @@ class ExplorationGoalDecider:
                     )
                 )
             elif isinstance(found, ResourceAspect):
-                resolved.append(
-                    _ResolvedReference(
-                        uri=f"/{found.name}", id=found.name, aspect=found.name
-                    )
-                )
+                resolved.append(_ResolvedReference(uri=f"/{found.name}", id=found.name, aspect=found.name))
 
         # --- run LLM-suggested search queries ---
         related_resources: list[dict[str, Any]] = []
@@ -435,16 +456,12 @@ class ExplorationGoalDecider:
         for query in search_queries:
             if not query or not query.strip():
                 continue
-            results = await self.repo.vector_search(
-                query.strip(), limit=self.SEARCH_LIMIT
-            )
+            results = await self.repo.vector_search(query.strip(), limit=self.SEARCH_LIMIT)
             for sr in results:
                 uri = sr.element.uri
                 if uri not in seen_uris:
                     seen_uris.add(uri)
-                    related_resources.append(
-                        {"uri": uri, "id": sr.element.id, "distance": sr.distance}
-                    )
+                    related_resources.append({"uri": uri, "id": sr.element.id, "distance": sr.distance})
 
         return _ContextBundle(
             related_resources=related_resources,
@@ -472,12 +489,10 @@ class ExplorationGoalDecider:
         }
 
         resolved_refs = [
-            {"uri": r.uri, "id": r.id, "aspect": r.aspect, "properties": r.properties}
-            for r in ctx.resolved_refs
+            {"uri": r.uri, "id": r.id, "aspect": r.aspect, "properties": r.properties} for r in ctx.resolved_refs
         ]
         unresolved_refs = [
-            {"uri": u.uri, "declared_descriptions": u.declared_descriptions}
-            for u in ctx.unresolved_refs
+            {"uri": u.uri, "declared_descriptions": u.declared_descriptions} for u in ctx.unresolved_refs
         ]
         aspect_summaries = [
             {
@@ -497,9 +512,11 @@ class ExplorationGoalDecider:
             aspect_summaries=aspect_summaries,
             beliefs=beliefs,
         )
-        response = await self._gap_llm.ainvoke([
-            SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
-            HumanMessage(content="Analyse concept gaps."),
-        ])
+        response = await self._gap_llm.ainvoke(
+            [
+                SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
+                HumanMessage(content="Analyse concept gaps."),
+            ]
+        )
         assert isinstance(response, GapAnalysisResponse)
         return response

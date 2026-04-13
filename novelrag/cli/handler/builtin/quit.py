@@ -1,6 +1,6 @@
-from novelrag.cli.handler.result import HandlerResult
-from novelrag.cli.handler.handler import Handler
 from novelrag.cli.command import Command
+from novelrag.cli.handler.handler import Handler
+from novelrag.cli.handler.result import HandlerResult
 
 
 class QuitHandler(Handler):

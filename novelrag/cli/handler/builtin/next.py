@@ -2,8 +2,8 @@ import logging
 
 from novelrag.agenturn.agent import AutonomousAgent
 from novelrag.cli.command import Command
-from novelrag.cli.handler.interaction import InteractionHistory
 from novelrag.cli.handler.handler import Handler
+from novelrag.cli.handler.interaction import InteractionHistory
 from novelrag.cli.handler.result import HandlerResult
 
 logger = logging.getLogger(__name__)

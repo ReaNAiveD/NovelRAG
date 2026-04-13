@@ -5,7 +5,7 @@ from novelrag.resource_agent.workspace import ContextSnapshot
 
 class ContentProposal:
     """Represents a proposed content change with reasoning."""
-    
+
     def __init__(self, content: str, perspective: str):
         self.content = content
         self.reason = perspective
@@ -13,8 +13,10 @@ class ContentProposal:
 
 class ContentProposer(Protocol):
     """Proposes content changes based on current beliefs and context."""
-    
-    async def propose(self, believes: list[str], content_description: str, context: ContextSnapshot) -> list[ContentProposal]:
+
+    async def propose(
+        self, believes: list[str], content_description: str, context: ContextSnapshot
+    ) -> list[ContentProposal]:
         """Propose content based on current beliefs and targeted context.
 
         Args:

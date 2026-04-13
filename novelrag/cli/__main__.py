@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import logging
 from argparse import ArgumentParser
 from pathlib import Path
@@ -6,15 +7,15 @@ from pathlib import Path
 from pyaml_env import parse_config as parse_config_with_env
 
 from novelrag.cli.session import Session
-from novelrag.config.novel_rag import NovelRagConfig
 from novelrag.cli.shell import NovelShell
+from novelrag.config.novel_rag import NovelRagConfig
 from novelrag.tracer import Tracer, YAMLExporter
 
 logger = logging.getLogger(__name__)
 
 
 async def run(config_path: str, verbosity: int, request: str | None = None):
-    azure_logger = logging.getLogger('azure')
+    azure_logger = logging.getLogger("azure")
     if verbosity == 0:
         level = logging.WARNING
     elif verbosity == 1:
@@ -32,7 +33,7 @@ async def run(config_path: str, verbosity: int, request: str | None = None):
     tracer_token = tracer.activate()
 
     try:
-        with open(config_path, 'r', encoding='utf-8') as f:
+        with open(config_path, encoding="utf-8") as f:
             config = parse_config_with_env(data=f, tag=None)
             config = NovelRagConfig.model_validate(config)
             logger.debug(f"Loaded config: {config}")
@@ -47,12 +48,10 @@ async def run(config_path: str, verbosity: int, request: str | None = None):
 
 
 if __name__ == "__main__":
-    parser = ArgumentParser('Novel RAG')
-    parser.add_argument('--config', required=True, help="Path to the configuration file")
-    parser.add_argument('-v', action='count', default=0, help="Verbosity level. -v for INFO, -vv for DEBUG")
-    parser.add_argument('request', nargs='?', help="Optional request to execute")
+    parser = ArgumentParser("Novel RAG")
+    parser.add_argument("--config", required=True, help="Path to the configuration file")
+    parser.add_argument("-v", action="count", default=0, help="Verbosity level. -v for INFO, -vv for DEBUG")
+    parser.add_argument("request", nargs="?", help="Optional request to execute")
     ns = parser.parse_args()
-    try:
+    with contextlib.suppress(KeyboardInterrupt):
         asyncio.run(run(ns.config, ns.v, ns.request))
-    except KeyboardInterrupt:
-        pass

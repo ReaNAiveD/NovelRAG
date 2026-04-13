@@ -1,14 +1,17 @@
 import logging
 
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from novelrag.agenturn.goal import Goal
 from novelrag.agenturn.pursuit import PursuitAssessment
 from novelrag.agenturn.step import OperationOutcome
 from novelrag.agenturn.tool import SchematicTool
 from novelrag.resource_agent.action_determine.action_determine_loop import (
-    ActionDecider, ActionDecision, ExecutionDetail, FinalizationDetail,
+    ActionDecider,
+    ActionDecision,
+    ExecutionDetail,
+    FinalizationDetail,
 )
 from novelrag.resource_agent.workspace import SegmentData
 from novelrag.template import TemplateEnvironment
@@ -29,14 +32,16 @@ def _build_tool_defs(expanded_tools: dict[str, SchematicTool]) -> list[dict]:
 
         schema = dict(tool.input_schema) if tool.input_schema else {"type": "object", "properties": {}}
 
-        tool_defs.append({
-            "type": "function",
-            "function": {
-                "name": name,
-                "description": description,
-                "parameters": schema,
-            },
-        })
+        tool_defs.append(
+            {
+                "type": "function",
+                "function": {
+                    "name": name,
+                    "description": description,
+                    "parameters": schema,
+                },
+            }
+        )
     return tool_defs
 
 
@@ -61,15 +66,15 @@ _FINALIZE_TOOL_DEF = {
                 "response": {
                     "type": "string",
                     "description": "Complete user-facing response summarizing what was accomplished. "
-                                   "This text is shown directly to the human user — write it as a clear, friendly outcome summary. "
-                                   "The response MUST be grounded in the actual data from the Knowledge Base segments. "
-                                   "Cite specific resource properties and values — do NOT invent, embellish, or "
-                                   "narrativize beyond what the data contains. "
-                                   "Use a structured format (lists, tables, or concise paragraphs). "
-                                   "If answering a user request, directly address their question. "
-                                   "If this is an autonomous goal, summarize what was created, modified, or discovered. "
-                                   "Respond in the same language as the goal. "
-                                   "NEVER include meta-commentary about the finalization decision itself.",
+                    "This text is shown directly to the human user — write it as a clear, friendly outcome summary. "
+                    "The response MUST be grounded in the actual data from the Knowledge Base segments. "
+                    "Cite specific resource properties and values — do NOT invent, embellish, or "
+                    "narrativize beyond what the data contains. "
+                    "Use a structured format (lists, tables, or concise paragraphs). "
+                    "If answering a user request, directly address their question. "
+                    "If this is an autonomous goal, summarize what was created, modified, or discovered. "
+                    "Respond in the same language as the goal. "
+                    "NEVER include meta-commentary about the finalization decision itself.",
                 },
                 "evidence": {
                     "type": "array",
@@ -90,8 +95,8 @@ _FINALIZE_TOOL_DEF = {
 
 
 def _parse_tool_call_to_action_decision(
-        message: AIMessage,
-        expanded_tool_names: set[str],
+    message: AIMessage,
+    expanded_tool_names: set[str],
 ) -> ActionDecision:
     """Convert an AIMessage with tool_calls into an ActionDecision."""
     if not message.tool_calls:
@@ -158,12 +163,12 @@ class LLMActionDecider(ActionDecider):
 
     @trace_llm("action_decision")
     async def decide(
-            self,
-            goal: Goal,
-            pursuit_assessment: PursuitAssessment,
-            completed_steps: list[OperationOutcome],
-            workspace_segment: list[SegmentData],
-            expanded_tools: dict[str, SchematicTool],
+        self,
+        goal: Goal,
+        pursuit_assessment: PursuitAssessment,
+        completed_steps: list[OperationOutcome],
+        workspace_segment: list[SegmentData],
+        expanded_tools: dict[str, SchematicTool],
     ) -> ActionDecision:
         prompt = self.template.render(
             goal=goal,
@@ -178,10 +183,14 @@ class LLMActionDecider(ActionDecider):
         tool_defs.append(_FINALIZE_TOOL_DEF)
 
         bound_llm = self.chat_llm.bind_tools(tool_defs)
-        response = await bound_llm.ainvoke([
-            SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
-            HumanMessage(content="Based on the above information, make a decisive action choice: either execute a tool or finalize with a response."),
-        ])
+        response = await bound_llm.ainvoke(
+            [
+                SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
+                HumanMessage(
+                    content="Based on the above information, make a decisive action choice: either execute a tool or finalize with a response."
+                ),
+            ]
+        )
 
         assert isinstance(response, AIMessage), f"Expected AIMessage, got {type(response)}"
 
@@ -189,4 +198,4 @@ class LLMActionDecider(ActionDecider):
         try:
             return _parse_tool_call_to_action_decision(response, expanded_tool_names)
         except Exception as e:
-            raise ValueError(f"Failed to parse LLM tool call into ActionDecision: {e}")
+            raise ValueError(f"Failed to parse LLM tool call into ActionDecision: {e}") from e

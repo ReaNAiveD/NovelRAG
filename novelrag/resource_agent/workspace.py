@@ -19,10 +19,11 @@ from novelrag.resource.repository import ResourceRepository
 @dataclass
 class ResourceSegment:
     """Represents a partially loaded resource with selective properties.
-    
+
     This is the workspace's internal state tracker. Use SegmentData for
     the enriched view suitable for LLM/template consumption.
     """
+
     uri: str
     excluded_properties: set[str] = field(default_factory=set)
 
@@ -30,10 +31,11 @@ class ResourceSegment:
 @dataclass
 class SegmentData:
     """Enriched view of a resource segment for LLM consumption.
-    
+
     Built from a ResourceSegment by loading its resource data,
     applying property exclusions, and resolving children/relations.
     """
+
     uri: str
     included_data: dict[str, Any]
     excluded_properties: list[str]
@@ -44,6 +46,7 @@ class SegmentData:
 @dataclass
 class ContextWorkspace:
     """The evolving set of resource segments during iterative building."""
+
     segments: dict[str, ResourceSegment] = field(default_factory=dict)
     sorted_uris: list[str] = field(default_factory=list)
     excluded_uris: set[str] = field(default_factory=set)
@@ -51,27 +54,29 @@ class ContextWorkspace:
     def filter_relationships(self, relationships: dict[str, str]) -> dict[str, str]:
         """Filter out relationships that are excluded in the workspace."""
         return {uri: desc for uri, desc in relationships.items() if uri not in self.excluded_uris}
-    
+
     def filter_children_names(self, base_uri: str, children_names: list[str]) -> list[str]:
         """Filter out children names that are excluded in the workspace."""
         return [name for name in children_names if f"{base_uri}/{name}" not in self.excluded_uris]
 
     def sorted_segments(self) -> list[ResourceSegment]:
         """Get the list of resource segments in sorted order."""
-        return [self.segments[uri] for uri in self.sorted_uris if uri in self.segments and uri not in self.excluded_uris]
-    
+        return [
+            self.segments[uri] for uri in self.sorted_uris if uri in self.segments and uri not in self.excluded_uris
+        ]
+
     def ensure_segment(self, uri: str) -> ResourceSegment:
         """Ensure a resource segment exists for the given URI."""
         if uri not in self.segments:
             self.segments[uri] = ResourceSegment(uri=uri)
             self.sorted_uris.append(uri)
         return self.segments[uri]
-    
+
     def sort_segments(self, sorted_uris: list[str]):
         """Sort the resource segments based on a new order of URIs."""
         unmentioned_uris = [uri for uri in self.segments if uri not in sorted_uris]
         self.sorted_uris = [uri for uri in sorted_uris if uri in self.segments] + unmentioned_uris
-    
+
     def reset_excluded(self):
         """Reset excluded URIs and properties."""
         self.excluded_uris.clear()
@@ -82,11 +87,12 @@ class ContextWorkspace:
 @dataclass
 class ContextSnapshot:
     """Immutable snapshot of the current resource context state.
-    
+
     Provides rich segment views for templates and callers.
     Access `.segments` for the list of SegmentData, and
     `.nonexistent_uris` for URIs that could not be resolved.
     """
+
     segments: list[SegmentData]
     nonexistent_uris: list[str]
 
@@ -100,24 +106,24 @@ class SearchHistoryItem:
 
 class ResourceContext:
     """High-level resource context management for orchestration.
-    
+
     Provides methods for:
     - Querying resources by URI
     - Semantic search across resources
     - Excluding resources/properties from context
     - Building context dictionaries for LLM consumption
     """
-    
+
     def __init__(self, resource_repo: ResourceRepository):
         self.search_limit = 5
         self.resource_repo = resource_repo
         self.workspace = ContextWorkspace()
         self.workspace.ensure_segment("/")
         self.search_history: list[SearchHistoryItem] = []
-    
+
     async def build_segment_data(self, segment: ResourceSegment) -> SegmentData | None:
         """Build an enriched view of a resource segment.
-        
+
         Returns None if the resource does not exist.
         """
         resource = await self.resource_repo.find_by_uri(segment.uri)
@@ -149,10 +155,14 @@ class ResourceContext:
         else:
             data = resource.props
             children_names = resource.children_names
-            filtered_children_names = {key: self.workspace.filter_children_names(segment.uri, names) for key, names in children_names.items()}
+            filtered_children_names = {
+                key: self.workspace.filter_children_names(segment.uri, names) for key, names in children_names.items()
+            }
             included_properties = set(data.keys()) - segment.excluded_properties
             included_data = {k: v for k, v in data.items() if k in included_properties}
-            relations = self.workspace.filter_relationships({uri: " ".join(desc) for uri, desc in resource.relationships.items()})
+            relations = self.workspace.filter_relationships(
+                {uri: " ".join(desc) for uri, desc in resource.relationships.items()}
+            )
             return SegmentData(
                 uri=segment.uri,
                 included_data=included_data,
@@ -160,10 +170,10 @@ class ResourceContext:
                 children_names=filtered_children_names,
                 relations=relations,
             )
-    
+
     async def snapshot(self) -> ContextSnapshot:
         """Build an immutable snapshot of the current context state.
-        
+
         Returns a ContextSnapshot that provides both rich segment access
         and dict-like iteration for template rendering.
         """
@@ -176,26 +186,28 @@ class ResourceContext:
             else:
                 nonexistent.append(segment.uri)
         return ContextSnapshot(segments=segments, nonexistent_uris=nonexistent)
-    
+
     async def query_resource(self, uri: str):
         self.workspace.ensure_segment(uri)
-    
+
     async def search_resources(self, query: str, aspect: str | None = None):
         results = await self.resource_repo.vector_search(query, aspect=aspect, limit=self.search_limit)
         for res in results:
             self.workspace.ensure_segment(res.element.uri)
-        self.search_history.append(SearchHistoryItem(query=query, aspect=aspect, uris=[res.element.uri for res in results]))
-    
+        self.search_history.append(
+            SearchHistoryItem(query=query, aspect=aspect, uris=[res.element.uri for res in results])
+        )
+
     async def exclude_resource(self, uri: str):
         self.workspace.excluded_uris.add(uri)
-    
+
     async def exclude_property(self, uri: str, property_name: str):
         segment = self.workspace.ensure_segment(uri)
         segment.excluded_properties.add(property_name)
-    
+
     async def sort_resources(self, sorted_uris: list[str]):
         self.workspace.sort_segments(sorted_uris)
-    
+
     def reset_workspace(self):
         """Clear excluded properties (reset to pending) but keep included properties."""
         self.workspace.reset_excluded()

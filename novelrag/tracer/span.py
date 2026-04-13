@@ -2,11 +2,11 @@ import uuid
 from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any, Optional
 
 
-class SpanKind(str, Enum):
+class SpanKind(StrEnum):
     """Hierarchy level of a span inside a trace tree.
 
     The expected nesting order (outermost → innermost) is::
@@ -45,13 +45,13 @@ class Span:
     name: str
     span_id: str = field(default_factory=_short_id)
     start_time: datetime = field(default_factory=datetime.now)
-    end_time: Optional[datetime] = None
-    duration_ms: Optional[float] = None
+    end_time: datetime | None = None
+    duration_ms: float | None = None
     status: str = "ok"
-    error: Optional[str] = None
+    error: str | None = None
     attributes: dict[str, Any] = field(default_factory=dict)
-    children: list['Span'] = field(default_factory=list)
-    parent: Optional['Span'] = field(default=None, repr=False)
+    children: list["Span"] = field(default_factory=list)
+    parent: Optional["Span"] = field(default=None, repr=False)
 
     # ------------------------------------------------------------------
     # Mutation helpers
@@ -61,7 +61,7 @@ class Span:
         """Attach an arbitrary key/value pair to this span."""
         self.attributes[key] = value
 
-    def add_child(self, child: 'Span') -> None:
+    def add_child(self, child: "Span") -> None:
         """Register *child* as a sub-span of this span."""
         child.parent = self
         self.children.append(child)
@@ -73,9 +73,7 @@ class Span:
         error message is recorded.
         """
         self.end_time = datetime.now()
-        self.duration_ms = (
-            (self.end_time - self.start_time).total_seconds() * 1000
-        )
+        self.duration_ms = (self.end_time - self.start_time).total_seconds() * 1000
         if error is not None:
             self.status = "error"
             self.error = str(error)
@@ -110,16 +108,17 @@ class Span:
 # Span context variable helpers
 # ---------------------------------------------------------------------------
 
-_current_span: ContextVar[Optional[Span]] = ContextVar(
-    "current_span", default=None,
+_current_span: ContextVar[Span | None] = ContextVar(
+    "current_span",
+    default=None,
 )
 
 
-def get_current_span() -> Optional[Span]:
+def get_current_span() -> Span | None:
     """Return the span that is currently active, or ``None``."""
     return _current_span.get()
 
 
-def set_current_span(span: Optional[Span]) -> Token:
+def set_current_span(span: Span | None) -> Token:
     """Make *span* the active span, returning a reset token."""
     return _current_span.set(span)

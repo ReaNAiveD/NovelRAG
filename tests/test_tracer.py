@@ -2,32 +2,29 @@
 
 from __future__ import annotations
 
-import asyncio
-import tempfile
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 from uuid import uuid4
 
 import pytest
 import yaml
 
-from novelrag.tracer.span import Span, SpanKind, get_current_span, set_current_span, _current_span
+from novelrag.tracer.callback import TracerCallbackHandler
+from novelrag.tracer.decorators import (
+    trace_intent,
+    trace_llm,
+    trace_pursuit,
+    trace_session,
+    trace_tool,
+)
+from novelrag.tracer.exporter import YAMLExporter
+from novelrag.tracer.span import Span, SpanKind, _current_span, get_current_span, set_current_span
 from novelrag.tracer.tracer import (
+    Tracer,
+    _active_tracer,
     get_active_tracer,
     set_active_tracer,
-    _active_tracer,
 )
-from novelrag.tracer.tracer import Tracer
-from novelrag.tracer.exporter import YAMLExporter
-from novelrag.tracer.callback import TracerCallbackHandler, _serialize_messages
-from novelrag.tracer.decorators import (
-    trace_session,
-    trace_intent,
-    trace_pursuit,
-    trace_tool,
-    trace_llm,
-)
-
 
 # ---------------------------------------------------------------------------
 # Span
@@ -208,7 +205,7 @@ class TestYAMLExporter:
         path = exporter.export(root, filename="test_trace.yaml")
         assert path.exists()
 
-        with open(path, "r", encoding="utf-8") as fh:
+        with open(path, encoding="utf-8") as fh:
             data = yaml.safe_load(fh)
 
         assert data["kind"] == "session"
@@ -244,8 +241,7 @@ class TestTracerCallbackHandler:
 
         run_id = uuid4()
         await handler.on_chat_model_start(
-            serialized={"id": ["langchain", "chat_models", "openai", "ChatOpenAI"],
-                        "kwargs": {"model_name": "gpt-4"}},
+            serialized={"id": ["langchain", "chat_models", "openai", "ChatOpenAI"], "kwargs": {"model_name": "gpt-4"}},
             messages=[[msg]],
             run_id=run_id,
         )
@@ -487,7 +483,7 @@ class TestDecorators:
         files = list(tmp_path.glob("trace_*.yaml"))
         assert len(files) == 1
 
-        with open(files[0], "r", encoding="utf-8") as fh:
+        with open(files[0], encoding="utf-8") as fh:
             data = yaml.safe_load(fh)
         assert data["kind"] == "session"
         assert data["name"] == "test_session"
@@ -527,7 +523,7 @@ class TestDecorators:
         # Verify exported YAML
         files = list(tmp_path.glob("trace_*.yaml"))
         assert len(files) == 1
-        with open(files[0], "r", encoding="utf-8") as fh:
+        with open(files[0], encoding="utf-8") as fh:
             data = yaml.safe_load(fh)
 
         # Walk the tree

@@ -6,5 +6,4 @@ from .result import HandlerResult
 
 
 class Handler(Protocol):
-    async def handle(self, command: Command) -> HandlerResult:
-        ...
+    async def handle(self, command: Command) -> HandlerResult: ...

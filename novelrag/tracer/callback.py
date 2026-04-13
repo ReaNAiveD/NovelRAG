@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Optional
+from typing import Any
 from uuid import UUID
 
 from langchain_core.callbacks import AsyncCallbackHandler
@@ -31,8 +31,7 @@ def _serialize_messages(messages: list[list[BaseMessage]]) -> list[dict[str, Any
             # AIMessage may carry tool-call decisions.
             if isinstance(msg, AIMessage) and msg.tool_calls:
                 entry["tool_calls"] = [
-                    {"name": tc["name"], "args": tc["args"], "id": tc.get("id")}
-                    for tc in msg.tool_calls
+                    {"name": tc["name"], "args": tc["args"], "id": tc.get("id")} for tc in msg.tool_calls
                 ]
 
             # ToolMessage carries the result for a specific tool call.
@@ -50,11 +49,13 @@ def _simplify_tool_defs(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
     simplified: list[dict[str, Any]] = []
     for tool in tools:
         func = tool.get("function", {})
-        simplified.append({
-            "name": func.get("name", "unknown"),
-            "description": func.get("description", ""),
-            "parameters": func.get("parameters", {}),
-        })
+        simplified.append(
+            {
+                "name": func.get("name", "unknown"),
+                "description": func.get("description", ""),
+                "parameters": func.get("parameters", {}),
+            }
+        )
     return simplified
 
 
@@ -84,9 +85,9 @@ class TracerCallbackHandler(AsyncCallbackHandler):
         messages: list[list[BaseMessage]],
         *,
         run_id: UUID,
-        parent_run_id: Optional[UUID] = None,
-        tags: Optional[list[str]] = None,
-        metadata: Optional[dict[str, Any]] = None,
+        parent_run_id: UUID | None = None,
+        tags: list[str] | None = None,
+        metadata: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> None:
         span = get_current_span()
@@ -116,7 +117,7 @@ class TracerCallbackHandler(AsyncCallbackHandler):
         response: LLMResult,
         *,
         run_id: UUID,
-        parent_run_id: Optional[UUID] = None,
+        parent_run_id: UUID | None = None,
         **kwargs: Any,
     ) -> None:
         span = self._run_spans.pop(run_id, None)
@@ -141,8 +142,7 @@ class TracerCallbackHandler(AsyncCallbackHandler):
         # Capture tool calls returned by the model.
         if isinstance(msg, AIMessage) and msg.tool_calls:
             response_data["tool_calls"] = [
-                {"name": tc["name"], "args": tc["args"], "id": tc.get("id")}
-                for tc in msg.tool_calls
+                {"name": tc["name"], "args": tc["args"], "id": tc.get("id")} for tc in msg.tool_calls
             ]
 
         span.set_attribute("response", response_data)
@@ -161,18 +161,21 @@ class TracerCallbackHandler(AsyncCallbackHandler):
                     "total_tokens": getattr(usage, "total_tokens", None),
                 }
         if token_usage:
-            span.set_attribute("token_usage", {
-                "prompt_tokens": token_usage.get("prompt_tokens"),
-                "completion_tokens": token_usage.get("completion_tokens"),
-                "total_tokens": token_usage.get("total_tokens"),
-            })
+            span.set_attribute(
+                "token_usage",
+                {
+                    "prompt_tokens": token_usage.get("prompt_tokens"),
+                    "completion_tokens": token_usage.get("completion_tokens"),
+                    "total_tokens": token_usage.get("total_tokens"),
+                },
+            )
 
     async def on_llm_error(
         self,
         error: BaseException,
         *,
         run_id: UUID,
-        parent_run_id: Optional[UUID] = None,
+        parent_run_id: UUID | None = None,
         **kwargs: Any,
     ) -> None:
         span = self._run_spans.pop(run_id, None)

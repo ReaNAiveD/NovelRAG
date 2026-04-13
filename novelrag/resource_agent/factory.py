@@ -3,10 +3,7 @@
 from novelrag.agenturn.agent import GoalExecutor
 from novelrag.agenturn.procedure import ExecutionContext
 from novelrag.agenturn.pursuit import LLMPursuitAssessor
-from novelrag.resource_agent.backlog import Backlog, BacklogEntry
-from novelrag.resource_agent.undo import UndoQueue
-from novelrag.utils.language import content_directive
-
+from novelrag.agenturn.tool import SchematicTool
 from novelrag.resource_agent.action_determine import (
     ActionDetermineLoop,
     LLMActionDecider,
@@ -14,12 +11,15 @@ from novelrag.resource_agent.action_determine import (
     LLMContextDiscoverer,
     LLMRefinementAnalyzer,
 )
-from novelrag.resource_agent.workspace import ResourceContext
+from novelrag.resource_agent.backlog import Backlog, BacklogEntry
 from novelrag.resource_agent.tool import (
     AspectCreateTool,
-    ResourceWriteTool,
     ResourceRelationWriteTool,
+    ResourceWriteTool,
 )
+from novelrag.resource_agent.undo import UndoQueue
+from novelrag.resource_agent.workspace import ResourceContext
+from novelrag.utils.language import content_directive
 
 
 def create_executor(
@@ -64,10 +64,20 @@ def create_executor(
     )
 
     # Create resource tools
-    tools = {
+    tools: dict[str, SchematicTool] = {
         "AspectCreateTool": AspectCreateTool(resource_repo, chat_llm, lang=lang or "en", lang_directive=lang_directive),
-        "ResourceWriteTool": ResourceWriteTool(resource_repo, context, chat_llm, lang=lang or "en", lang_directive=lang_directive, backlog=backlog, undo_queue=undo_queue),
-        "ResourceRelationWriteTool": ResourceRelationWriteTool(resource_repo, chat_llm, lang=lang or "en", lang_directive=lang_directive),
+        "ResourceWriteTool": ResourceWriteTool(
+            resource_repo,
+            context,
+            chat_llm,
+            lang=lang or "en",
+            lang_directive=lang_directive,
+            backlog=backlog,
+            undo_queue=undo_queue,
+        ),
+        "ResourceRelationWriteTool": ResourceRelationWriteTool(
+            resource_repo, chat_llm, lang=lang or "en", lang_directive=lang_directive
+        ),
     }
 
     return GoalExecutor(

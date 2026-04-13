@@ -1,4 +1,5 @@
-from .aspect import ResourceAspect
-from .element import Element, load_elements
-from .operation import Operation
-from .repository import ResourceRepository
+from .aspect import ResourceAspect as ResourceAspect
+from .element import Element as Element
+from .element import load_elements as load_elements
+from .operation import Operation as Operation
+from .repository import ResourceRepository as ResourceRepository

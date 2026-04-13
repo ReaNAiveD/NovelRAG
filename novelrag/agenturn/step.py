@@ -7,6 +7,7 @@ from enum import Enum
 
 class StepStatus(Enum):
     """Status of an action's execution."""
+
     SUCCESS = "success"
     FAILED = "failed"
     CANCELLED = "cancelled"
@@ -15,6 +16,7 @@ class StepStatus(Enum):
 @dataclass(frozen=True)
 class OperationPlan:
     """Represents the core definition of a step - immutable tool and intent description."""
+
     reason: str
     tool: str
     parameters: dict = field(default_factory=dict)
@@ -30,6 +32,7 @@ class Resolution:
 @dataclass
 class OperationOutcome:
     """The result of executing an action."""
+
     operation: OperationPlan
     status: StepStatus
     result: str | None = None

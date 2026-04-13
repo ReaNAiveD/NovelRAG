@@ -1,12 +1,12 @@
 import logging
 from typing import Annotated
 
+from langchain_core.language_models import BaseChatModel
+from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
 
-from novelrag.agenturn.goal import Goal, AutonomousSource
+from novelrag.agenturn.goal import AutonomousSource, Goal
 from novelrag.agenturn.interaction import InteractionContext
-from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import SystemMessage, HumanMessage
 from novelrag.resource_agent.backlog import Backlog, BacklogEntry
 from novelrag.template import TemplateEnvironment
 from novelrag.tracer import trace_llm
@@ -16,12 +16,18 @@ logger = logging.getLogger(__name__)
 
 class BacklogGoalResponse(BaseModel):
     """LLM response for backlog-based goal generation."""
+
     goal: Annotated[str, Field(description="A clear, actionable goal statement derived from backlog entries.")]
-    selected_entries: Annotated[list[int], Field(
-        default=[1],
-        description="1-based indices of the backlog entries selected for this goal.",
-    )]
-    reasoning: Annotated[str, Field(default="", description="Brief explanation of which backlog item(s) this addresses and why.")]
+    selected_entries: Annotated[
+        list[int],
+        Field(
+            default=[1],
+            description="1-based indices of the backlog entries selected for this goal.",
+        ),
+    ]
+    reasoning: Annotated[
+        str, Field(default="", description="Brief explanation of which backlog item(s) this addresses and why.")
+    ]
 
 
 class BacklogGoalDecider:
@@ -36,7 +42,9 @@ class BacklogGoalDecider:
     TEMPLATE_NAME = "goal_from_backlog.jinja2"
     TOP_N = 20
 
-    def __init__(self, backlog: Backlog[BacklogEntry], chat_llm: BaseChatModel, lang: str = "en", lang_directive: str = ""):
+    def __init__(
+        self, backlog: Backlog[BacklogEntry], chat_llm: BaseChatModel, lang: str = "en", lang_directive: str = ""
+    ):
         self._goal_llm = chat_llm.with_structured_output(BacklogGoalResponse)
         self.backlog = backlog
         self._lang_directive = lang_directive
@@ -45,9 +53,9 @@ class BacklogGoalDecider:
 
     @trace_llm("backlog_goal")
     async def next_goal(
-            self,
-            beliefs: list[str],
-            interaction_history: InteractionContext | None = None,
+        self,
+        beliefs: list[str],
+        interaction_history: InteractionContext | None = None,
     ) -> Goal | None:
         if len(self.backlog) == 0:
             logger.debug("BacklogGoalDecider: backlog is empty, skipping.")
@@ -70,10 +78,12 @@ class BacklogGoalDecider:
             beliefs=beliefs,
             interaction_history=history_text,
         )
-        response = await self._goal_llm.ainvoke([
-            SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
-            HumanMessage(content="Generate a goal from the backlog."),
-        ])
+        response = await self._goal_llm.ainvoke(
+            [
+                SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
+                HumanMessage(content="Generate a goal from the backlog."),
+            ]
+        )
         assert isinstance(response, BacklogGoalResponse)
 
         goal_description = response.goal.strip()
@@ -84,18 +94,13 @@ class BacklogGoalDecider:
 
         # Convert 1-based selected_entries to 0-based indices into top_entries,
         # then map to positions in the full backlog (which shares the same order).
-        indices_to_remove = [
-            i - 1 for i in selected
-            if isinstance(i, int) and 1 <= i <= len(top_entries)
-        ]
+        indices_to_remove = [i - 1 for i in selected if isinstance(i, int) and 1 <= i <= len(top_entries)]
         if not indices_to_remove:
             # Fallback: remove the first entry if LLM didn't provide valid indices
             indices_to_remove = [0]
 
         removed = await self.backlog.remove_entries(indices_to_remove)
-        context_parts = [
-            f"(priority={e.priority}) {e.description[:80]}" for e in removed
-        ]
+        context_parts = [f"(priority={e.priority}) {e.description[:80]}" for e in removed]
 
         return Goal(
             description=goal_description,

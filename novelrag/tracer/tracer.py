@@ -1,7 +1,8 @@
 import logging
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from contextvars import ContextVar, Token
-from typing import Any, AsyncIterator, Optional
+from typing import Any
 
 from novelrag.tracer.callback import TracerCallbackHandler
 from novelrag.tracer.exporter import YAMLExporter
@@ -26,7 +27,7 @@ class Tracer:
     ) -> None:
         self._exporter = exporter
         self._callback_handler = TracerCallbackHandler()
-        self._session_span: Optional[Span] = None
+        self._session_span: Span | None = None
 
     # ------------------------------------------------------------------
     # Activation / deactivation
@@ -133,7 +134,7 @@ class Tracer:
         return self._callback_handler
 
     @property
-    def session_span(self) -> Optional[Span]:
+    def session_span(self) -> Span | None:
         """The root session span (set by ``@trace_session``)."""
         return self._session_span
 
@@ -146,7 +147,8 @@ class Tracer:
 # names, which Python resolves at *call* time (not at class-definition time).
 
 _active_tracer: ContextVar[Tracer | None] = ContextVar(
-    "active_tracer", default=None,
+    "active_tracer",
+    default=None,
 )
 
 

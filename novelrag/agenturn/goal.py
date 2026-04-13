@@ -5,10 +5,10 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Annotated, Protocol
 
+from langchain_core.language_models import BaseChatModel
+from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
 
-from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import SystemMessage, HumanMessage
 from novelrag.agenturn.interaction import InteractionContext
 from novelrag.template import TemplateEnvironment
 from novelrag.tracer import trace_llm
@@ -18,6 +18,7 @@ from novelrag.utils.language import interaction_directive
 @dataclass(kw_only=True)
 class GoalSource(ABC):
     """Base class for goal origins. Enables tracing where a goal came from."""
+
     created_at: datetime = field(default_factory=datetime.now)
 
     @abstractmethod
@@ -27,6 +28,7 @@ class GoalSource(ABC):
 @dataclass(kw_only=True)
 class UserRequestSource(GoalSource):
     """Goal originated from a user request."""
+
     request: str
 
     def __str__(self) -> str:
@@ -36,6 +38,7 @@ class UserRequestSource(GoalSource):
 @dataclass(kw_only=True)
 class AutonomousSource(GoalSource):
     """Goal generated autonomously by a decider."""
+
     decider_name: str
     context: str | None = None
 
@@ -48,6 +51,7 @@ class AutonomousSource(GoalSource):
 @dataclass
 class Goal:
     """Represents a clear and concise goal for the agent."""
+
     description: str = field()
     source: GoalSource = field()
 
@@ -57,25 +61,28 @@ class Goal:
 
 class GoalTranslator(Protocol):
     """Protocol for translating user requests into goals."""
+
     async def translate(
-            self,
-            request: str,
-            beliefs: list[str],
-            interaction_history: InteractionContext | None = None,
+        self,
+        request: str,
+        beliefs: list[str],
+        interaction_history: InteractionContext | None = None,
     ) -> Goal: ...
 
 
 class GoalDecider(Protocol):
     """Protocol for autonomous goal generation."""
+
     async def next_goal(
-            self,
-            beliefs: list[str],
-            interaction_history: InteractionContext | None = None,
+        self,
+        beliefs: list[str],
+        interaction_history: InteractionContext | None = None,
     ) -> Goal | None: ...
 
 
 class GoalTranslation(BaseModel):
     """LLM response containing a translated goal statement."""
+
     goal: Annotated[str, Field(description="A clear, concise goal statement translated from the user request.")]
 
 
@@ -92,10 +99,10 @@ class LLMGoalTranslator(GoalTranslator):
 
     @trace_llm("goal_translation")
     async def translate(
-            self,
-            request: str,
-            beliefs: list[str],
-            interaction_history: InteractionContext | None = None,
+        self,
+        request: str,
+        beliefs: list[str],
+        interaction_history: InteractionContext | None = None,
     ) -> Goal:
         """Translate a user request into a structured Goal using LLM.
 
@@ -113,12 +120,11 @@ class LLMGoalTranslator(GoalTranslator):
             beliefs=beliefs,
             interaction_history=history_text,
         )
-        response = await self._goal_llm.ainvoke([
-            SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
-            HumanMessage(content="Translate the user request into a clear, concise goal statement.")
-        ])
-        assert isinstance(response, GoalTranslation)
-        return Goal(
-            description=response.goal.strip(),
-            source=UserRequestSource(request=request)
+        response = await self._goal_llm.ainvoke(
+            [
+                SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
+                HumanMessage(content="Translate the user request into a clear, concise goal statement."),
+            ]
         )
+        assert isinstance(response, GoalTranslation)
+        return Goal(description=response.goal.strip(), source=UserRequestSource(request=request))

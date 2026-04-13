@@ -1,11 +1,11 @@
 import os
-from enum import Enum
+from enum import StrEnum
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, TypeAdapter
-from typing_extensions import Annotated, Literal
 
 
-class ChatLLMType(str, Enum):
+class ChatLLMType(StrEnum):
     AzureOpenAI = "azure_openai"
     OpenAI = "openai"
     DeepSeek = "deepseek"
@@ -15,26 +15,39 @@ class OpenAIChatConfig(BaseModel):
     """Configuration for OpenAI-compatible chat endpoints (maps to ``ChatOpenAI``)."""
 
     type: Literal[ChatLLMType.OpenAI]
-    endpoint: Annotated[str, Field(
-        description="The OpenAI-compatible base URL",
-    )]
-    api_key: Annotated[str, Field(
-        description="The API key for authentication",
-        default_factory=lambda: os.environ["OPENAI_API_KEY"],
-    )]
-    timeout: Annotated[float, Field(
-        description="Request timeout in seconds",
-        default=180.0,
-    )]
-    model: Annotated[str, Field(
-        description="The model identifier to use for chat completions",
-    )]
-    json_supports: Annotated[bool, Field(
-        description="Whether the model supports JSON output mode.",
-        default=False,
-    )]
-
-
+    endpoint: Annotated[
+        str,
+        Field(
+            description="The OpenAI-compatible base URL",
+        ),
+    ]
+    api_key: Annotated[
+        str,
+        Field(
+            description="The API key for authentication",
+            default_factory=lambda: os.environ["OPENAI_API_KEY"],
+        ),
+    ]
+    timeout: Annotated[
+        float,
+        Field(
+            description="Request timeout in seconds",
+            default=180.0,
+        ),
+    ]
+    model: Annotated[
+        str,
+        Field(
+            description="The model identifier to use for chat completions",
+        ),
+    ]
+    json_supports: Annotated[
+        bool,
+        Field(
+            description="Whether the model supports JSON output mode.",
+            default=False,
+        ),
+    ]
 
     def langchain_kwargs(self) -> dict:
         """Return kwargs suitable for ``ChatOpenAI(...)``."""
@@ -50,16 +63,25 @@ class AzureOpenAIChatConfig(OpenAIChatConfig):
     """Configuration for Azure OpenAI chat (maps to ``AzureChatOpenAI``)."""
 
     type: Literal[ChatLLMType.AzureOpenAI]
-    deployment: Annotated[str, Field(
-        description="The deployment name for the chat model",
-    )]
-    api_key: Annotated[str | None, Field(
-        description="The API key for authentication",
-        default_factory=lambda: os.environ.get("OPENAI_API_KEY"),
-    )]
-    api_version: Annotated[str, Field(
-        description="The Azure OpenAI API version to use",
-    )]
+    deployment: Annotated[
+        str,
+        Field(
+            description="The deployment name for the chat model",
+        ),
+    ]
+    api_key: Annotated[
+        str | None,
+        Field(
+            description="The API key for authentication",
+            default_factory=lambda: os.environ.get("OPENAI_API_KEY"),
+        ),
+    ]
+    api_version: Annotated[
+        str,
+        Field(
+            description="The Azure OpenAI API version to use",
+        ),
+    ]
 
     def langchain_kwargs(self) -> dict:
         """Return kwargs suitable for ``AzureChatOpenAI(...)``."""
@@ -75,6 +97,7 @@ class AzureOpenAIChatConfig(OpenAIChatConfig):
         else:
             # Use Azure AD token-based auth
             from azure.identity import DefaultAzureCredential, get_bearer_token_provider
+
             kw["azure_ad_token_provider"] = get_bearer_token_provider(
                 DefaultAzureCredential(),
                 "https://cognitiveservices.azure.com/.default",
@@ -86,14 +109,20 @@ class DeepSeekChatConfig(OpenAIChatConfig):
     """Configuration for DeepSeek chat (uses ``ChatOpenAI`` with DeepSeek base URL)."""
 
     type: Literal[ChatLLMType.DeepSeek]
-    api_key: Annotated[str, Field(
-        description="The API key for authentication",
-        default_factory=lambda: os.environ["DEEPSEEK_API_KEY"],
-    )]
-    endpoint: Annotated[str, Field(
-        description="The DeepSeek endpoint URL",
-        default="https://api.deepseek.com",
-    )]
+    api_key: Annotated[
+        str,
+        Field(
+            description="The API key for authentication",
+            default_factory=lambda: os.environ["DEEPSEEK_API_KEY"],
+        ),
+    ]
+    endpoint: Annotated[
+        str,
+        Field(
+            description="The DeepSeek endpoint URL",
+            default="https://api.deepseek.com",
+        ),
+    ]
 
 
 ChatConfig = Annotated[
@@ -110,7 +139,7 @@ def validate_chat_config(data: dict) -> ChatConfig:
     return TypeAdapter(ChatConfig).validate_python(data)
 
 
-class EmbeddingLLMType(str, Enum):
+class EmbeddingLLMType(StrEnum):
     AzureOpenAI = "azure_openai"
     OpenAI = "openai"
 
@@ -119,20 +148,32 @@ class OpenAIEmbeddingConfig(BaseModel):
     """Configuration for OpenAI-compatible embeddings (maps to ``OpenAIEmbeddings``)."""
 
     type: Literal[EmbeddingLLMType.OpenAI]
-    endpoint: Annotated[str, Field(
-        description="The OpenAI-compatible base URL",
-    )]
-    api_key: Annotated[str | None, Field(
-        description="The API key for authentication",
-        default_factory=lambda: os.environ.get("OPENAI_API_KEY"),
-    )]
-    timeout: Annotated[float, Field(
-        description="Request timeout in seconds",
-        default=180.0,
-    )]
-    model: Annotated[str, Field(
-        description="The model identifier to use for embeddings",
-    )]
+    endpoint: Annotated[
+        str,
+        Field(
+            description="The OpenAI-compatible base URL",
+        ),
+    ]
+    api_key: Annotated[
+        str | None,
+        Field(
+            description="The API key for authentication",
+            default_factory=lambda: os.environ.get("OPENAI_API_KEY"),
+        ),
+    ]
+    timeout: Annotated[
+        float,
+        Field(
+            description="Request timeout in seconds",
+            default=180.0,
+        ),
+    ]
+    model: Annotated[
+        str,
+        Field(
+            description="The model identifier to use for embeddings",
+        ),
+    ]
 
     def langchain_kwargs(self) -> dict:
         """Return kwargs suitable for ``OpenAIEmbeddings(...)``."""
@@ -148,26 +189,44 @@ class AzureOpenAIEmbeddingConfig(BaseModel):
     """Configuration for Azure OpenAI embeddings (maps to ``AzureOpenAIEmbeddings``)."""
 
     type: Literal[EmbeddingLLMType.AzureOpenAI]
-    endpoint: Annotated[str, Field(
-        description="The Azure OpenAI endpoint URL",
-    )]
-    deployment: Annotated[str, Field(
-        description="The deployment name for the embedding model",
-    )]
-    api_version: Annotated[str, Field(
-        description="The Azure OpenAI API version to use",
-    )]
-    api_key: Annotated[str | None, Field(
-        description="The API key for authentication",
-        default_factory=lambda: os.environ.get("OPENAI_API_KEY"),
-    )]
-    timeout: Annotated[float, Field(
-        description="Request timeout in seconds",
-        default=180.0,
-    )]
-    model: Annotated[str, Field(
-        description="The model identifier to use for embeddings",
-    )]
+    endpoint: Annotated[
+        str,
+        Field(
+            description="The Azure OpenAI endpoint URL",
+        ),
+    ]
+    deployment: Annotated[
+        str,
+        Field(
+            description="The deployment name for the embedding model",
+        ),
+    ]
+    api_version: Annotated[
+        str,
+        Field(
+            description="The Azure OpenAI API version to use",
+        ),
+    ]
+    api_key: Annotated[
+        str | None,
+        Field(
+            description="The API key for authentication",
+            default_factory=lambda: os.environ.get("OPENAI_API_KEY"),
+        ),
+    ]
+    timeout: Annotated[
+        float,
+        Field(
+            description="Request timeout in seconds",
+            default=180.0,
+        ),
+    ]
+    model: Annotated[
+        str,
+        Field(
+            description="The model identifier to use for embeddings",
+        ),
+    ]
 
     def langchain_kwargs(self) -> dict:
         """Return kwargs suitable for ``AzureOpenAIEmbeddings(...)``."""
@@ -182,6 +241,7 @@ class AzureOpenAIEmbeddingConfig(BaseModel):
             kw["api_key"] = self.api_key
         else:
             from azure.identity import DefaultAzureCredential, get_bearer_token_provider
+
             kw["azure_ad_token_provider"] = get_bearer_token_provider(
                 DefaultAzureCredential(),
                 "https://cognitiveservices.azure.com/.default",

@@ -31,10 +31,11 @@ Usage::
 """
 
 import functools
-from typing import Any, Callable, TypeVar
+from collections.abc import Callable
+from typing import Any, TypeVar
 
-from novelrag.tracer.tracer import get_active_tracer
 from novelrag.tracer.span import SpanKind
+from novelrag.tracer.tracer import get_active_tracer
 
 F = TypeVar("F", bound=Callable[..., Any])
 
@@ -42,6 +43,7 @@ F = TypeVar("F", bound=Callable[..., Any])
 # ---------------------------------------------------------------------------
 # Internal helper
 # ---------------------------------------------------------------------------
+
 
 def _make_decorator(
     kind: SpanKind,
@@ -83,6 +85,7 @@ def _make_decorator(
                 # Also try positional args via parameter inspection.
                 if span_name == fn.__name__:
                     import inspect
+
                     sig = inspect.signature(fn)
                     params = list(sig.parameters.keys())
                     if name_kwarg in params:

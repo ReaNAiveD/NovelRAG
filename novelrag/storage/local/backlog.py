@@ -58,15 +58,17 @@ class LocalBacklog(MemoryBacklog):
 
     @classmethod
     def load(cls, path: str) -> "LocalBacklog":
-        import os
         import json
+        import os
 
         if not os.path.exists(path):
             return cls(path)
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             data = json.load(f)
         if not isinstance(data, list):
-            raise ValueError(f"Invalid backlog file format at {path!r}: expected a list of entries, got {type(data).__name__}")
+            raise ValueError(
+                f"Invalid backlog file format at {path!r}: expected a list of entries, got {type(data).__name__}"
+            )
         entries = []
         for entry in data:
             # Support both new format (type/priority/description/metadata)
@@ -75,17 +77,19 @@ class LocalBacklog(MemoryBacklog):
                 entries.append(BacklogEntry.from_dict(entry))
             else:
                 # Legacy: {"content": "...", "priority": ...}
-                entries.append(BacklogEntry(
-                    type="other",
-                    priority=entry.get("priority", 20) if isinstance(entry.get("priority"), int) else 20,
-                    description=entry.get("content", ""),
-                ))
+                entries.append(
+                    BacklogEntry(
+                        type="other",
+                        priority=entry.get("priority", 20) if isinstance(entry.get("priority"), int) else 20,
+                        description=entry.get("content", ""),
+                    )
+                )
 
         return cls(path, entries)
 
     def save(self) -> None:
-        import os
         import json
+        import os
 
         dir_path = os.path.dirname(self.path)
         if dir_path:

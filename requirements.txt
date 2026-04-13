@@ -1,7 +1,0 @@
-lancedb
-langchain-core>=0.3
-langchain-openai>=0.3
-pyarrow
-pydantic
-pyyaml
-pyaml-env

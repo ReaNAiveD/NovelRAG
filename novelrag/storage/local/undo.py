@@ -6,8 +6,12 @@ from novelrag.resource_agent.undo import ReversibleAction, UndoQueue
 class MemoryUndoQueue(UndoQueue):
     """Undo/redo stacks kept entirely in memory."""
 
-    def __init__(self, undo_stack: list[ReversibleAction] | None = None,
-                 redo_stack: list[ReversibleAction] | None = None, stack_size: int | None = 100) -> None:
+    def __init__(
+        self,
+        undo_stack: list[ReversibleAction] | None = None,
+        redo_stack: list[ReversibleAction] | None = None,
+        stack_size: int | None = 100,
+    ) -> None:
         self.undo_stack: list[ReversibleAction] = undo_stack if undo_stack is not None else []
         self.redo_stack: list[ReversibleAction] = redo_stack if redo_stack is not None else []
         self.stack_size = stack_size
@@ -74,18 +78,23 @@ class MemoryUndoQueue(UndoQueue):
 class LocalUndoQueue(MemoryUndoQueue):
     """Memory undo queue that persists to a local JSON file."""
 
-    def __init__(self, path: str, undo_stack: list[ReversibleAction] | None = None,
-                 redo_stack: list[ReversibleAction] | None = None, stack_size: int | None = 100) -> None:
+    def __init__(
+        self,
+        path: str,
+        undo_stack: list[ReversibleAction] | None = None,
+        redo_stack: list[ReversibleAction] | None = None,
+        stack_size: int | None = 100,
+    ) -> None:
         self.path = path
         super().__init__(undo_stack, redo_stack, stack_size)
 
     @classmethod
-    def load(cls, path: str, stack_size: int | None = 100) -> 'LocalUndoQueue':
-        import os
+    def load(cls, path: str, stack_size: int | None = 100) -> "LocalUndoQueue":
         import json
+        import os
 
         if os.path.exists(path):
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 data = json.load(f)
             undo_stack = [ReversibleAction(**item) for item in data.get("undo_stack", [])]
             redo_stack = [ReversibleAction(**item) for item in data.get("redo_stack", [])]
@@ -94,8 +103,8 @@ class LocalUndoQueue(MemoryUndoQueue):
             return cls(path, stack_size=stack_size)
 
     def _save(self) -> None:
-        import os
         import json
+        import os
 
         dir_path = os.path.dirname(self.path)
         if dir_path:

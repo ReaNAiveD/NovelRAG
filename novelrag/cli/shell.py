@@ -1,9 +1,8 @@
 import logging
 
-from novelrag.exceptions import SessionQuitError, NovelRagError
-from novelrag.cli import Session, Command
+from novelrag.cli import Command, Session
+from novelrag.exceptions import NovelRagError, SessionQuitError
 from novelrag.tracer import trace_session
-
 
 logger = logging.getLogger(__name__)
 
@@ -21,20 +20,16 @@ class NovelShell:
         if not line.strip():
             return None
 
-        parts = line.split(' ')
+        parts = line.split(" ")
         handler = None
         message = line
 
         # Parse handler (/handler)
-        if parts and parts[0].startswith('/'):
+        if parts and parts[0].startswith("/"):
             handler = parts[0][1:]
-            message = ' '.join(parts[1:])
+            message = " ".join(parts[1:])
 
-        return Command(
-            raw=line,
-            handler=handler,
-            message=message if message else None
-        )
+        return Command(raw=line, handler=handler, message=message if message else None)
 
     async def handle_command(self, line: str):
         """Process a single command line"""
@@ -54,11 +49,11 @@ class NovelShell:
         """Start the interactive shell"""
         self.running = True
         print("NovelRAG Shell (Ctrl+C to exit)")
-        
+
         while self.running:
             try:
                 prompt = "> "
-                
+
                 line = input(prompt)
                 await self.handle_command(line)
 
@@ -75,7 +70,7 @@ class NovelShell:
                 print("\nExiting...")
                 self.running = False
             except UnicodeDecodeError:
-                print(f"\nUnicode Error\nExiting...")
+                print("\nUnicode Error\nExiting...")
                 self.running = False
             except Exception as e:
                 logger.error(f"Error: {str(e)}", exc_info=e)

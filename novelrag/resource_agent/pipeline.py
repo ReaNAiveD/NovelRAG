@@ -12,24 +12,22 @@ import json
 import random
 from typing import Annotated
 
-from pydantic import BaseModel, Field
-
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_core.messages import HumanMessage, SystemMessage
+from pydantic import BaseModel, Field
 
 from novelrag.agenturn.procedure import ExecutionContext
 from novelrag.exceptions import OperationError
 from novelrag.resource.element import Element
-from novelrag.resource.repository import ResourceRepository
 from novelrag.resource.operation import validate_op
+from novelrag.resource.repository import ResourceRepository
 from novelrag.resource_agent.backlog import Backlog, BacklogEntry
-from novelrag.resource_agent.undo import ReversibleAction, UndoQueue
-from novelrag.resource_agent.workspace import ResourceContext, ContextSnapshot
 from novelrag.resource_agent.propose import ContentProposer
 from novelrag.resource_agent.tool.types import ContentGenerationTask
+from novelrag.resource_agent.undo import ReversibleAction, UndoQueue
+from novelrag.resource_agent.workspace import ContextSnapshot, ResourceContext
 from novelrag.template import TemplateEnvironment
 from novelrag.tracer import trace_llm
-
 
 # ---------------------------------------------------------------------------
 # Shared LLM response models
@@ -38,6 +36,7 @@ from novelrag.tracer import trace_llm
 
 class RankedProposal(BaseModel):
     """A single proposal with its rank."""
+
     brief_summary: Annotated[str, Field(default="", description="Brief summary of the proposal.")]
     key_strengths: Annotated[list[str], Field(default_factory=list, description="Key strengths of the proposal.")]
     diversity_note: Annotated[str, Field(default="", description="What unique aspect this proposal addresses.")]
@@ -47,54 +46,84 @@ class RankedProposal(BaseModel):
 
 class RankProposalsResponse(BaseModel):
     """LLM response for ranking content proposals."""
-    sorted_proposals: Annotated[list[RankedProposal], Field(
-        default_factory=list,
-        description="Proposals sorted by quality.",
-    )]
-    rationale_summary: Annotated[str, Field(default="", description="Brief explanation of why this ordering maximizes story improvement.")]
+
+    sorted_proposals: Annotated[
+        list[RankedProposal],
+        Field(
+            default_factory=list,
+            description="Proposals sorted by quality.",
+        ),
+    ]
+    rationale_summary: Annotated[
+        str, Field(default="", description="Brief explanation of why this ordering maximizes story improvement.")
+    ]
 
 
 class CascadeUpdate(BaseModel):
     """A single cascade update item with reason and content."""
+
     reason: Annotated[str, Field(description="Brief explanation of why this update is needed.")]
     content: Annotated[str, Field(description="Natural language description of what needs to be updated.")]
 
 
 class DiscoverRequiredUpdatesResponse(BaseModel):
     """LLM response for discovering cascade updates."""
-    perspective_updates: Annotated[list[CascadeUpdate], Field(
-        default_factory=list,
-        description="Content updates that should be applied immediately.",
-    )]
-    relation_updates: Annotated[list[CascadeUpdate], Field(
-        default_factory=list,
-        description="Relation updates that should be applied immediately.",
-    )]
+
+    perspective_updates: Annotated[
+        list[CascadeUpdate],
+        Field(
+            default_factory=list,
+            description="Content updates that should be applied immediately.",
+        ),
+    ]
+    relation_updates: Annotated[
+        list[CascadeUpdate],
+        Field(
+            default_factory=list,
+            description="Relation updates that should be applied immediately.",
+        ),
+    ]
 
 
 class BacklogItem(BaseModel):
     """A single backlog work item with concrete typed fields."""
+
     type: Annotated[str, Field(description="Category of the item (e.g. 'dependency', 'character_development').")]
     priority: Annotated[str, Field(description="Priority level: 'high', 'normal', or 'low'.")]
     description: Annotated[str, Field(description="Human-readable description of the work to do.")]
-    context_reference: Annotated[str, Field(default="", description="Reference to the part of the operation that created this item.")]
-    search_guidance: Annotated[str, Field(default="", description="Instructions for finding existing compatible resources (dependency items).")]
-    creation_guidance: Annotated[str, Field(default="", description="Instructions for creating if no existing resource fits (dependency items).")]
-    aspect_hint: Annotated[str, Field(default="", description="Suggested aspect type for the resource (dependency items).")]
+    context_reference: Annotated[
+        str, Field(default="", description="Reference to the part of the operation that created this item.")
+    ]
+    search_guidance: Annotated[
+        str, Field(default="", description="Instructions for finding existing compatible resources (dependency items).")
+    ]
+    creation_guidance: Annotated[
+        str, Field(default="", description="Instructions for creating if no existing resource fits (dependency items).")
+    ]
+    aspect_hint: Annotated[
+        str, Field(default="", description="Suggested aspect type for the resource (dependency items).")
+    ]
     rationale: Annotated[str, Field(default="", description="Why this backlog item is important (general items).")]
-    target_resources: Annotated[str, Field(default="", description="URIs or descriptions of resources this work would affect (general items).")]
+    target_resources: Annotated[
+        str, Field(default="", description="URIs or descriptions of resources this work would affect (general items).")
+    ]
 
 
 class DiscoverBacklogResponse(BaseModel):
     """LLM response for discovering future work items."""
-    backlog_items: Annotated[list[BacklogItem], Field(
-        default_factory=list,
-        description="Future work items to add to the backlog.",
-    )]
+
+    backlog_items: Annotated[
+        list[BacklogItem],
+        Field(
+            default_factory=list,
+            description="Future work items to add to the backlog.",
+        ),
+    ]
 
 
 class ParseRelationUrisResponse(BaseModel):
     """LLM response for parsing relation update URIs."""
+
     source_uri: Annotated[str | None, Field(default=None, description="Parsed source resource URI.")]
     target_uri: Annotated[str | None, Field(default=None, description="Parsed target resource URI.")]
     error: Annotated[str | None, Field(default=None, description="Error message if URIs could not be parsed.")]
@@ -102,14 +131,21 @@ class ParseRelationUrisResponse(BaseModel):
 
 class BuildRelationUpdateResponse(BaseModel):
     """LLM response for building updated relation lists."""
-    source_to_target_relations: Annotated[list[str], Field(
-        default_factory=list,
-        description="Updated relation descriptions from source to target.",
-    )]
-    target_to_source_relations: Annotated[list[str], Field(
-        default_factory=list,
-        description="Updated relation descriptions from target to source.",
-    )]
+
+    source_to_target_relations: Annotated[
+        list[str],
+        Field(
+            default_factory=list,
+            description="Updated relation descriptions from source to target.",
+        ),
+    ]
+    target_to_source_relations: Annotated[
+        list[str],
+        Field(
+            default_factory=list,
+            description="Updated relation descriptions from target to source.",
+        ),
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -156,7 +192,7 @@ class ContentGenerationProcedure:
         """
         content_results: list[dict] = []
         for i, task in enumerate(content_generation_tasks):
-            await ctx.info(f"Generating content for task {i+1}/{len(content_generation_tasks)}: {task.description}")
+            await ctx.info(f"Generating content for task {i + 1}/{len(content_generation_tasks)}: {task.description}")
             await ctx.output(f"Generating content: {task.description}")
 
             content_description = (
@@ -167,11 +203,12 @@ class ContentGenerationProcedure:
                 f"and the overall operation goal."
             )
 
-            proposals = [await proposer.propose(
-                believes=[],
-                content_description=content_description,
-                context=await self._context.snapshot()
-            ) for proposer in self._proposers]
+            proposals = [
+                await proposer.propose(
+                    believes=[], content_description=content_description, context=await self._context.snapshot()
+                )
+                for proposer in self._proposers
+            ]
             proposals = [proposal for proposal_set in proposals for proposal in proposal_set]
             if not proposals:
                 await ctx.warning(f"No content generated for task: {task.description}")
@@ -180,21 +217,21 @@ class ContentGenerationProcedure:
             selected_content = await self._select_proposal(ranked_proposals)
             await ctx.debug(f"Generated content: {selected_content}")
 
-            content_results.append({
-                "description": task.description,
-                "content_key": task.content_key,
-                "content": selected_content
-            })
+            content_results.append(
+                {"description": task.description, "content_key": task.content_key, "content": selected_content}
+            )
 
         return content_results
 
     @trace_llm("proposal_ranking")
     async def _rank_proposals(self, proposals: list[str]) -> list[str]:
         prompt = self._sort_proposals_tmpl.render(proposals=proposals)
-        response = await self._rank_llm.ainvoke([
-            SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
-            HumanMessage(content="Rank the proposals by quality."),
-        ])
+        response = await self._rank_llm.ainvoke(
+            [
+                SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
+                HumanMessage(content="Rank the proposals by quality."),
+            ]
+        )
         assert isinstance(response, RankProposalsResponse)
 
         ordered_proposals = []
@@ -211,7 +248,7 @@ class ContentGenerationProcedure:
             raise ValueError("Cannot select from empty proposals list")
         if len(proposals) == 1:
             return proposals[0]
-        weights = [2**(len(proposals) - 1 - i) for i in range(len(proposals))]
+        weights = [2 ** (len(proposals) - 1 - i) for i in range(len(proposals))]
         return random.choices(proposals, weights=weights, k=1)[0]
 
 
@@ -298,15 +335,21 @@ class CascadeUpdateProcedure:
                 try:
                     undo_op = await self._repo.apply(validated_operation)
                     if self._undo is not None:
-                        await self._undo.add_undo_item(ReversibleAction(method="apply", params={"op": undo_op.model_dump()}), clear_redo=True)
-                    perspective_updates_applied.append({
-                        "reason": update.reason,
-                        "content": update.content,
-                        "operation": validated_operation.model_dump(),
-                        "undo_operation": undo_op.model_dump(),
-                    })
+                        await self._undo.add_undo_item(
+                            ReversibleAction(method="apply", params={"op": undo_op.model_dump()}), clear_redo=True
+                        )
+                    perspective_updates_applied.append(
+                        {
+                            "reason": update.reason,
+                            "content": update.content,
+                            "operation": validated_operation.model_dump(),
+                            "undo_operation": undo_op.model_dump(),
+                        }
+                    )
                 except OperationError as e:
-                    await ctx.warning(f"Failed to apply perspective update operation: {e}\nOperation: {validated_operation}")
+                    await ctx.warning(
+                        f"Failed to apply perspective update operation: {e}\nOperation: {validated_operation}"
+                    )
 
         # Process relation updates second
         if required_updates.relation_updates:
@@ -328,7 +371,9 @@ class CascadeUpdateProcedure:
         return perspective_updates_applied, relation_updates_applied
 
     @trace_llm("discover_updates")
-    async def _discover_required_updates(self, step_description: str, operations: list[dict], undo_operations: list[dict], context: ContextSnapshot) -> DiscoverRequiredUpdatesResponse:
+    async def _discover_required_updates(
+        self, step_description: str, operations: list[dict], undo_operations: list[dict], context: ContextSnapshot
+    ) -> DiscoverRequiredUpdatesResponse:
         """Discover cascade content updates and relation updates."""
         prompt = self._discover_updates_tmpl.render(
             step_description=step_description,
@@ -336,15 +381,24 @@ class CascadeUpdateProcedure:
             undo_operations=undo_operations,
             context=context,
         )
-        response = await self._discover_updates_llm.ainvoke([
-            SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
-            HumanMessage(content="Discover required updates."),
-        ])
+        response = await self._discover_updates_llm.ainvoke(
+            [
+                SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
+                HumanMessage(content="Discover required updates."),
+            ]
+        )
         assert isinstance(response, DiscoverRequiredUpdatesResponse)
         return response
 
     @trace_llm("perspective_update")
-    async def _build_perspective_update_operation(self, update: CascadeUpdate, step_description: str, operations: list[dict], undo_operations: list[dict], context: ContextSnapshot) -> dict:
+    async def _build_perspective_update_operation(
+        self,
+        update: CascadeUpdate,
+        step_description: str,
+        operations: list[dict],
+        undo_operations: list[dict],
+        context: ContextSnapshot,
+    ) -> dict:
         """Build a perspective update operation from the update description."""
         prompt = self._build_perspective_tmpl.render(
             update=update.model_dump(),
@@ -353,10 +407,13 @@ class CascadeUpdateProcedure:
             undo_operations=undo_operations,
             context=context,
         )
-        response = await self._chat_llm.ainvoke([
-            SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
-            HumanMessage(content="Build the perspective update operation in JSON format."),
-        ], response_format={"type": "json_object"})
+        response = await self._chat_llm.ainvoke(
+            [
+                SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
+                HumanMessage(content="Build the perspective update operation in JSON format."),
+            ],
+            response_format={"type": "json_object"},
+        )
         assert isinstance(response.content, str), "Expected string content from LLM response"
         return json.loads(response.content)
 
@@ -403,8 +460,8 @@ class CascadeUpdateProcedure:
 
         updated_relations = await self._build_relation_update(
             update=update.model_dump(),
-            source_resource=source_resource.context_dict if hasattr(source_resource, 'context_dict') else {},
-            target_resource=target_resource.context_dict if hasattr(target_resource, 'context_dict') else {},
+            source_resource=source_resource.context_dict if hasattr(source_resource, "context_dict") else {},
+            target_resource=target_resource.context_dict if hasattr(target_resource, "context_dict") else {},
             source_to_target_existing=source_to_target_existing,
             target_to_source_existing=target_to_source_existing,
             step_description=step_description,
@@ -424,24 +481,34 @@ class CascadeUpdateProcedure:
 
         if isinstance(source_resource, Element):
             source_to_target_relations = updated_relations.source_to_target_relations
-            old_relationships = await self._repo.update_relationships(source_uri, target_uri, source_to_target_relations)
+            old_relationships = await self._repo.update_relationships(
+                source_uri, target_uri, source_to_target_relations
+            )
             if self._undo is not None:
-                await self._undo.add_undo_item(ReversibleAction(
-                    method="update_relationships",
-                    params={"source_uri": source_uri, "target_uri": target_uri, "relations": old_relationships}
-                ), clear_redo=True)
+                await self._undo.add_undo_item(
+                    ReversibleAction(
+                        method="update_relationships",
+                        params={"source_uri": source_uri, "target_uri": target_uri, "relations": old_relationships},
+                    ),
+                    clear_redo=True,
+                )
             await ctx.output(f"Updated relations: {source_uri} → {target_uri}")
             rel_result["old_source_to_target"] = old_relationships
             rel_result["new_source_to_target"] = source_to_target_relations
 
         if isinstance(target_resource, Element):
             target_to_source_relations = updated_relations.target_to_source_relations
-            old_relationships = await self._repo.update_relationships(target_uri, source_uri, target_to_source_relations)
+            old_relationships = await self._repo.update_relationships(
+                target_uri, source_uri, target_to_source_relations
+            )
             if self._undo is not None:
-                await self._undo.add_undo_item(ReversibleAction(
-                    method="update_relationships",
-                    params={"source_uri": target_uri, "target_uri": source_uri, "relations": old_relationships}
-                ), clear_redo=True)
+                await self._undo.add_undo_item(
+                    ReversibleAction(
+                        method="update_relationships",
+                        params={"source_uri": target_uri, "target_uri": source_uri, "relations": old_relationships},
+                    ),
+                    clear_redo=True,
+                )
             await ctx.output(f"Updated relations: {target_uri} → {source_uri}")
             rel_result["old_target_to_source"] = old_relationships
             rel_result["new_target_to_source"] = target_to_source_relations
@@ -449,13 +516,17 @@ class CascadeUpdateProcedure:
         return rel_result
 
     @trace_llm("parse_relation_uris")
-    async def _parse_relation_update_uris(self, update: dict[str, str], context: ContextSnapshot) -> ParseRelationUrisResponse:
+    async def _parse_relation_update_uris(
+        self, update: dict[str, str], context: ContextSnapshot
+    ) -> ParseRelationUrisResponse:
         """Parse source and target URIs from a relation update description."""
         prompt = self._parse_relation_uris_tmpl.render(update=update, context=context)
-        response = await self._parse_uris_llm.ainvoke([
-            SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
-            HumanMessage(content="Parse the relation URIs."),
-        ])
+        response = await self._parse_uris_llm.ainvoke(
+            [
+                SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
+                HumanMessage(content="Parse the relation URIs."),
+            ]
+        )
         assert isinstance(response, ParseRelationUrisResponse)
         return response
 
@@ -484,10 +555,12 @@ class CascadeUpdateProcedure:
             undo_operations=undo_operations,
             context=context,
         )
-        response = await self._relation_update_llm.ainvoke([
-            SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
-            HumanMessage(content="Build the relation update."),
-        ])
+        response = await self._relation_update_llm.ainvoke(
+            [
+                SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
+                HumanMessage(content="Build the relation update."),
+            ]
+        )
         assert isinstance(response, BuildRelationUpdateResponse)
         return response
 
@@ -539,13 +612,16 @@ class BacklogDiscoveryProcedure:
         backlog_count = 0
         if backlog_items and self._backlog is not None:
             backlog_count = len(backlog_items)
-            await ctx.output(f"Discovered {backlog_count} backlog item(s):\n{''.join(f'- {item.description}\n' for item in backlog_items)}")
+            items_list = "".join(f"- {item.description}\n" for item in backlog_items)
+            await ctx.output(f"Discovered {backlog_count} backlog item(s):\n{items_list}")
             for item in backlog_items:
                 await self._backlog.add_entry(BacklogEntry.from_dict(item.model_dump()))
         return backlog_count
 
     @trace_llm("discover_backlog")
-    async def _discover_backlog(self, step_description: str, operations: list[dict], undo_operations: list[dict], context: ContextSnapshot) -> list[BacklogItem]:
+    async def _discover_backlog(
+        self, step_description: str, operations: list[dict], undo_operations: list[dict], context: ContextSnapshot
+    ) -> list[BacklogItem]:
         """Discover backlog items including dependency items and other future work items."""
         prompt = self._discover_backlog_tmpl.render(
             step_description=step_description,
@@ -553,9 +629,11 @@ class BacklogDiscoveryProcedure:
             undo_operations=undo_operations,
             context=context,
         )
-        response = await self._discover_backlog_llm.ainvoke([
-            SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
-            HumanMessage(content="Discover backlog items."),
-        ])
+        response = await self._discover_backlog_llm.ainvoke(
+            [
+                SystemMessage(content=f"{self._lang_directive}\n\n{prompt}" if self._lang_directive else prompt),
+                HumanMessage(content="Discover backlog items."),
+            ]
+        )
         assert isinstance(response, DiscoverBacklogResponse)
         return response.backlog_items

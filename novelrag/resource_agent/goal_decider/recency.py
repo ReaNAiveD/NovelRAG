@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import logging
 from collections import Counter
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 from novelrag.resource_agent.undo import UndoQueue
 

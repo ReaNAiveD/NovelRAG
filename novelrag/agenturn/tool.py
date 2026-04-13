@@ -7,28 +7,28 @@ This module provides:
 """
 
 from abc import ABC, abstractmethod
-from enum import Enum
-from typing import Any
+from enum import StrEnum
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, Field, TypeAdapter, ConfigDict
-from typing_extensions import Literal, Annotated
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
 from novelrag.agenturn.procedure import ExecutionContext
-
 
 # ---------------------------------------------------------------------------
 # Tool output types
 # ---------------------------------------------------------------------------
 
 
-class ToolOutputType(str, Enum):
+class ToolOutputType(StrEnum):
     """Types of tool outputs"""
+
     OUTPUT = "output"
     ERROR = "error"
 
 
 class ToolOutputBase(BaseModel):
     """Base class for all tool outputs"""
+
     model_config = ConfigDict(extra="forbid")
 
     type: Annotated[ToolOutputType, Field(description="Type of the output")]
@@ -36,21 +36,20 @@ class ToolOutputBase(BaseModel):
 
 class ToolError(ToolOutputBase):
     """Error encountered during tool execution"""
-    type: Literal[ToolOutputType.ERROR] = ToolOutputType.ERROR  # type: ignore
+
+    type: Literal[ToolOutputType.ERROR] = ToolOutputType.ERROR
     error_message: Annotated[str, Field(description="Error message")]
 
 
 class ToolResult(ToolOutputBase):
     """Output result of current step, managed by framework"""
-    type: Literal[ToolOutputType.OUTPUT] = ToolOutputType.OUTPUT  # type: ignore
+
+    type: Literal[ToolOutputType.OUTPUT] = ToolOutputType.OUTPUT
     result: Annotated[str, Field(description="Result data")]
 
 
 # Union type for all possible outputs
-ToolOutput = Annotated[
-    ToolResult | ToolError,
-    Field(discriminator='type')
-]
+ToolOutput = Annotated[ToolResult | ToolError, Field(discriminator="type")]
 
 
 def validate_tool_output(data: dict) -> ToolOutput:

@@ -1,6 +1,6 @@
+import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-import logging
 from typing import Any
 
 from .aspect import ResourceAspect
@@ -26,6 +26,7 @@ class RemovedAspectResult:
         elements: Element dicts for restoring via ``add_aspect(elements=...)``.
                   Structure is backend-specific (nested for local, flat for PG).
     """
+
     aspect: ResourceAspect
     restore_context: dict[str, Any]
     elements: list[dict]
@@ -41,7 +42,9 @@ class ResourceRepository(ABC):
         pass
 
     @abstractmethod
-    async def add_aspect(self, name: str, metadata: dict[str, Any], elements: list[dict] | None = None) -> ResourceAspect:
+    async def add_aspect(
+        self, name: str, metadata: dict[str, Any], elements: list[dict] | None = None
+    ) -> ResourceAspect:
         """Add a new aspect to the repository.
 
         Args:
@@ -71,10 +74,10 @@ class ResourceRepository(ABC):
     @abstractmethod
     async def find_by_uri(self, resource_uri: str) -> list[str] | ResourceAspect | Element | None:
         """Find a resource by its URI in the repository.
-        
+
         Args:
             resource_uri: The URI of the resource to find
-        
+
         Returns:
             - list[str]: All aspect names if resource_uri is '/'
             - ResourceAspect: Single aspect if resource_uri matches '/{aspect_name}'
@@ -84,9 +87,11 @@ class ResourceRepository(ABC):
         pass
 
     @abstractmethod
-    async def vector_search(self, query: str, *, aspect: str | None = None, limit: int | None = None) -> list[SearchResult]:
+    async def vector_search(
+        self, query: str, *, aspect: str | None = None, limit: int | None = None
+    ) -> list[SearchResult]:
         """Search for resources using vector similarity.
-        
+
         Args:
             query: The search query string
             aspect: Optional aspect to filter results
@@ -97,7 +102,7 @@ class ResourceRepository(ABC):
     @abstractmethod
     async def apply(self, op: Operation) -> Operation:
         """Apply an operation to modify the repository.
-        
+
         Args:
             op: The operation to apply
         """

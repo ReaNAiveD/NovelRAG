@@ -22,7 +22,6 @@ tools, and the agent loop.  It provides three unified facets:
   free-form input
 """
 
-import logging
 from abc import ABC, abstractmethod
 
 
